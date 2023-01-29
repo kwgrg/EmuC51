@@ -1,4 +1,8 @@
+mod binfile;
+
 fn main() {
-    println!("Hello, world!");
-    println!("Hello, world 2!")
+    let A = binfile::import(String::from(".\\tests\\helpfiles\\testc51a.bin"));
+    let B = binfile::import(String::from(".\\tests\\helpfiles\\testc51b.bin"));
+    A.print();
+    B.print();
 }
