@@ -10,6 +10,14 @@ pub struct Program {
 }
 
 impl Program {
+    pub fn getn(&self, pos: usize, len: usize) -> Vec<u8> {
+        let mut ret = Vec::new();
+        for i in 0..len {
+            ret.push(self.content[pos+i]);
+        }
+        ret
+    }
+
     pub fn print(&self) {
         for c in &self.content {
             print!("{:#x} ", c);
@@ -21,13 +29,4 @@ impl Program {
 pub fn import(s: String) -> Program {
     let mut p = Program { content: fs::read(&s).unwrap() };
     p
-}
-
-fn print(s: String) {
-    let content = fs::read(&s).unwrap();
-    println!("{}", &s);
-    for c in &content {
-        print!("{:#x} ", c);
-    } 
-    println!("\n***");
 }
