@@ -1,12 +1,13 @@
 mod binfile;
+mod opcode;
+mod memory;
 
 fn main() {
-    let A = binfile::import(String::from(".\\tests\\helpfiles\\testc51a.bin"));
-    let B = binfile::import(String::from(".\\tests\\helpfiles\\testc51b.bin"));
-    A.print();
-    B.print();
-    print(B.getn(0,3));
-    print(B.getn(2,1));
+    let a = binfile::import(String::from(".\\tests\\helpfiles\\testc51a.bin"));
+    let b = binfile::import(String::from(".\\tests\\helpfiles\\testc51b.bin"));
+    print(a.getn(0, 1000));
+    print(b.getn(0,256));
+    print(b.getn(126,10));
 }
 
 
