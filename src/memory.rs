@@ -1,3 +1,10 @@
+// Constans for MCS51. Unit: byte
+const INTERNAL_PROG_MEM_SIZE: usize = 4 * 1024;
+const EXTERNAL_PROG_MEM_SIZE: usize = 64 * 1024 - INTERNAL_PROG_MEM_SIZE;
+const ON_CHIP_DATA_MEM_SIZE: usize = 128;
+const SPEC_FUNC_REG_DATA_MEM_SIZE: usize = 128;
+const EXTERNAL_DATA_MEM_SIZE: usize = 64 * 1024;
+
 pub struct ProgramMemory {
     // internal program memory
     internal: Vec<u8>,
@@ -8,20 +15,17 @@ pub struct ProgramMemory {
 
 impl ProgramMemory {
     pub fn new(content: Vec<u8>) -> Self {
-        const INTERNAL_PROG_MEM: usize = 4 * 1024; // bytes
-        const EXTERNAL_PROG_MEM: usize = 64 * 1024 - INTERNAL_PROG_MEM; // bytes
-
         let mut obj = ProgramMemory { 
-            internal: Vec::with_capacity(INTERNAL_PROG_MEM), 
-            external: Vec::with_capacity(EXTERNAL_PROG_MEM) 
+            internal: vec![0;INTERNAL_PROG_MEM_SIZE], 
+            external: vec![0;EXTERNAL_PROG_MEM_SIZE] 
         };
         for i in 0..content.len() {
-            if i < INTERNAL_PROG_MEM {
-                obj.internal.push(content[i]);
-            }else if i < (INTERNAL_PROG_MEM + EXTERNAL_PROG_MEM) {
-                obj.external.push(content[i]);
+            if i < INTERNAL_PROG_MEM_SIZE {
+                obj.internal[i] = content[i];
+            }else if i < (INTERNAL_PROG_MEM_SIZE + EXTERNAL_PROG_MEM_SIZE) {
+                obj.external[i - INTERNAL_PROG_MEM_SIZE] = content[i];
             }else{
-                // wrong!
+                panic!("no enough program memory for input content!");
             }
         }
 
@@ -31,12 +35,12 @@ impl ProgramMemory {
     pub fn getn(&self, pos: usize, len: usize) -> Vec<u8> {
         let mut obj = Vec::with_capacity(len);
         for i in 0..len {
-            if (pos + i) < self.internal.len() {
+            if (pos + i) < INTERNAL_PROG_MEM_SIZE {
                 obj.push(self.internal[pos + i]);
-            }else if (pos + i) < (self.internal.len() + self.external.len()) {
+            }else if (pos + i) < (INTERNAL_PROG_MEM_SIZE + EXTERNAL_PROG_MEM_SIZE) {
                 obj.push(self.external[pos + i - self.internal.len()]);
             }else{
-                // wrong!
+                panic!("{} is out of program range (0~{})", pos + i, INTERNAL_PROG_MEM_SIZE + EXTERNAL_PROG_MEM_SIZE - 1);
             }
         }
 
@@ -56,5 +60,11 @@ pub struct DataMemory {
 }
 
 impl DataMemory {
-
+    pub fn new() -> Self {
+        DataMemory { 
+            on_chip: vec![0;ON_CHIP_DATA_MEM_SIZE], 
+            spec_func_reg: vec![0;SPEC_FUNC_REG_DATA_MEM_SIZE], 
+            external: vec![0;EXTERNAL_DATA_MEM_SIZE]
+        }
+    }
 }
