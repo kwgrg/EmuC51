@@ -1,9 +1,7 @@
-// Constants for MCS51. Unit: byte
+// Constants of Program Memory for MCS51. Unit: byte
 const INTERNAL_PROG_MEM_SIZE: usize = 4 * 1024;
 const EXTERNAL_PROG_MEM_SIZE: usize = 64 * 1024 - INTERNAL_PROG_MEM_SIZE;
-const ON_CHIP_DATA_MEM_SIZE: usize = 128;
-const SPEC_FUNC_REG_DATA_MEM_SIZE: usize = 128;
-const EXTERNAL_DATA_MEM_SIZE: usize = 64 * 1024;
+
 
 pub struct ProgramMemory { 
     //
@@ -57,10 +55,40 @@ impl ProgramMemory {
 
 }
 
+
+// Constants of Data Memory for MCS51. Unit of SIZE: byte
+const ON_CHIP_DATA_MEM_START: usize = 0x0;
+const ON_CHIP_DATA_MEM_SIZE: usize = 128;
+
+const SPEC_FUNC_REG_DATA_MEM_START: usize = 0x80;
+const SPEC_FUNC_REG_DATA_MEM_SIZE: usize = 128;
+
+const RIGISTER_BANK_N_START: [usize; 4] = [0x0, 0x8, 0x10, 0x18];
+const RIGISTER_BANK_N_SIZE: usize = 8;
+const RIGISTER_BANK_SIZE: usize = RIGISTER_BANK_N_SIZE * RIGISTER_BANK_N_START.len();
+
+const BIT_AREA_ADDRESSING_START: usize = 0x0;
+const BIT_AREA_ADDRESSING_SIZE: usize = 128;
+const BIT_AREA_REAL_START: usize = 0x20;
+const BIT_AREA_REAL_SIZE: usize = 16;
+const BIT_MASK_N: [usize; 8] = [1 << 0, 1 << 1, 1 << 2, 1 << 3, 1 << 4, 1 << 5, 1 << 6, 1 << 7];
+
+const EXTERNAL_DATA_MEM_START: usize = 0x0;
+const EXTERNAL_DATA_MEM_SIZE: usize = 64 * 1024;
+
+
+#[derive(Debug)]
 enum DataMemoryType {
     OnChipRam,   // on-chip RAM
     SpecFuncReg, // special function registers
     ExternalRam, // external RAM
+}
+
+enum AddressingMode {
+    Indirect, // indirect addressing
+    Direct,   // direct addressing
+    Bit,      // bit addressing
+    External, // external address
 }
 
 pub struct DataMemory { 
@@ -93,16 +121,16 @@ impl DataMemory {
 
         // switch to expected data memory according to type
         let mem = match mtype { 
-            OnChipRam => &self.on_chip,
-            SpecFuncReg => &self.spec_func_reg,
-            ExternalRam => &self.external,
+            DataMemoryType::OnChipRam => &self.on_chip,
+            DataMemoryType::SpecFuncReg => &self.spec_func_reg,
+            DataMemoryType::ExternalRam => &self.external,
         };
 
         for i in 0..mem.len() {
             if (pos + i) < mem.len() { // found in data memory
                 obj.push(mem[pos + i]);
             }else{ // out of range
-                panic!("{} is out of data memory ({}) range (0~{})", pos + i, mtype, mem.len());
+                panic!("{} is out of data memory ({:?}) range (0~{})", pos + i, mtype, mem.len());
             }
         }
 
