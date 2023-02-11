@@ -84,7 +84,7 @@ enum DataMemoryType {
     ExternalRam, // external RAM
 }
 
-enum AddressingMode {
+pub enum AddressingMode {
     Indirect, // indirect addressing
     Direct,   // direct addressing
     Bit,      // bit addressing
