@@ -67,11 +67,9 @@ const RIGISTER_BANK_N_START: [usize; 4] = [0x0, 0x8, 0x10, 0x18];
 const RIGISTER_BANK_N_SIZE: usize = 8;
 const RIGISTER_BANK_SIZE: usize = RIGISTER_BANK_N_SIZE * RIGISTER_BANK_N_START.len();
 
-const BIT_AREA_ADDRESSING_START: usize = 0x0;
-const BIT_AREA_ADDRESSING_SIZE: usize = 128;
-const BIT_AREA_REAL_START: usize = 0x20;
-const BIT_AREA_REAL_SIZE: usize = 16;
-const BIT_MASK_N: [usize; 8] = [1 << 0, 1 << 1, 1 << 2, 1 << 3, 1 << 4, 1 << 5, 1 << 6, 1 << 7];
+const ON_CHIP_BIT_AREA_ADDRESSING_START: usize = 0x0;
+const ON_CHIP_BIT_AREA_ADDRESSING_SIZE: usize = 128;
+const ON_CHIP_BIT_AREA_REAL_START: usize = 0x20;
 
 const EXTERNAL_DATA_MEM_START: usize = 0x0;
 const EXTERNAL_DATA_MEM_SIZE: usize = 64 * 1024;
@@ -115,9 +113,9 @@ impl DataMemory {
     }
 
     // [base func for internal use]
-    // get n bytes from specific address in certain type of data memory
-    fn getn(&self, mtype: DataMemoryType, pos: usize, len: usize) -> Vec<u8> {
-        let mut obj = Vec::with_capacity(len);
+    // get byte from specific address in certain type of data memory
+    fn get_byte(&self, mtype: DataMemoryType, pos: usize) -> u8 {
+        let mut ret: u8;
 
         // switch to expected data memory according to type
         let mem = match mtype { 
@@ -126,15 +124,76 @@ impl DataMemory {
             DataMemoryType::ExternalRam => &self.external,
         };
 
-        for i in 0..mem.len() {
-            if (pos + i) < mem.len() { // found in data memory
-                obj.push(mem[pos + i]);
-            }else{ // out of range
-                panic!("{} is out of data memory ({:?}) range (0~{})", pos + i, mtype, mem.len());
-            }
+        let real_pos = match mtype { // SFRs start from SPEC_FUNC_REG_DATA_MEM_START
+            DataMemoryType::SpecFuncReg => pos - SPEC_FUNC_REG_DATA_MEM_START,
+            _ => pos,
+        };
+
+        if real_pos < mem.len() {
+            ret = mem[real_pos];
+        }else{ // out of range
+            panic!("{} is out of data memory ({:?}) range (0~{})", real_pos, mtype, mem.len());
         }
 
-        obj
+        ret
+    }
+
+    fn get_byte_with_bit_addressing(&self, pos: usize) -> u8 {
+        let mut ret: u8;
+
+        if pos < ON_CHIP_BIT_AREA_ADDRESSING_START + ON_CHIP_BIT_AREA_ADDRESSING_SIZE {
+            // 0~0x7F mapped to 0x20.0~0x2F.7
+            let primary = pos / 8 + ON_CHIP_BIT_AREA_REAL_START;
+            let offset = pos % 8;
+            ret = self.get_byte(DataMemoryType::OnChipRam, primary) & (1 << offset);
+        }else if pos < SPEC_FUNC_REG_DATA_MEM_START + SPEC_FUNC_REG_DATA_MEM_SIZE {
+            // 0x80~0x8F mapped to 0x80.0~0x80.7 for every 8 address in 0x80~0xFF
+            let primary = (pos >> 3) << 3;
+            let offset = pos % 8;
+            ret = self.get_byte(DataMemoryType::SpecFuncReg, primary) & (1 << offset);
+        }else{ // out of range
+            panic!("{} is out of bit addressing area", pos);
+        }
+
+        ret
+    }
+
+    fn get_byte_with_direct_addressing(&self, pos: usize) -> u8 {
+        let mut ret: u8;
+
+        if pos < ON_CHIP_DATA_MEM_START + ON_CHIP_DATA_MEM_SIZE {
+            ret = self.get_byte(DataMemoryType::OnChipRam, pos);
+        }else if pos < SPEC_FUNC_REG_DATA_MEM_START + SPEC_FUNC_REG_DATA_MEM_SIZE {
+            ret = self.get_byte(DataMemoryType::SpecFuncReg, pos);
+        }else{ // out of range
+            panic!("{} is out of direct addressing area", pos);
+        }
+
+        ret
+    }
+
+    fn get_byte_with_indirect_addressing(&self, pos: usize) -> u8 {
+        let mut ret: u8;
+
+        if pos < ON_CHIP_DATA_MEM_START + ON_CHIP_DATA_MEM_SIZE {
+            ret = self.get_byte(DataMemoryType::OnChipRam, pos);
+        }else{ // out of range
+            panic!("{} is out of indirect addressing area", pos);
+        }
+
+        ret
+    }
+
+    fn get_byte_with_external_addressing(&self, pos: usize) -> u8 {
+        let mut ret: u8;
+
+        if pos < EXTERNAL_DATA_MEM_START + EXTERNAL_DATA_MEM_SIZE {
+            ret = self.get_byte(DataMemoryType::ExternalRam, pos);
+        }else{ // out of range
+            panic!("{} is out of external addressing area", pos);
+        }
+
+        ret
     }
 
 }
