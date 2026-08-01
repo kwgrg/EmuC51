@@ -6,6 +6,7 @@ import {
   useState,
   type ChangeEvent,
   type DragEvent,
+  type ReactNode,
 } from "react";
 import { hex16, hex8 } from "./core/numbers";
 import type {
@@ -31,6 +32,8 @@ type CommandWithoutId = EmulatorCommand extends infer Command
     : never
   : never;
 
+type AppView = "home" | "editor" | "memory" | "io";
+
 interface FirmwareState {
   name: string;
   bytes: ArrayBuffer;
@@ -51,9 +54,25 @@ const MEMORY_LABELS: Record<MemorySpace, string> = {
   xram: "XRAM",
 };
 
+const NAV_ITEMS: Array<{ view: AppView; label: string; short: string }> = [
+  { view: "home", label: "HOME", short: "HOME" },
+  { view: "editor", label: "ASM_EDITOR", short: "CODE" },
+  { view: "memory", label: "SYS_MEM", short: "MEM" },
+  { view: "io", label: "I/O_PORTS", short: "I/O" },
+];
+
+const PORT_ADDRESSES = [0x80, 0x90, 0xa0, 0xb0] as const;
+
 const copyBuffer = (buffer: ArrayBuffer): ArrayBuffer => buffer.slice(0);
 
-const formatFault = (event: Extract<EmulatorEvent, { type: "ExecutionFault" }>): string => {
+const viewFromHash = (): AppView => {
+  const hash = window.location.hash.replace(/^#\/?/, "");
+  return NAV_ITEMS.some((item) => item.view === hash) ? (hash as AppView) : "home";
+};
+
+const formatFault = (
+  event: Extract<EmulatorEvent, { type: "ExecutionFault" }>,
+): string => {
   const location = event.error.pc === undefined ? "" : ` · PC=${hex16(event.error.pc)}`;
   return `${event.error.message}${location}`;
 };
@@ -66,6 +85,7 @@ export default function App() {
   const settingsRef = useRef<WorkspaceSettings>(DEFAULT_SETTINGS);
   const memoryAddressRef = useRef(0);
 
+  const [activeView, setActiveView] = useState<AppView>(viewFromHash);
   const [firmware, setFirmware] = useState<FirmwareState>();
   const [cpuState, setCpuState] = useState<CpuViewState>();
   const [settings, setSettingsState] = useState(DEFAULT_SETTINGS);
@@ -79,40 +99,62 @@ export default function App() {
   const [memoryBytes, setMemoryBytes] = useState<Uint8Array<ArrayBufferLike>>(
     new Uint8Array(),
   );
+  const [sfrBytes, setSfrBytes] = useState<Uint8Array<ArrayBufferLike>>(
+    new Uint8Array(128),
+  );
+  const [iramBytes, setIramBytes] = useState<Uint8Array<ArrayBufferLike>>(
+    new Uint8Array(128),
+  );
+  const [portHistory, setPortHistory] = useState<number[][]>([]);
 
   const postCommand = useCallback(
     (command: CommandWithoutId, transfer: Transferable[] = []): number => {
       const requestId = ++requestIdRef.current;
-      workerRef.current?.postMessage({ ...command, requestId } satisfies EmulatorCommand, transfer);
+      workerRef.current?.postMessage(
+        { ...command, requestId } satisfies EmulatorCommand,
+        transfer,
+      );
       return requestId;
     },
     [],
   );
 
-  const persistSnapshot = useCallback(async (snapshot: CpuSnapshot): Promise<void> => {
+  const captureSnapshot = useCallback((snapshot: CpuSnapshot): void => {
     snapshotRef.current = snapshot;
-    const currentFirmware = firmwareRef.current;
-    if (!currentFirmware) return;
-    const record: WorkspaceRecord = {
-      schemaVersion: 1,
-      coreStateVersion: 1,
-      firmware: {
-        name: currentFirmware.name,
-        bytes: copyBuffer(currentFirmware.bytes),
-        sha256: currentFirmware.sha256,
-        loadedAt: currentFirmware.loadedAt,
-      },
-      cpu: snapshot,
-      settings: settingsRef.current,
-      updatedAt: Date.now(),
-    };
-    try {
-      await saveWorkspace(record);
-      setNotice("工作区已保存在此浏览器");
-    } catch {
-      setNotice("无法写入浏览器存储；本次会话仍可继续");
-    }
+    const nextSfr = snapshot.sfr.slice();
+    setSfrBytes(nextSfr);
+    setIramBytes(snapshot.iram.slice());
+    const ports = PORT_ADDRESSES.map((address) => nextSfr[address - 0x80] ?? 0xff);
+    setPortHistory((current) => [...current, ports].slice(-64));
   }, []);
+
+  const persistSnapshot = useCallback(
+    async (snapshot: CpuSnapshot): Promise<void> => {
+      captureSnapshot(snapshot);
+      const currentFirmware = firmwareRef.current;
+      if (!currentFirmware) return;
+      const record: WorkspaceRecord = {
+        schemaVersion: 1,
+        coreStateVersion: 1,
+        firmware: {
+          name: currentFirmware.name,
+          bytes: copyBuffer(currentFirmware.bytes),
+          sha256: currentFirmware.sha256,
+          loadedAt: currentFirmware.loadedAt,
+        },
+        cpu: snapshot,
+        settings: settingsRef.current,
+        updatedAt: Date.now(),
+      };
+      try {
+        await saveWorkspace(record);
+        setNotice("工作区已保存在此浏览器");
+      } catch {
+        setNotice("无法写入浏览器存储；本次会话仍可继续");
+      }
+    },
+    [captureSnapshot],
+  );
 
   const requestMemory = useCallback(() => {
     if (!firmwareRef.current) return;
@@ -123,6 +165,16 @@ export default function App() {
       length: 256,
     });
   }, [postCommand]);
+
+  const navigate = useCallback(
+    (view: AppView): void => {
+      setActiveView(view);
+      const nextHash = view === "home" ? "" : `#${view}`;
+      window.history.replaceState(null, "", `${window.location.pathname}${nextHash}`);
+      if (view === "memory") setTimeout(requestMemory, 0);
+    },
+    [requestMemory],
+  );
 
   const handleWorkerEvent = useCallback(
     (event: EmulatorEvent): void => {
@@ -234,6 +286,12 @@ export default function App() {
   }, [handleWorkerEvent, postCommand]);
 
   useEffect(() => {
+    const syncView = () => setActiveView(viewFromHash());
+    window.addEventListener("hashchange", syncView);
+    return () => window.removeEventListener("hashchange", syncView);
+  }, []);
+
+  useEffect(() => {
     const saveOnHide = () => {
       const snapshot = snapshotRef.current;
       if (snapshot) void persistSnapshot(snapshot);
@@ -267,9 +325,11 @@ export default function App() {
       setFirmware(nextFirmware);
       setCpuState(undefined);
       setTrace([]);
+      setPortHistory([]);
       setRunning(false);
       setRestoring(true);
       setNotice("正在本地加载固件…");
+      navigate("editor");
       const transferBytes = copyBuffer(bytes);
       postCommand(
         { type: "LoadFirmware", name: file.name, bytes: transferBytes },
@@ -320,6 +380,7 @@ export default function App() {
   const reset = (): void => {
     setError(undefined);
     setTrace([]);
+    setPortHistory([]);
     postCommand({ type: "Reset" });
   };
 
@@ -338,222 +399,706 @@ export default function App() {
 
   const updateMemoryAddress = (value: string): void => {
     const parsed = Number.parseInt(value.replace(/^0x/i, ""), 16);
-    const next = Number.isFinite(parsed) ? Math.max(0, Math.min(0xffff, parsed)) : 0;
+    const next = Number.isFinite(parsed)
+      ? Math.max(0, Math.min(0xffff, parsed))
+      : 0;
     memoryAddressRef.current = next;
     setMemoryAddress(next);
   };
 
-  const registerCards = useMemo(
-    () =>
-      cpuState
-        ? [
-            ["PC", hex16(cpuState.pc)],
-            ["ACC", hex8(cpuState.acc)],
-            ["B", hex8(cpuState.b)],
-            ["PSW", hex8(cpuState.psw)],
-            ["SP", hex8(cpuState.sp)],
-            ["DPTR", hex16(cpuState.dptr)],
-          ]
-        : [],
-    [cpuState],
+  const portValues = useMemo(
+    () => PORT_ADDRESSES.map((address) => sfrBytes[address - 0x80] ?? 0xff),
+    [sfrBytes],
   );
 
+  const controls = {
+    run,
+    pause,
+    step,
+    reset,
+  };
+
+  const statusText = error ?? (restoring ? "正在准备工作区…" : notice);
+
   return (
-    <main className="app-shell">
-      <header className="hero">
-        <div>
-          <p className="eyebrow">CLASSIC 8051 · BROWSER LAB</p>
-          <h1>EmuC51</h1>
-          <p className="hero-copy">
-            固件在你的浏览器里运行。没有账号、没有上传、没有服务端文件存储。
-          </p>
-        </div>
-        <div className="privacy-chip" title="生产环境由 CSP 禁止网络连接">
-          <span className="privacy-dot" />
-          本地执行
-        </div>
-      </header>
+    <div className="terminal-app">
+      <div className="scanline-overlay" aria-hidden="true" />
+      <AppHeader activeView={activeView} navigate={navigate} running={running} />
 
-      <section className="workspace-grid">
-        <aside className="sidebar">
-          <label
-            className={`drop-zone ${dragging ? "is-dragging" : ""}`}
-            onDragOver={(event) => {
-              event.preventDefault();
-              setDragging(true);
-            }}
-            onDragLeave={() => setDragging(false)}
+      <div className={`page-frame ${activeView === "home" ? "is-home" : "is-console"}`}>
+        {activeView !== "home" && (
+          <SystemRail
+            activeView={activeView}
+            cpuState={cpuState}
+            dragging={dragging}
+            firmware={firmware}
+            navigate={navigate}
             onDrop={onDrop}
-          >
-            <input
-              data-testid="firmware-input"
-              type="file"
-              accept=".bin,application/octet-stream"
-              onChange={onFileChange}
+            onFileChange={onFileChange}
+            setDragging={setDragging}
+          />
+        )}
+
+        <main className="view-stage" data-view={activeView}>
+          {activeView === "home" && (
+            <HomeView
+              cpuState={cpuState}
+              firmware={firmware}
+              navigate={navigate}
+              onFileChange={onFileChange}
+              statusText={statusText}
             />
-            <span className="drop-icon">⌁</span>
-            <strong>{firmware ? "更换固件" : "打开本地固件"}</strong>
-            <small>拖放或选择不超过 64 KiB 的 .bin 文件</small>
-          </label>
-
-          {firmware && (
-            <div className="firmware-card">
-              <span className="section-label">当前固件</span>
-              <strong title={firmware.name}>{firmware.name}</strong>
-              <dl>
-                <div><dt>大小</dt><dd>{firmware.bytes.byteLength.toLocaleString()} B</dd></div>
-                <div><dt>SHA-256</dt><dd title={firmware.sha256}>{firmware.sha256.slice(0, 12)}…</dd></div>
-              </dl>
-            </div>
           )}
+          {activeView === "editor" && (
+            <WorkbenchView
+              controls={controls}
+              cpuState={cpuState}
+              error={error}
+              firmware={firmware}
+              memoryBytes={memoryBytes}
+              notice={statusText}
+              portValues={portValues}
+              restoring={restoring}
+              running={running}
+              settings={settings}
+              trace={trace}
+              updateSettings={updateSettings}
+            />
+          )}
+          {activeView === "memory" && (
+            <MemoryView
+              cpuState={cpuState}
+              firmware={firmware}
+              iramBytes={iramBytes}
+              memoryAddress={memoryAddress}
+              memoryBytes={memoryBytes}
+              requestMemory={requestMemory}
+              settings={settings}
+              chooseMemorySpace={chooseMemorySpace}
+              updateMemoryAddress={updateMemoryAddress}
+            />
+          )}
+          {activeView === "io" && (
+            <IoView
+              firmware={firmware}
+              portHistory={portHistory}
+              portValues={portValues}
+            />
+          )}
+        </main>
+      </div>
 
-          <div className="privacy-card">
-            <span className="section-label">隐私边界</span>
-            <p>固件、CPU 状态和内存只保存在此浏览器的 IndexedDB 中。</p>
-            <button className="text-button danger" onClick={() => void clearLocal()}>
-              清除本地工作区
+      <AppFooter statusText={statusText} />
+      <MobileNav activeView={activeView} navigate={navigate} />
+
+      {activeView !== "home" && (
+        <button
+          className="clear-workspace"
+          onClick={() => void clearLocal()}
+          disabled={!firmware}
+          title="删除此浏览器中的固件和 CPU 快照"
+        >
+          &gt; CLEAR_LOCAL
+        </button>
+      )}
+    </div>
+  );
+}
+
+function AppHeader({
+  activeView,
+  navigate,
+  running,
+}: {
+  activeView: AppView;
+  navigate: (view: AppView) => void;
+  running: boolean;
+}) {
+  return (
+    <header className="top-bar">
+      <button className="brand-mark" onClick={() => navigate("home")}>
+        MCS-51_EMU_V1.0
+      </button>
+      <nav className="desktop-nav" aria-label="主导航">
+        {NAV_ITEMS.filter((item) => item.view !== "home").map((item) => (
+          <button
+            className={activeView === item.view ? "active" : ""}
+            key={item.view}
+            onClick={() => navigate(item.view)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </nav>
+      <div className="system-icons" aria-label="系统状态">
+        <span title="浏览器 Worker">⌁</span>
+        <span title="本地存储">▣</span>
+        <span className={running ? "is-live" : ""} title={running ? "正在运行" : "已暂停"}>
+          ϟ
+        </span>
+      </div>
+    </header>
+  );
+}
+
+function SystemRail({
+  activeView,
+  cpuState,
+  dragging,
+  firmware,
+  navigate,
+  onDrop,
+  onFileChange,
+  setDragging,
+}: {
+  activeView: AppView;
+  cpuState?: CpuViewState;
+  dragging: boolean;
+  firmware?: FirmwareState;
+  navigate: (view: AppView) => void;
+  onDrop: (event: DragEvent<HTMLLabelElement>) => void;
+  onFileChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  setDragging: (value: boolean) => void;
+}) {
+  return (
+    <aside className="system-rail">
+      <div className="cpu-ident">
+        <span>SYSTEM OPERATOR</span>
+        <strong>CPU_8051</strong>
+        <small>STATUS: {cpuState ? "ONLINE" : "STANDBY"}</small>
+      </div>
+
+      <label
+        className={`flash-button ${dragging ? "is-dragging" : ""}`}
+        onDragOver={(event) => {
+          event.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={onDrop}
+      >
+        <input
+          data-testid="firmware-input"
+          type="file"
+          accept=".bin,application/octet-stream"
+          onChange={onFileChange}
+        />
+        &gt; {firmware ? "REPLACE_ROM" : "FLASH_ROM"}
+      </label>
+
+      <nav className="rail-nav" aria-label="工作台导航">
+        {NAV_ITEMS.filter((item) => item.view !== "home").map((item) => (
+          <button
+            className={activeView === item.view ? "active" : ""}
+            key={item.view}
+            onClick={() => navigate(item.view)}
+          >
+            <span>{item.view === "editor" ? "⌑" : item.view === "memory" ? "◫" : "◇"}</span>
+            {item.label}
+          </button>
+        ))}
+      </nav>
+
+      <div className="rail-log">
+        <span>▰ LOGS</span>
+        <small>LOCAL_ONLY</small>
+      </div>
+    </aside>
+  );
+}
+
+function HomeView({
+  cpuState,
+  firmware,
+  navigate,
+  onFileChange,
+  statusText,
+}: {
+  cpuState?: CpuViewState;
+  firmware?: FirmwareState;
+  navigate: (view: AppView) => void;
+  onFileChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  statusText: string;
+}) {
+  const usage = firmware ? Math.round((firmware.bytes.byteLength / 0x10000) * 100) : 0;
+  return (
+    <div className="home-view">
+      <section className="hero-terminal">
+        <pre className="code-watermark" aria-hidden="true">
+{`ORG 0000H
+LJMP START
+MOV SP, #60H
+SETB EA
+MAIN_LOOP:
+  SJMP MAIN_LOOP
+RET`}
+        </pre>
+        <div className="hero-copy">
+          <span className="status-chip">STATUS: ONLINE // LOCAL RUNTIME</span>
+          <h1>MCS-51 Next-Gen Emulation</h1>
+          <p>
+            在浏览器 Worker 中运行经典 8051 裸二进制固件。无需账号、无需上传，
+            CPU、内存与调试状态全部留在当前设备。
+          </p>
+          <div className="hero-actions">
+            <button className="primary-command" onClick={() => navigate("editor")}>
+              &gt; INIT_ENV
             </button>
+            <label className="secondary-command">
+              <input
+                data-testid="firmware-input"
+                type="file"
+                accept=".bin,application/octet-stream"
+                onChange={onFileChange}
+              />
+              {firmware ? "REPLACE_ROM" : "LOAD_FIRMWARE"}
+            </label>
           </div>
-        </aside>
-
-        <div className="main-panel">
-          <section className="control-panel panel">
-            <div className="control-row">
-              <button
-                className="primary-button"
-                disabled={!firmware || restoring || running}
-                onClick={run}
-              >
-                ▶ 运行
-              </button>
-              <button disabled={!running} onClick={pause}>Ⅱ 暂停</button>
-              <button disabled={!firmware || restoring || running} onClick={step}>单步</button>
-              <button disabled={!firmware || restoring || running} onClick={reset}>复位</button>
-              <label className="steps-field">
-                <span>最大步数</span>
-                <input
-                  aria-label="最大步数"
-                  type="number"
-                  min="0"
-                  max="100000000"
-                  value={settings.maxSteps}
-                  onChange={(event) =>
-                    updateSettings({
-                      ...settingsRef.current,
-                      maxSteps: Math.max(0, Math.trunc(Number(event.target.value) || 0)),
-                    })
-                  }
-                />
-              </label>
-              <label className="toggle-field">
-                <input
-                  type="checkbox"
-                  checked={settings.traceEnabled}
-                  onChange={(event) =>
-                    updateSettings({ ...settingsRef.current, traceEnabled: event.target.checked })
-                  }
-                />
-                跟踪
-              </label>
-            </div>
-            <div className={`status-line ${error ? "has-error" : ""}`}>
-              <span className={`status-led ${running ? "running" : ""}`} />
-              {error ?? (restoring ? "正在准备工作区…" : notice)}
-            </div>
-          </section>
-
-          <section className="register-panel panel">
-            <div className="panel-heading">
-              <div><span className="section-label">CPU STATE</span><h2>寄存器</h2></div>
-              {cpuState && (
-                <div className="counter-strip">
-                  <span>{cpuState.steps.toLocaleString()} 步</span>
-                  <span>{cpuState.machineCycles.toLocaleString()} 机器周期</span>
-                </div>
-              )}
-            </div>
-            {cpuState ? (
-              <>
-                <div className="register-grid">
-                  {registerCards.map(([label, value]) => (
-                    <div
-                      className="register-card"
-                      data-testid={`register-${label}`}
-                      key={label}
-                    >
-                      <span>{label}</span><strong>{value}</strong>
-                    </div>
-                  ))}
-                </div>
-                <div className="bank-row">
-                  {cpuState.registers.map((value, index) => (
-                    <span key={index}>R{index}<strong>{hex8(value)}</strong></span>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <div className="empty-state">选择固件后，这里会显示 CPU 状态。</div>
-            )}
-          </section>
-
-          <div className="lower-grid">
-            <section className="memory-panel panel">
-              <div className="panel-heading compact">
-                <div><span className="section-label">MEMORY</span><h2>内存查看</h2></div>
-                <div className="memory-tools">
-                  <input
-                    aria-label="内存起始地址"
-                    value={hex16(memoryAddress)}
-                    onChange={(event) => updateMemoryAddress(event.target.value)}
-                  />
-                  <button onClick={requestMemory} disabled={!firmware}>刷新</button>
-                </div>
-              </div>
-              <div className="tab-row">
-                {(Object.keys(MEMORY_LABELS) as MemorySpace[]).map((space) => (
-                  <button
-                    key={space}
-                    className={settings.selectedMemorySpace === space ? "active" : ""}
-                    onClick={() => chooseMemorySpace(space)}
-                  >
-                    {MEMORY_LABELS[space]}
-                  </button>
-                ))}
-              </div>
-              <MemoryDump start={memoryAddress} bytes={memoryBytes} />
-            </section>
-
-            <section className="trace-panel panel">
-              <div className="panel-heading compact">
-                <div><span className="section-label">TRACE</span><h2>指令跟踪</h2></div>
-                <button onClick={() => setTrace([])}>清空</button>
-              </div>
-              <div className="trace-list" data-testid="trace-list">
-                {trace.length === 0 ? (
-                  <div className="empty-state small">尚无跟踪记录</div>
-                ) : (
-                  [...trace].reverse().map((item, index) => (
-                    <div className="trace-row" key={`${item.state.steps}-${index}`}>
-                      <code>{hex16(item.pcBefore)}</code>
-                      <code className="trace-bytes">
-                        {item.bytes.slice(0, item.length).map(hex8).join(" ")}
-                      </code>
-                      <span>{item.mnemonic}</span>
-                      <small>A={hex8(item.state.acc)} PSW={hex8(item.state.psw)}</small>
-                    </div>
-                  ))
-                )}
-              </div>
-            </section>
+          <small className="hero-status">// {statusText}</small>
+        </div>
+        <div className="chip-visual" aria-label="8051 芯片示意图">
+          <div className="orbit orbit-one" />
+          <div className="orbit orbit-two" />
+          <div className="chip-body">
+            <span>MCS-51</span>
+            <strong>8051</strong>
+            <small>8-BIT MCU</small>
           </div>
         </div>
       </section>
 
-      <footer>
-        <span>浏览器清理站点数据后，本地工作区将无法恢复。</span>
-        <span>Cloudflare 仅提供静态应用文件，不接收你的固件。</span>
-      </footer>
-    </main>
+      <section className="feature-section" id="features">
+        <h2><span>◫</span> SYS_FEATURES</h2>
+        <div className="feature-grid">
+          <article className="feature-card wide accent-green">
+            <span className="feature-icon">ϟ</span>
+            <h3>&gt; Browser Worker Core</h3>
+            <p>指令执行与界面隔离，支持单步、连续运行、暂停、复位和机器周期统计。</p>
+            <div className="meter"><span style={{ width: `${Math.max(4, usage)}%` }} /></div>
+          </article>
+          <article className="feature-card accent-blue">
+            <span className="feature-icon">▣</span>
+            <h3>&gt; Local Workspace</h3>
+            <p>固件、CPU 快照和设置保存在 IndexedDB，刷新后可继续调试。</p>
+          </article>
+          <article className="feature-card accent-amber">
+            <span className="feature-icon">⌁</span>
+            <h3>&gt; Zero Upload</h3>
+            <p>64 KiB 以内的固件由 File API 本地读取，生产 CSP 禁止应用联网。</p>
+          </article>
+          <article className="feature-card metrics wide">
+            <div className="metric-heading">
+              <span>RUNTIME METRICS</span>
+              <strong>{cpuState ? "CORE READY" : "AWAITING ROM"}</strong>
+            </div>
+            <div className="metric-grid">
+              <span>ROM_USAGE<strong>{firmware ? `${firmware.bytes.byteLength} / 65536 B` : "—"}</strong></span>
+              <span>INSTRUCTIONS<strong>{cpuState?.steps.toLocaleString() ?? "0"}</strong></span>
+              <span>M_CYCLES<strong>{cpuState?.machineCycles.toLocaleString() ?? "0"}</strong></span>
+            </div>
+          </article>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+interface ControlActions {
+  run: () => void;
+  pause: () => void;
+  step: () => void;
+  reset: () => void;
+}
+
+function WorkbenchView({
+  controls,
+  cpuState,
+  error,
+  firmware,
+  notice,
+  portValues,
+  restoring,
+  running,
+  settings,
+  trace,
+  updateSettings,
+}: {
+  controls: ControlActions;
+  cpuState?: CpuViewState;
+  error?: string;
+  firmware?: FirmwareState;
+  memoryBytes: Uint8Array<ArrayBufferLike>;
+  notice: string;
+  portValues: number[];
+  restoring: boolean;
+  running: boolean;
+  settings: WorkspaceSettings;
+  trace: StepResult[];
+  updateSettings: (settings: WorkspaceSettings) => void;
+}) {
+  const registerCards: Array<[string, string]> = cpuState
+    ? [
+        ["PC", hex16(cpuState.pc)],
+        ["DPTR", hex16(cpuState.dptr)],
+        ["A (ACC)", hex8(cpuState.acc)],
+        ["B", hex8(cpuState.b)],
+        ["SP", hex8(cpuState.sp)],
+        ["PSW", hex8(cpuState.psw)],
+      ]
+    : [];
+
+  return (
+    <div className="workbench-grid">
+      <TerminalPanel className="project-files" title="PROJECT_FILES" bits={["FS", "RO"]}>
+        <div className="tree-root">⌄ SRC</div>
+        {firmware ? (
+          <div className="tree-file active" data-testid="firmware-name">
+            ▣ <span title={firmware.name}>{firmware.name}</span>
+          </div>
+        ) : (
+          <div className="tree-file muted">— NO ROM —</div>
+        )}
+        <div className="tree-file muted">▧ trace.log</div>
+        <div className="file-meta">
+          <span>SHA</span>
+          <code>{firmware ? `${firmware.sha256.slice(0, 10)}…` : "—"}</code>
+          <span>SIZE</span>
+          <code>{firmware ? `${firmware.bytes.byteLength} B` : "0 B"}</code>
+        </div>
+      </TerminalPanel>
+
+      <TerminalPanel className="source-view" title="BIN_INSPECTOR" bits={["READ", running ? "LIVE" : "IDLE"]} active={running}>
+        <ControlStrip
+          controls={controls}
+          firmware={firmware}
+          restoring={restoring}
+          running={running}
+        />
+        <div className="source-scroll">
+          <TraceSource firmware={firmware} trace={trace} />
+        </div>
+      </TerminalPanel>
+
+      <TerminalPanel className="cpu-monitor" title="CPU_MONITOR" bits={[running ? "RUN" : "PAUSE"]} active={running}>
+        {cpuState ? (
+          <>
+            <div className="monitor-registers">
+              {registerCards.map(([label, value]) => (
+                <div className="monitor-row" data-testid={`register-${label.split(" ")[0]}`} key={label}>
+                  <span>{label}</span><strong>{value}</strong>
+                </div>
+              ))}
+            </div>
+            <div className="register-bank">
+              {cpuState.registers.map((value, index) => (
+                <span key={index}>R{index}<strong>{hex8(value)}</strong></span>
+              ))}
+            </div>
+          </>
+        ) : (
+          <EmptyState>FLASH_ROM TO INITIALIZE CPU</EmptyState>
+        )}
+      </TerminalPanel>
+
+      <TerminalPanel className="compiler-output" title="RUNTIME_OUTPUT" bits={[error ? "FAULT" : "OK"]}>
+        <div className={`runtime-log ${error ? "has-error" : ""}`}>
+          <p>&gt; EmuC51 local runtime</p>
+          <p>&gt; {notice}</p>
+          <p>&gt; trace buffer: {trace.length}/1000</p>
+          <p>&gt; network transport: BLOCKED_BY_CSP</p>
+          <span className="terminal-cursor" aria-hidden="true" />
+        </div>
+      </TerminalPanel>
+
+      <TerminalPanel className="port-panel" title="PORT_1" bits={[`0x${hex8(portValues[1] ?? 0xff)}`]}>
+        <div className="led-row">
+          {Array.from({ length: 8 }, (_, bit) => (
+            <span
+              className={(portValues[1] ?? 0xff) & (1 << bit) ? "on" : ""}
+              key={bit}
+              title={`P1.${bit}`}
+            />
+          ))}
+        </div>
+        <div className="port-labels">
+          {Array.from({ length: 8 }, (_, bit) => <span key={bit}>P1.{bit}</span>)}
+        </div>
+      </TerminalPanel>
+
+      <TerminalPanel className="runtime-settings" title="EXEC_CONFIG" bits={[settings.traceEnabled ? "TRACE" : "NO_TRACE"]}>
+        <label>
+          MAX_STEPS
+          <input
+            aria-label="最大步数"
+            type="number"
+            min="0"
+            max="100000000"
+            value={settings.maxSteps}
+            onChange={(event) =>
+              updateSettings({
+                ...settings,
+                maxSteps: Math.max(0, Math.trunc(Number(event.target.value) || 0)),
+              })
+            }
+          />
+        </label>
+        <label className="check-field">
+          <input
+            type="checkbox"
+            checked={settings.traceEnabled}
+            onChange={(event) =>
+              updateSettings({ ...settings, traceEnabled: event.target.checked })
+            }
+          />
+          CAPTURE_TRACE
+        </label>
+      </TerminalPanel>
+    </div>
+  );
+}
+
+function ControlStrip({
+  controls,
+  firmware,
+  restoring,
+  running,
+}: {
+  controls: ControlActions;
+  firmware?: FirmwareState;
+  restoring: boolean;
+  running: boolean;
+}) {
+  return (
+    <div className="control-strip">
+      <button
+        className="primary-command"
+        disabled={!firmware || restoring || running}
+        onClick={controls.run}
+      >
+        &gt; 运行
+      </button>
+      <button disabled={!running} onClick={controls.pause}>Ⅱ 暂停</button>
+      <button disabled={!firmware || restoring || running} onClick={controls.step}>› 单步</button>
+      <button disabled={!firmware || restoring || running} onClick={controls.reset}>↺ 复位</button>
+    </div>
+  );
+}
+
+function TraceSource({
+  firmware,
+  trace,
+}: {
+  firmware?: FirmwareState;
+  trace: StepResult[];
+}) {
+  if (trace.length > 0) {
+    return (
+      <div className="source-lines" data-testid="trace-list">
+        {trace.slice(-80).map((item, index) => (
+          <div className={index === trace.slice(-80).length - 1 ? "current" : ""} key={`${item.state.steps}-${index}`}>
+            <code>{hex16(item.pcBefore)}</code>
+            <code>{item.bytes.slice(0, item.length).map(hex8).join(" ")}</code>
+            <strong>{item.mnemonic}</strong>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  if (!firmware) return <EmptyState>NO BINARY IMAGE LOADED</EmptyState>;
+  const bytes = new Uint8Array(firmware.bytes).slice(0, 96);
+  const rows: ReactNode[] = [];
+  for (let offset = 0; offset < bytes.length; offset += 4) {
+    const chunk = bytes.slice(offset, offset + 4);
+    rows.push(
+      <div key={offset}>
+        <code>{hex16(offset)}</code>
+        <code>{Array.from(chunk, hex8).join(" ")}</code>
+        <strong>.DB {Array.from(chunk, (value) => `0x${hex8(value)}`).join(", ")}</strong>
+      </div>,
+    );
+  }
+  return <div className="source-lines" data-testid="trace-list">{rows}</div>;
+}
+
+function MemoryView({
+  chooseMemorySpace,
+  cpuState,
+  firmware,
+  iramBytes,
+  memoryAddress,
+  memoryBytes,
+  requestMemory,
+  settings,
+  updateMemoryAddress,
+}: {
+  chooseMemorySpace: (space: MemorySpace) => void;
+  cpuState?: CpuViewState;
+  firmware?: FirmwareState;
+  iramBytes: Uint8Array<ArrayBufferLike>;
+  memoryAddress: number;
+  memoryBytes: Uint8Array<ArrayBufferLike>;
+  requestMemory: () => void;
+  settings: WorkspaceSettings;
+  updateMemoryAddress: (value: string) => void;
+}) {
+  return (
+    <div className="memory-workspace">
+      <TerminalPanel className="memory-main" title={`ROM_VIEW [${MEMORY_LABELS[settings.selectedMemorySpace]}]`} bits={[`BASE: ${hex16(memoryAddress)}`]} active={Boolean(firmware)}>
+        <div className="memory-toolbar">
+          <div className="memory-tabs">
+            {(Object.keys(MEMORY_LABELS) as MemorySpace[]).map((space) => (
+              <button
+                className={settings.selectedMemorySpace === space ? "active" : ""}
+                key={space}
+                onClick={() => chooseMemorySpace(space)}
+              >
+                {MEMORY_LABELS[space]}
+              </button>
+            ))}
+          </div>
+          <label>
+            GOTO:
+            <input
+              aria-label="内存起始地址"
+              value={hex16(memoryAddress)}
+              onChange={(event) => updateMemoryAddress(event.target.value)}
+            />
+          </label>
+          <button onClick={requestMemory} disabled={!firmware}>REFRESH</button>
+        </div>
+        <MemoryDump start={memoryAddress} bytes={memoryBytes} />
+      </TerminalPanel>
+
+      <TerminalPanel className="iram-card" title="IRAM_DATA" bits={["128B"]}>
+        <div className="mini-memory">
+          <span>ADDR</span>{Array.from({ length: 8 }, (_, i) => <span key={i}>{i.toString(16).toUpperCase()}</span>)}
+          <strong>00</strong>{Array.from({ length: 8 }, (_, i) => <code key={i}>{hex8(iramBytes[i] ?? 0)}</code>)}
+          <strong>08</strong>{Array.from({ length: 8 }, (_, i) => <code key={i}>{hex8(iramBytes[i + 8] ?? 0)}</code>)}
+        </div>
+      </TerminalPanel>
+
+      <TerminalPanel className="watch-card" title="WATCH" bits={["+"]}>
+        <div className="watch-list">
+          <span><b>PC</b><code>0x{hex16(cpuState?.pc ?? 0)}</code></span>
+          <span><b>SP</b><code>0x{hex8(cpuState?.sp ?? 0)}</code></span>
+          <span><b>DPTR</b><code>0x{hex16(cpuState?.dptr ?? 0)}</code></span>
+          <span><b>ACC</b><code>0x{hex8(cpuState?.acc ?? 0)}</code></span>
+        </div>
+      </TerminalPanel>
+
+      <TerminalPanel className="bank-card" title="REGISTER_BANK" bits={[cpuState ? "BANK0" : "OFF"]}>
+        <div className="register-bank large">
+          {(cpuState?.registers ?? Array(8).fill(0)).map((value, index) => (
+            <span key={index}>R{index}<strong>{hex8(value)}</strong></span>
+          ))}
+        </div>
+      </TerminalPanel>
+    </div>
+  );
+}
+
+function IoView({
+  firmware,
+  portHistory,
+  portValues,
+}: {
+  firmware?: FirmwareState;
+  portHistory: number[][];
+  portValues: number[];
+}) {
+  const digits = `${hex8(portValues[0] ?? 0xff)}${hex8(portValues[1] ?? 0xff)}`;
+  const rotorAngle = ((portValues[1] ?? 0) & 0x03) * 90;
+  return (
+    <div className="io-workspace">
+      <div className="io-notice">
+        <strong>SFR PASSIVE MIRROR</strong>
+        <span>当前 v1 仅观察端口寄存器输出，不注入键盘或外设输入。</span>
+      </div>
+
+      <TerminalPanel className="display-module" title="DISPLAY_MOD" bits={[`P0:${hex8(portValues[0] ?? 0xff)}`]}>
+        <div className="lcd-screen">
+          <span>{firmware ? "SYSTEM READY..." : "AWAITING FLASH..."}</span>
+          <strong>{firmware ? "INIT PERIPH OK_" : "LOAD ROM TO START_"}</strong>
+        </div>
+        <div className="seven-segment" aria-label={`端口十六进制值 ${digits}`}>
+          {digits.split("").map((digit, index) => <span key={index}>{digit}</span>)}
+        </div>
+      </TerminalPanel>
+
+      <TerminalPanel className="matrix-module" title="MATRIX_4X4" bits={["READ_ONLY"]}>
+        <div className="key-matrix">
+          {"123A456B789C*0#D".split("").map((key) => (
+            <button disabled key={key} title="v1 不支持外设输入注入">{key}</button>
+          ))}
+        </div>
+      </TerminalPanel>
+
+      <TerminalPanel className="stepper-module" title="STEPPER_MOD" bits={[`P1:${hex8(portValues[1] ?? 0xff)}`]}>
+        <div className="stepper-content">
+          <div className="phase-list">
+            {[0, 1, 2, 3].map((bit) => (
+              <span key={bit}><i className={(portValues[1] ?? 0) & (1 << bit) ? "on" : ""} />PH{String.fromCharCode(65 + bit)}</span>
+            ))}
+          </div>
+          <div className="rotor"><span style={{ transform: `rotate(${rotorAngle}deg)` }} /></div>
+          <code>POS: {rotorAngle}°<br />DIR: CW</code>
+        </div>
+      </TerminalPanel>
+
+      <TerminalPanel className="logic-module" title="LOGIC_ANALYZER" bits={[`${portHistory.length} SAMPLES`]} active={portHistory.length > 1}>
+        <LogicAnalyzer history={portHistory} />
+      </TerminalPanel>
+    </div>
+  );
+}
+
+function LogicAnalyzer({ history }: { history: number[][] }) {
+  const samples = history.length > 1 ? history : [[0xff, 0xff, 0xff, 0xff], [0xff, 0xff, 0xff, 0xff]];
+  return (
+    <div className="logic-analyzer">
+      {[0, 1, 2].map((portIndex) => {
+        const points = samples
+          .map((sample, index) => {
+            const x = (index / Math.max(1, samples.length - 1)) * 100;
+            const high = (sample[portIndex] ?? 0) & 1;
+            const y = 18 + portIndex * 30 + (high ? 0 : 12);
+            return `${x},${y}`;
+          })
+          .join(" ");
+        return (
+          <div className="logic-channel" key={portIndex}>
+            <span>P{portIndex}.0</span>
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+              <polyline className={`channel-${portIndex}`} points={points} />
+            </svg>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function TerminalPanel({
+  active = false,
+  bits = [],
+  children,
+  className = "",
+  title,
+}: {
+  active?: boolean;
+  bits?: string[];
+  children: ReactNode;
+  className?: string;
+  title: string;
+}) {
+  return (
+    <section className={`terminal-panel ${active ? "is-active" : ""} ${className}`}>
+      <header className="panel-bar">
+        <h2>{title}</h2>
+        <div>{bits.map((bit) => <span key={bit}>{bit}</span>)}</div>
+      </header>
+      <div className="panel-body">{children}</div>
+    </section>
   );
 }
 
@@ -571,12 +1116,52 @@ function MemoryDump({
       <div className="memory-row" key={offset}>
         <code className="memory-address">{hex16(start + offset)}</code>
         <code>{Array.from(row, hex8).join(" ")}</code>
+        <code className="ascii-column">
+          {Array.from(row, (value) => value >= 32 && value <= 126 ? String.fromCharCode(value) : ".").join("")}
+        </code>
       </div>,
     );
   }
   return (
     <div className="memory-dump">
-      {rows.length > 0 ? rows : <div className="empty-state small">加载固件后可查看内存</div>}
+      <div className="memory-heading"><span>ADDR</span><span>00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F</span><span>ASCII</span></div>
+      {rows.length > 0 ? rows : <EmptyState>FLASH_ROM TO VIEW MEMORY</EmptyState>}
     </div>
+  );
+}
+
+function EmptyState({ children }: { children: ReactNode }) {
+  return <div className="empty-state">// {children}</div>;
+}
+
+function MobileNav({
+  activeView,
+  navigate,
+}: {
+  activeView: AppView;
+  navigate: (view: AppView) => void;
+}) {
+  return (
+    <nav className="mobile-nav" aria-label="移动端导航">
+      {NAV_ITEMS.map((item) => (
+        <button
+          className={activeView === item.view ? "active" : ""}
+          key={item.view}
+          onClick={() => navigate(item.view)}
+        >
+          {item.short}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+function AppFooter({ statusText }: { statusText: string }) {
+  return (
+    <footer className="status-footer">
+      <span>©1981–2026 INTEL_COMPATIBLE_CORE</span>
+      <span className="footer-status">{statusText}</span>
+      <span>LOCAL_ONLY · CSP_LOCKED</span>
+    </footer>
   );
 }

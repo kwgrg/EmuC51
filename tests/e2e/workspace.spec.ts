@@ -8,6 +8,7 @@ test("固件不上传且刷新后恢复工作区", async ({ page }) => {
   );
 
   await page.goto("/");
+  const appOrigin = new URL(page.url()).origin;
   await page.evaluate(() => indexedDB.deleteDatabase("emuc51"));
   await page.reload();
 
@@ -18,14 +19,35 @@ test("固件不上传且刷新后恢复工作区", async ({ page }) => {
 
   await page.getByRole("button", { name: "单步" }).click();
   await expect(page.getByTestId("register-PC")).toContainText("0003");
-  await expect(page.getByText("工作区已保存在此浏览器")).toBeVisible();
+  await expect(page.locator(".footer-status")).toHaveText("工作区已保存在此浏览器");
 
   await page.reload();
   await expect(page.getByText("testc51a.bin")).toBeVisible();
   await expect(page.getByTestId("register-PC")).toContainText("0003");
 
   expect(requests.every((request) => request.method === "GET")).toBe(true);
-  expect(requests.every((request) => new URL(request.url).origin === "http://127.0.0.1:4173")).toBe(
+  expect(requests.every((request) => new URL(request.url).origin === appOrigin)).toBe(
     true,
   );
+});
+
+test("四个终端视图可以通过共享导航访问", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("main")).toHaveAttribute("data-view", "home");
+  await expect(page.getByText("MCS-51 Next-Gen Emulation")).toBeVisible();
+
+  const desktopNav = page.locator(".desktop-nav");
+  await desktopNav.getByRole("button", { name: "ASM_EDITOR" }).click();
+  await expect(page.getByRole("main")).toHaveAttribute("data-view", "editor");
+
+  await desktopNav.getByRole("button", { name: "SYS_MEM" }).click();
+  await expect(page.getByRole("main")).toHaveAttribute("data-view", "memory");
+  await expect(page.getByText("ROM_VIEW [CODE]")).toBeVisible();
+
+  await desktopNav.getByRole("button", { name: "I/O_PORTS" }).click();
+  await expect(page.getByRole("main")).toHaveAttribute("data-view", "io");
+  await expect(page.getByText("SFR PASSIVE MIRROR")).toBeVisible();
+
+  await page.getByRole("button", { name: "MCS-51_EMU_V1.0" }).click();
+  await expect(page.getByRole("main")).toHaveAttribute("data-view", "home");
 });
