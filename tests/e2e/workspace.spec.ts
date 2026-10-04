@@ -37,7 +37,7 @@ test("四个终端视图可以通过共享导航访问", async ({ page }) => {
   await expect(page.getByText("MCS-51 Next-Gen Emulation")).toBeVisible();
 
   const desktopNav = page.locator(".desktop-nav");
-  await desktopNav.getByRole("button", { name: "ASM_EDITOR" }).click();
+  await desktopNav.getByRole("button", { name: "BIN_INSPECTOR" }).click();
   await expect(page.getByRole("main")).toHaveAttribute("data-view", "editor");
 
   await desktopNav.getByRole("button", { name: "SYS_MEM" }).click();
@@ -46,7 +46,7 @@ test("四个终端视图可以通过共享导航访问", async ({ page }) => {
 
   await desktopNav.getByRole("button", { name: "I/O_PORTS" }).click();
   await expect(page.getByRole("main")).toHaveAttribute("data-view", "io");
-  await expect(page.getByText("SFR PASSIVE MIRROR")).toBeVisible();
+  await expect(page.getByText("GPIO_INPUT_OUTPUT")).toBeVisible();
 
   await page.getByRole("button", { name: "MCS-51_EMU_V1.0" }).click();
   await expect(page.getByRole("main")).toHaveAttribute("data-view", "home");
