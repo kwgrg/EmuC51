@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const externalServer = process.env.EMUC51_E2E_EXTERNAL_SERVER === "1";
+const chromiumExecutable = process.env.EMUC51_CHROMIUM_EXECUTABLE_PATH;
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -19,7 +20,15 @@ export default defineConfig({
         reuseExistingServer: false,
       },
   projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+    {
+      name: "chromium",
+      use: {
+        ...devices["Desktop Chrome"],
+        ...(chromiumExecutable
+          ? { launchOptions: { executablePath: chromiumExecutable } }
+          : {}),
+      },
+    },
     { name: "firefox", use: { ...devices["Desktop Firefox"] } },
     { name: "webkit", use: { ...devices["Desktop Safari"] } },
   ],

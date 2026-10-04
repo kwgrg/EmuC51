@@ -64,6 +64,12 @@ Playwright 首次运行前需要安装对应浏览器：
 npx playwright install
 ```
 
+已安装 Chromium 的受限环境可直接指定浏览器路径：
+
+```console
+EMUC51_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run test:e2e -- --project=chromium
+```
+
 ## Cloudflare 部署
 
 项目使用 [Cloudflare Workers Static Assets](https://developers.cloudflare.com/workers/static-assets/)，`wrangler.jsonc` 仅指向 `dist`，没有 Worker 脚本和存储绑定。
