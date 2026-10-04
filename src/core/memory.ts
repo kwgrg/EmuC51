@@ -1,4 +1,4 @@
-import { EmulatorFault, type CpuSnapshot, type MemorySpace } from "./types";
+import { EmulatorFault, type CpuSnapshot, type LegacyCpuSnapshot, type MemorySpace } from "./types";
 import { parity, u8, u16 } from "./numbers";
 
 export const SFR = {
@@ -40,11 +40,18 @@ const BIT_ADDRESSABLE_SFR = new Set<number>([
   SFR.B,
 ]);
 
+export interface MemoryPeripheralHooks {
+  readSfr(address: number): number | undefined;
+  beforeWriteSfr?(address: number, value: number): void;
+  afterWriteSfr(address: number, previous: number, value: number): void;
+}
+
 export class Memory8051 {
   readonly code = new Uint8Array(0x10000);
   readonly iram = new Uint8Array(0x80);
   readonly sfr = new Uint8Array(0x80);
   readonly xram = new Uint8Array(0x10000);
+  peripheralHooks?: MemoryPeripheralHooks;
 
   constructor(program: Uint8Array) {
     if (program.byteLength > 0x10000) {
@@ -81,12 +88,26 @@ export class Memory8051 {
     }
   }
 
-  readDirect(address: number): number {
+  readDirect(address: number, latch = false): number {
     const direct = u8(address);
     this.assertDirect(direct);
-    return direct < 0x80
-      ? (this.iram[direct] ?? 0)
-      : (this.sfr[direct - 0x80] ?? 0);
+    if (direct < 0x80) return this.iram[direct] ?? 0;
+    return (!latch ? this.peripheralHooks?.readSfr(direct) : undefined) ?? this.readSfrLatch(direct);
+  }
+
+  readRmwDirect(address: number): number {
+    const direct = u8(address);
+    return this.readDirect(direct, direct === SFR.P0 || direct === SFR.P1 || direct === SFR.P2 || direct === SFR.P3);
+  }
+
+  readSfrLatch(address: number): number {
+    this.assertDirect(address);
+    return this.sfr[u8(address) - 0x80] ?? 0;
+  }
+
+  writeSfrHardware(address: number, value: number): void {
+    this.assertDirect(address);
+    this.sfr[u8(address) - 0x80] = u8(value);
   }
 
   writeDirect(address: number, value: number): void {
@@ -95,12 +116,21 @@ export class Memory8051 {
     if (direct < 0x80) {
       this.iram[direct] = u8(value);
     } else {
-      this.sfr[direct - 0x80] = u8(value);
+      const previous = this.readSfrLatch(direct);
+      const byte = u8(value);
+      this.peripheralHooks?.beforeWriteSfr?.(direct, byte);
+      this.sfr[direct - 0x80] = byte;
+      this.peripheralHooks?.afterWriteSfr(direct, previous, byte);
     }
   }
 
+  assertWriteDirect(address: number): void {
+    this.assertDirect(address);
+    if (u8(address) >= 0x80) this.peripheralHooks?.beforeWriteSfr?.(u8(address), 0);
+  }
+
   assertIndirect(address: number): void {
-    if (address < 0 || address > 0x7f) {
+    if (!Number.isInteger(address) || address < 0 || address > 0x7f) {
       throw new EmulatorFault({
         code: "INVALID_IRAM_ADDRESS",
         address: u8(address),
@@ -119,7 +149,7 @@ export class Memory8051 {
     this.iram[address] = u8(value);
   }
 
-  private resolveBit(address: number): [number, number, "iram" | "sfr"] {
+  resolveBit(address: number): [number, number, "iram" | "sfr"] {
     const bitAddress = u8(address);
     if (bitAddress < 0x80) {
       return [0x20 + (bitAddress >> 3), bitAddress & 7, "iram"];
@@ -142,12 +172,12 @@ export class Memory8051 {
     return [sfrAddress, bitAddress & 7, "sfr"];
   }
 
-  readBit(address: number): boolean {
+  readBit(address: number, latch = false): boolean {
     const [byteAddress, bit, space] = this.resolveBit(address);
     const value =
       space === "iram"
         ? (this.iram[byteAddress] ?? 0)
-        : this.readDirect(byteAddress);
+        : latch ? this.readRmwDirect(byteAddress) : this.readDirect(byteAddress);
     return (value & (1 << bit)) !== 0;
   }
 
@@ -156,7 +186,7 @@ export class Memory8051 {
     const current =
       space === "iram"
         ? (this.iram[byteAddress] ?? 0)
-        : this.readDirect(byteAddress);
+        : this.readDirect(byteAddress, true);
     const next = set ? current | (1 << bit) : current & ~(1 << bit);
     if (space === "iram") {
       this.iram[byteAddress] = u8(next);
@@ -273,7 +303,7 @@ export class Memory8051 {
           break;
         case "sfr": {
           const direct = 0x80 + ((current - 0x80) & 0x7f);
-          result[index] = DEFINED_SFR.has(direct) ? this.readDirect(direct) : 0;
+          result[index] = DEFINED_SFR.has(direct) ? this.readDirect(direct, true) : 0;
           break;
         }
         case "xram":
@@ -284,7 +314,7 @@ export class Memory8051 {
     return result;
   }
 
-  snapshot(pc: number, steps: number, machineCycles: number): CpuSnapshot {
+  snapshot(pc: number, steps: number, machineCycles: number): LegacyCpuSnapshot {
     return {
       coreStateVersion: 1,
       pc: u16(pc),
@@ -297,8 +327,16 @@ export class Memory8051 {
   }
 
   restore(snapshot: CpuSnapshot): void {
+    this.validateSnapshot(snapshot);
+    this.iram.set(snapshot.iram);
+    this.sfr.set(snapshot.sfr);
+    this.xram.set(snapshot.xram);
+  }
+
+  validateSnapshot(snapshot: CpuSnapshot): void {
     if (
-      snapshot.coreStateVersion !== 1 ||
+      !snapshot || (snapshot.coreStateVersion !== 1 && snapshot.coreStateVersion !== 2) ||
+      ![snapshot.iram, snapshot.sfr, snapshot.xram].every((value) => ArrayBuffer.isView(value) && Object.prototype.toString.call(value) === "[object Uint8Array]") ||
       snapshot.iram.byteLength !== 0x80 ||
       snapshot.sfr.byteLength !== 0x80 ||
       snapshot.xram.byteLength !== 0x10000
@@ -308,9 +346,6 @@ export class Memory8051 {
         message: "CPU 快照版本或内存尺寸无效",
       });
     }
-    this.iram.set(snapshot.iram);
-    this.sfr.set(snapshot.sfr);
-    this.xram.set(snapshot.xram);
   }
 
   private writeSfrUnchecked(address: number, value: number): void {

@@ -134,8 +134,8 @@ export default function App() {
       const currentFirmware = firmwareRef.current;
       if (!currentFirmware) return;
       const record: WorkspaceRecord = {
-        schemaVersion: 1,
-        coreStateVersion: 1,
+        schemaVersion: 2,
+        coreStateVersion: 2,
         firmware: {
           name: currentFirmware.name,
           bytes: copyBuffer(currentFirmware.bytes),
