@@ -93,6 +93,7 @@ tests/
 
 详细架构、8051 语义决策和验收标准见 [实施计划](docs/IMPLEMENTATION_PLAN.md)。
 界面令牌、终端组件规范、页面模式和新增页面检查清单见 [设计系统](DESIGN.md)。
+经典 8051 扩展的逐项验收状态见 [功能迭代清单](docs/FEATURE_ROADMAP.md)。
 
 ## v1 限制
 
