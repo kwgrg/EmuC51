@@ -158,11 +158,17 @@ export default function App() {
 
   const requestMemory = useCallback(() => {
     if (!firmwareRef.current) return;
+    const space = settingsRef.current.selectedMemorySpace;
+    const minimum = space === "sfr" ? 0x80 : 0;
+    const maximum = space === "iram" ? 0x7f : space === "sfr" ? 0xff : 0xffff;
+    const address = Math.max(minimum, Math.min(maximum, memoryAddressRef.current));
+    memoryAddressRef.current = address;
+    setMemoryAddress(address);
     postCommand({
       type: "ReadMemory",
-      space: settingsRef.current.selectedMemorySpace,
-      address: memoryAddressRef.current,
-      length: 256,
+      space,
+      address,
+      length: Math.min(256, maximum - address + 1),
     });
   }, [postCommand]);
 
