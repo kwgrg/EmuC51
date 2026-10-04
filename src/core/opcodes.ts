@@ -130,7 +130,7 @@ const buildOpcodeTable = (): readonly OpcodeMeta[] => {
 
   set(0xa0, 2, 2, "ORL C,/bit");
   set(0xa1, 2, 2, "AJMP addr11");
-  set(0xa2, 2, 2, "MOV C,bit");
+  set(0xa2, 2, 1, "MOV C,bit");
   set(0xa3, 1, 2, "INC DPTR");
   set(0xa4, 1, 4, "MUL AB");
   set(0xa5, 1, 0, "RESERVED", false);

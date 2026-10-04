@@ -39,4 +39,11 @@ describe("8051 操作码表", () => {
     expect(cpu.state().pc).toBe(0);
     expect(cpu.state().steps).toBe(0);
   });
+
+  it("MOV C,bit uses one machine cycle while MOV bit,C uses two", () => {
+    const cpu = new Cpu8051(Uint8Array.from([0xa2, 0x00, 0x92, 0x01]));
+    expect(cpu.step().machineCycles).toBe(1);
+    expect(cpu.step().machineCycles).toBe(2);
+    expect(cpu.state().machineCycles).toBe(3);
+  });
 });
