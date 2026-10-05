@@ -9,6 +9,12 @@ import {
   type ReactNode,
 } from "react";
 import { hex16, hex8 } from "./core/numbers";
+import { MAX_HEX_FILE_SIZE, parseFirmware } from "./core/firmware";
+import { disassemble } from "./core/disassembler";
+import { normalizeDebugConfig } from "./core/debugger";
+import { ByteEditor, DebuggerPanel, RegisterEditor, type DebugSettings, type WritableSpace } from "./components/DebuggerPanel";
+import { GpioControls, SerialControls, TimerStatus } from "./components/PeripheralControls";
+import { exportWorkspace, importWorkspace, MAX_WORKSPACE_IMPORT_BYTES } from "./persistence/transfer";
 import type {
   CpuSnapshot,
   CpuViewState,
@@ -45,6 +51,7 @@ const DEFAULT_SETTINGS: WorkspaceSettings = {
   maxSteps: 1_000_000,
   traceEnabled: true,
   selectedMemorySpace: "code",
+  debugger: { breakpoints: [], watchpoints: [] },
 };
 
 const MEMORY_LABELS: Record<MemorySpace, string> = {
@@ -56,7 +63,7 @@ const MEMORY_LABELS: Record<MemorySpace, string> = {
 
 const NAV_ITEMS: Array<{ view: AppView; label: string; short: string }> = [
   { view: "home", label: "HOME", short: "HOME" },
-  { view: "editor", label: "ASM_EDITOR", short: "CODE" },
+  { view: "editor", label: "BIN_INSPECTOR", short: "CODE" },
   { view: "memory", label: "SYS_MEM", short: "MEM" },
   { view: "io", label: "I/O_PORTS", short: "I/O" },
 ];
@@ -84,6 +91,11 @@ export default function App() {
   const snapshotRef = useRef<CpuSnapshot | undefined>(undefined);
   const settingsRef = useRef<WorkspaceSettings>(DEFAULT_SETTINGS);
   const memoryAddressRef = useRef(0);
+  const exportRequestRef = useRef<number | undefined>(undefined);
+  const firmwareRequestRef = useRef(0);
+  const fileActionRef = useRef(0);
+  const clearingRef = useRef(false);
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   const [activeView, setActiveView] = useState<AppView>(viewFromHash);
   const [firmware, setFirmware] = useState<FirmwareState>();
@@ -106,6 +118,7 @@ export default function App() {
     new Uint8Array(128),
   );
   const [portHistory, setPortHistory] = useState<number[][]>([]);
+  const [serialOutput, setSerialOutput] = useState<number[]>([]);
 
   const postCommand = useCallback(
     (command: CommandWithoutId, transfer: Transferable[] = []): number => {
@@ -124,45 +137,55 @@ export default function App() {
     const nextSfr = snapshot.sfr.slice();
     setSfrBytes(nextSfr);
     setIramBytes(snapshot.iram.slice());
-    const ports = PORT_ADDRESSES.map((address) => nextSfr[address - 0x80] ?? 0xff);
+    const ports = PORT_ADDRESSES.map((address, index) => (nextSfr[address - 0x80] ?? 0xff) & (snapshot.coreStateVersion === 2 ? snapshot.peripherals.portInputs[index] ?? 0xff : 0xff));
     setPortHistory((current) => [...current, ports].slice(-64));
+    if (snapshot.coreStateVersion === 2) setSerialOutput(snapshot.peripherals.serial.txOutput.slice(-4096));
+  }, []);
+
+  const workspaceRecord = useCallback((snapshot: CpuSnapshot): WorkspaceRecord | undefined => {
+    const currentFirmware = firmwareRef.current;
+    if (!currentFirmware) return undefined;
+    return {
+      schemaVersion: 2,
+      coreStateVersion: snapshot.coreStateVersion,
+      firmware: { ...currentFirmware, bytes: copyBuffer(currentFirmware.bytes) },
+      cpu: snapshot,
+      settings: settingsRef.current,
+      updatedAt: Date.now(),
+    };
   }, []);
 
   const persistSnapshot = useCallback(
     async (snapshot: CpuSnapshot): Promise<void> => {
+      if (clearingRef.current) return;
       captureSnapshot(snapshot);
-      const currentFirmware = firmwareRef.current;
-      if (!currentFirmware) return;
-      const record: WorkspaceRecord = {
-        schemaVersion: 1,
-        coreStateVersion: 1,
-        firmware: {
-          name: currentFirmware.name,
-          bytes: copyBuffer(currentFirmware.bytes),
-          sha256: currentFirmware.sha256,
-          loadedAt: currentFirmware.loadedAt,
-        },
-        cpu: snapshot,
-        settings: settingsRef.current,
-        updatedAt: Date.now(),
-      };
+      const record = workspaceRecord(snapshot);
+      if (!record) return;
       try {
-        await saveWorkspace(record);
+        const write = saveQueueRef.current.catch(() => undefined).then(() => saveWorkspace(record));
+        saveQueueRef.current = write;
+        await write;
         setNotice("工作区已保存在此浏览器");
       } catch {
         setNotice("无法写入浏览器存储；本次会话仍可继续");
       }
     },
-    [captureSnapshot],
+    [captureSnapshot, workspaceRecord],
   );
 
   const requestMemory = useCallback(() => {
     if (!firmwareRef.current) return;
+    const space = settingsRef.current.selectedMemorySpace;
+    const minimum = space === "sfr" ? 0x80 : 0;
+    const maximum = space === "iram" ? 0x7f : space === "sfr" ? 0xff : 0xffff;
+    const address = Math.max(minimum, Math.min(maximum, memoryAddressRef.current));
+    memoryAddressRef.current = address;
+    setMemoryAddress(address);
     postCommand({
       type: "ReadMemory",
-      space: settingsRef.current.selectedMemorySpace,
-      address: memoryAddressRef.current,
-      length: 256,
+      space,
+      address,
+      length: Math.min(256, maximum - address + 1),
     });
   }, [postCommand]);
 
@@ -178,37 +201,65 @@ export default function App() {
 
   const handleWorkerEvent = useCallback(
     (event: EmulatorEvent): void => {
+      if (event.requestId < firmwareRequestRef.current) return;
       switch (event.type) {
         case "Ready":
           setCpuState(event.state);
           setRunning(false);
           setRestoring(false);
           setError(undefined);
+          postCommand({ type: "SetDebugConfig", ...(settingsRef.current.debugger ?? { breakpoints: [], watchpoints: [] }) });
           void persistSnapshot(event.snapshot);
           setTimeout(requestMemory, 0);
           break;
         case "StateChanged":
           setCpuState(event.state);
           setRunning(event.running);
+          setSerialOutput(event.state.peripherals.serial.txOutput.slice(-4096));
+          break;
+        case "DebugConfigChanged":
+          break;
+        case "SerialOutput":
+          // StateChanged supplies the bounded, persisted TX history.
           break;
         case "TraceBatch":
           setTrace((current) => [...current, ...event.trace].slice(-1000));
           break;
         case "MemoryData":
-          setMemoryBytes(event.bytes);
+          if (event.space === settingsRef.current.selectedMemorySpace && event.address === memoryAddressRef.current) setMemoryBytes(event.bytes);
           break;
         case "SnapshotCreated":
           void persistSnapshot(event.snapshot);
+          if (exportRequestRef.current === event.requestId) {
+            exportRequestRef.current = undefined;
+            const record = workspaceRecord(event.snapshot);
+            if (record) {
+              try {
+                const blob = new Blob([exportWorkspace(record)], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = `${record.firmware.name.replace(/\.[^.]+$/, "")}.emuc51.json`;
+                link.click();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+                setNotice("工作区已导出；固件、CPU 和调试设置均已包含");
+              } catch (caught) {
+                setError(caught instanceof Error ? caught.message : "无法导出工作区");
+              }
+            }
+          }
           break;
         case "Stopped":
           setCpuState(event.state);
           setRunning(false);
-          setNotice(
-            event.reason === "StepLimitReached"
-              ? "已达到本次运行步数上限"
-              : "执行已暂停",
-          );
-          void persistSnapshot(event.snapshot);
+          void persistSnapshot(event.snapshot).then(() => {
+            setNotice(event.reason === "StepLimitReached" ? "已达到本次运行步数上限"
+              : event.reason === "Breakpoint" ? `断点暂停 · PC=${hex16(event.state.pc)}`
+              : event.reason === "Watchpoint" ? `监视点暂停 · ${event.watchpoint?.space.toUpperCase()} ${hex16(event.watchpoint?.address ?? 0)}`
+              : event.reason === "RunToAddress" ? `已运行至地址 ${hex16(event.state.pc)}`
+              : event.reason === "PowerDown" ? "CPU 已进入掉电模式；复位后继续执行"
+              : event.reason === "StepComplete" ? "工作区已保存在此浏览器" : "执行已暂停");
+          });
           setTimeout(requestMemory, 0);
           break;
         case "ExecutionFault":
@@ -218,9 +269,12 @@ export default function App() {
           if (event.snapshot) void persistSnapshot(event.snapshot);
           setTimeout(requestMemory, 0);
           break;
+        case "CommandRejected":
+          setError(formatFault({ ...event, type: "ExecutionFault" }));
+          break;
       }
     },
-    [persistSnapshot, requestMemory],
+    [persistSnapshot, requestMemory, postCommand, workspaceRecord],
   );
 
   useEffect(() => {
@@ -235,6 +289,7 @@ export default function App() {
     void (async () => {
       try {
         const loaded = await loadWorkspace();
+        if (firmwareRequestRef.current !== 0) return;
         if (!loaded) {
           setRestoring(false);
           setNotice("选择一个本地固件即可开始；文件不会离开浏览器");
@@ -256,7 +311,7 @@ export default function App() {
         setSettingsState(savedSettings);
         const transferBytes = copyBuffer(savedFirmware.bytes);
         if (loaded.kind === "complete") {
-          postCommand(
+          firmwareRequestRef.current = postCommand(
             {
               type: "RestoreWorkspace",
               name: savedFirmware.name,
@@ -267,13 +322,14 @@ export default function App() {
           );
           setNotice("正在恢复上次工作区…");
         } else {
-          postCommand(
+          firmwareRequestRef.current = postCommand(
             { type: "LoadFirmware", name: savedFirmware.name, bytes: transferBytes },
             [transferBytes],
           );
           setNotice("CPU 快照不兼容，已保留固件并从复位状态启动");
         }
       } catch {
+        if (firmwareRequestRef.current !== 0) return;
         setRestoring(false);
         setNotice("本地工作区不可用，请重新选择固件");
       }
@@ -308,38 +364,44 @@ export default function App() {
   };
 
   const loadFile = async (file: File): Promise<void> => {
+    const action = ++fileActionRef.current;
     setError(undefined);
-    if (file.size > 0x10000) {
-      setError(`固件为 ${file.size.toLocaleString()} 字节，超过 64 KiB 上限`);
+    if (file.size > MAX_HEX_FILE_SIZE) {
+      setError("固件源文件超过 1 MiB 上限；CODE 空间上限为 64 KiB");
       return;
     }
     try {
-      const bytes = await file.arrayBuffer();
+      const source = new Uint8Array(await file.arrayBuffer());
+      const bytes = new Uint8Array(parseFirmware(source, file.name)).buffer;
       const nextFirmware: FirmwareState = {
         name: file.name,
         bytes: copyBuffer(bytes),
         sha256: await sha256Hex(bytes),
         loadedAt: Date.now(),
       };
+      if (action !== fileActionRef.current) return;
       firmwareRef.current = nextFirmware;
+      snapshotRef.current = undefined;
       setFirmware(nextFirmware);
       setCpuState(undefined);
       setTrace([]);
       setPortHistory([]);
+      setSerialOutput([]);
       setRunning(false);
       setRestoring(true);
       setNotice("正在本地加载固件…");
       navigate("editor");
       const transferBytes = copyBuffer(bytes);
-      postCommand(
+      firmwareRequestRef.current = postCommand(
         { type: "LoadFirmware", name: file.name, bytes: transferBytes },
         [transferBytes],
       );
       const persisted = await requestPersistentStorage();
-      if (persisted === false) {
+      if (action === fileActionRef.current && persisted === false) {
         setNotice("固件已保存在浏览器，但浏览器未授予永久存储权限");
       }
     } catch (caught) {
+      if (action !== fileActionRef.current) return;
       setRestoring(false);
       setError(caught instanceof Error ? caught.message : "无法读取固件");
     }
@@ -381,10 +443,88 @@ export default function App() {
     setError(undefined);
     setTrace([]);
     setPortHistory([]);
+    setSerialOutput([]);
     postCommand({ type: "Reset" });
   };
 
+  const updateDebugConfig = (config: DebugSettings): void => {
+    try {
+      const validated = normalizeDebugConfig(config);
+      updateSettings({ ...settingsRef.current, debugger: validated });
+      postCommand({ type: "SetDebugConfig", ...validated });
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "无效调试设置");
+    }
+  };
+
+  const runToAddress = (address: number): void => {
+    setError(undefined);
+    setRunning(true);
+    postCommand({ type: "RunToAddress", address, maxSteps: settings.maxSteps, trace: settings.traceEnabled });
+  };
+
+  const stepOver = (): void => {
+    setError(undefined);
+    setRunning(true);
+    postCommand({ type: "StepOver", maxSteps: settings.maxSteps, trace: settings.traceEnabled });
+  };
+
+  const writeMemory = (space: WritableSpace, address: number, value: number): void => {
+    setError(undefined);
+    postCommand({ type: "WriteMemory", space, address, value });
+    requestMemory();
+  };
+
+  const writeRegister = (name: string, value: number): void => {
+    setError(undefined);
+    postCommand({ type: "SetRegister", name, value });
+  };
+
+  const importFile = async (file: File): Promise<void> => {
+    const action = ++fileActionRef.current;
+    setError(undefined);
+    try {
+      if (file.size > MAX_WORKSPACE_IMPORT_BYTES) throw new Error("工作区文件超过 1 MiB 上限");
+      const record = await importWorkspace(await file.text());
+      if (action !== fileActionRef.current) return;
+      // Validation finishes before changing the active CPU or persisted record.
+      const nextFirmware = { ...record.firmware, bytes: copyBuffer(record.firmware.bytes) };
+      firmwareRef.current = nextFirmware;
+      snapshotRef.current = undefined;
+      settingsRef.current = record.settings;
+      setFirmware(nextFirmware);
+      setSettingsState(record.settings);
+      setTrace([]);
+      setPortHistory([]);
+      setRestoring(true);
+      setRunning(false);
+      navigate("editor");
+      const transferBytes = copyBuffer(record.firmware.bytes);
+      firmwareRequestRef.current = postCommand({ type: "RestoreWorkspace", name: record.firmware.name, bytes: transferBytes, snapshot: record.cpu }, [transferBytes]);
+    } catch (caught) {
+      if (action !== fileActionRef.current) return;
+      setError(caught instanceof Error ? caught.message : "无法导入工作区");
+    }
+  };
+
+  const onWorkspaceChange = (event: ChangeEvent<HTMLInputElement>): void => {
+    const file = event.target.files?.[0];
+    if (file) void importFile(file);
+    event.target.value = "";
+  };
+
+  const downloadWorkspace = (): void => {
+    exportRequestRef.current = postCommand({ type: "CreateSnapshot" });
+  };
+
   const clearLocal = async (): Promise<void> => {
+    clearingRef.current = true;
+    fileActionRef.current += 1;
+    firmwareRequestRef.current = Number.MAX_SAFE_INTEGER;
+    firmwareRef.current = undefined;
+    snapshotRef.current = undefined;
+    workerRef.current?.terminate();
+    await saveQueueRef.current.catch(() => undefined);
     await clearWorkspace();
     window.location.reload();
   };
@@ -407,8 +547,8 @@ export default function App() {
   };
 
   const portValues = useMemo(
-    () => PORT_ADDRESSES.map((address) => sfrBytes[address - 0x80] ?? 0xff),
-    [sfrBytes],
+    () => PORT_ADDRESSES.map((address, index) => cpuState?.peripherals.ports[index]?.pins ?? sfrBytes[address - 0x80] ?? 0xff),
+    [sfrBytes, cpuState],
   );
 
   const controls = {
@@ -416,6 +556,7 @@ export default function App() {
     pause,
     step,
     reset,
+    stepOver,
   };
 
   const statusText = error ?? (restoring ? "正在准备工作区…" : notice);
@@ -463,6 +604,13 @@ export default function App() {
               settings={settings}
               trace={trace}
               updateSettings={updateSettings}
+              updateDebugConfig={updateDebugConfig}
+              runToAddress={runToAddress}
+              writeRegister={writeRegister}
+              downloadWorkspace={downloadWorkspace}
+              onWorkspaceChange={onWorkspaceChange}
+              onFileChange={onFileChange}
+              clearLocal={clearLocal}
             />
           )}
           {activeView === "memory" && (
@@ -476,6 +624,9 @@ export default function App() {
               settings={settings}
               chooseMemorySpace={chooseMemorySpace}
               updateMemoryAddress={updateMemoryAddress}
+              running={running}
+              restoring={restoring}
+              writeMemory={writeMemory}
             />
           )}
           {activeView === "io" && (
@@ -483,12 +634,19 @@ export default function App() {
               firmware={firmware}
               portHistory={portHistory}
               portValues={portValues}
+              cpuState={cpuState}
+              sfrBytes={sfrBytes}
+              serialOutput={serialOutput}
+              restoring={restoring}
+              onPortInput={(port, value) => postCommand({ type: "SetPortInput", port, value })}
+              onReceive={(bytes, ninthBit) => { for (const value of bytes) postCommand({ type: "ReceiveSerial", value, ninthBit }); }}
             />
           )}
         </main>
       </div>
 
       <AppFooter statusText={statusText} />
+      {error && <div className="error-banner" role="alert">{error}<button aria-label="关闭错误" onClick={() => setError(undefined)}>×</button></div>}
       <MobileNav activeView={activeView} navigate={navigate} />
 
       {activeView !== "home" && (
@@ -580,7 +738,7 @@ function SystemRail({
         <input
           data-testid="firmware-input"
           type="file"
-          accept=".bin,application/octet-stream"
+          accept=".bin,.hex,.ihx,application/octet-stream,text/plain"
           onChange={onFileChange}
         />
         &gt; {firmware ? "REPLACE_ROM" : "FLASH_ROM"}
@@ -637,7 +795,7 @@ RET`}
           <span className="status-chip">STATUS: ONLINE // LOCAL RUNTIME</span>
           <h1>MCS-51 Next-Gen Emulation</h1>
           <p>
-            在浏览器 Worker 中运行经典 8051 裸二进制固件。无需账号、无需上传，
+            在浏览器 Worker 中运行经典 8051 BIN / Intel HEX 固件。无需账号、无需上传，
             CPU、内存与调试状态全部留在当前设备。
           </p>
           <div className="hero-actions">
@@ -648,7 +806,7 @@ RET`}
               <input
                 data-testid="firmware-input"
                 type="file"
-                accept=".bin,application/octet-stream"
+                accept=".bin,.hex,.ihx,application/octet-stream,text/plain"
                 onChange={onFileChange}
               />
               {firmware ? "REPLACE_ROM" : "LOAD_FIRMWARE"}
@@ -673,18 +831,18 @@ RET`}
           <article className="feature-card wide accent-green">
             <span className="feature-icon">ϟ</span>
             <h3>&gt; Browser Worker Core</h3>
-            <p>指令执行与界面隔离，支持单步、连续运行、暂停、复位和机器周期统计。</p>
+            <p>支持地址断点、写入监视点、单步、步过、定时器、中断、串口与 GPIO。</p>
             <div className="meter"><span style={{ width: `${Math.max(4, usage)}%` }} /></div>
           </article>
           <article className="feature-card accent-blue">
             <span className="feature-icon">▣</span>
             <h3>&gt; Local Workspace</h3>
-            <p>固件、CPU 快照和设置保存在 IndexedDB，刷新后可继续调试。</p>
+            <p>固件、CPU 快照和调试设置保存在 IndexedDB，也可导入导出为 JSON 工作区。</p>
           </article>
           <article className="feature-card accent-amber">
             <span className="feature-icon">⌁</span>
             <h3>&gt; Zero Upload</h3>
-            <p>64 KiB 以内的固件由 File API 本地读取，生产 CSP 禁止应用联网。</p>
+            <p>BIN 最大 64 KiB；HEX 源文件最大 1 MiB。固件本地读取，生产 CSP 禁止应用联网。</p>
           </article>
           <article className="feature-card metrics wide">
             <div className="metric-heading">
@@ -708,6 +866,7 @@ interface ControlActions {
   pause: () => void;
   step: () => void;
   reset: () => void;
+  stepOver: () => void;
 }
 
 function WorkbenchView({
@@ -722,6 +881,13 @@ function WorkbenchView({
   settings,
   trace,
   updateSettings,
+  updateDebugConfig,
+  runToAddress,
+  writeRegister,
+  downloadWorkspace,
+  onWorkspaceChange,
+  onFileChange,
+  clearLocal,
 }: {
   controls: ControlActions;
   cpuState?: CpuViewState;
@@ -735,6 +901,13 @@ function WorkbenchView({
   settings: WorkspaceSettings;
   trace: StepResult[];
   updateSettings: (settings: WorkspaceSettings) => void;
+  updateDebugConfig: (config: DebugSettings) => void;
+  runToAddress: (address: number) => void;
+  writeRegister: (name: string, value: number) => void;
+  downloadWorkspace: () => void;
+  onWorkspaceChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  onFileChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  clearLocal: () => Promise<void>;
 }) {
   const registerCards: Array<[string, string]> = cpuState
     ? [
@@ -765,6 +938,19 @@ function WorkbenchView({
           <span>SIZE</span>
           <code>{firmware ? `${firmware.bytes.byteLength} B` : "0 B"}</code>
         </div>
+        <div className="workspace-actions">
+          <label className="secondary-command">
+            <input data-testid="workbench-firmware-input" aria-label="加载固件" type="file" accept=".bin,.hex,.ihx" onChange={onFileChange} />
+            {firmware ? "替换固件" : "加载 BIN / HEX"}
+          </label>
+          <button disabled={!firmware || restoring} onClick={downloadWorkspace}>导出工作区</button>
+          <label className={`secondary-command ${restoring ? "is-disabled" : ""}`}>
+            <input data-testid="workspace-input" aria-label="导入工作区" type="file" accept=".json,application/json" onChange={onWorkspaceChange} disabled={restoring} />
+            导入工作区
+          </label>
+          <small>JSON 含固件、CPU、外设和调试设置</small>
+          <button className="clear-inline" disabled={!firmware} onClick={() => void clearLocal()}>CLEAR_LOCAL</button>
+        </div>
       </TerminalPanel>
 
       <TerminalPanel className="source-view" title="BIN_INSPECTOR" bits={["READ", running ? "LIVE" : "IDLE"]} active={running}>
@@ -775,7 +961,7 @@ function WorkbenchView({
           running={running}
         />
         <div className="source-scroll">
-          <TraceSource firmware={firmware} trace={trace} />
+          <TraceSource firmware={firmware} pc={cpuState?.pc ?? 0} breakpoints={settings.debugger?.breakpoints ?? []} />
         </div>
       </TerminalPanel>
 
@@ -794,10 +980,15 @@ function WorkbenchView({
                 <span key={index}>R{index}<strong>{hex8(value)}</strong></span>
               ))}
             </div>
+            <RegisterEditor disabled={!firmware || restoring || running} onWrite={writeRegister} />
           </>
         ) : (
           <EmptyState>FLASH_ROM TO INITIALIZE CPU</EmptyState>
         )}
+      </TerminalPanel>
+
+      <TerminalPanel className="debugger-config" title="DEBUGGER" bits={[`${settings.debugger?.breakpoints.length ?? 0} BP`, `${settings.debugger?.watchpoints.length ?? 0} WP`]}>
+        <DebuggerPanel config={settings.debugger ?? { breakpoints: [], watchpoints: [] }} disabled={!firmware || restoring || running} onChange={updateDebugConfig} onRunTo={runToAddress} />
       </TerminalPanel>
 
       <TerminalPanel className="compiler-output" title="RUNTIME_OUTPUT" bits={[error ? "FAULT" : "OK"]}>
@@ -806,6 +997,7 @@ function WorkbenchView({
           <p>&gt; {notice}</p>
           <p>&gt; trace buffer: {trace.length}/1000</p>
           <p>&gt; network transport: BLOCKED_BY_CSP</p>
+          {trace.slice(-12).map((item, index) => <p className="trace-entry" key={`${item.state.steps}-${index}`}>{hex16(item.pcBefore)} · {item.mnemonic} · {item.machineCycles} MC</p>)}
           <span className="terminal-cursor" aria-hidden="true" />
         </div>
       </TerminalPanel>
@@ -827,9 +1019,9 @@ function WorkbenchView({
 
       <TerminalPanel className="runtime-settings" title="EXEC_CONFIG" bits={[settings.traceEnabled ? "TRACE" : "NO_TRACE"]}>
         <label>
-          MAX_STEPS
+          RUN_BUDGET
           <input
-            aria-label="最大步数"
+            aria-label="最大执行单元"
             type="number"
             min="0"
             max="100000000"
@@ -837,7 +1029,7 @@ function WorkbenchView({
             onChange={(event) =>
               updateSettings({
                 ...settings,
-                maxSteps: Math.max(0, Math.trunc(Number(event.target.value) || 0)),
+                maxSteps: Math.min(100_000_000, Math.max(0, Math.trunc(Number(event.target.value) || 0))),
               })
             }
           />
@@ -852,6 +1044,7 @@ function WorkbenchView({
           />
           CAPTURE_TRACE
         </label>
+        <small className="panel-help">预算包括指令、中断进入和空闲时钟单元；0 不执行。</small>
       </TerminalPanel>
     </div>
   );
@@ -879,6 +1072,7 @@ function ControlStrip({
       </button>
       <button disabled={!running} onClick={controls.pause}>Ⅱ 暂停</button>
       <button disabled={!firmware || restoring || running} onClick={controls.step}>› 单步</button>
+      <button disabled={!firmware || restoring || running} onClick={controls.stepOver}>» 步过</button>
       <button disabled={!firmware || restoring || running} onClick={controls.reset}>↺ 复位</button>
     </div>
   );
@@ -886,38 +1080,21 @@ function ControlStrip({
 
 function TraceSource({
   firmware,
-  trace,
+  pc,
+  breakpoints,
 }: {
   firmware?: FirmwareState;
-  trace: StepResult[];
+  pc: number;
+  breakpoints: number[];
 }) {
-  if (trace.length > 0) {
-    return (
-      <div className="source-lines" data-testid="trace-list">
-        {trace.slice(-80).map((item, index) => (
-          <div className={index === trace.slice(-80).length - 1 ? "current" : ""} key={`${item.state.steps}-${index}`}>
-            <code>{hex16(item.pcBefore)}</code>
-            <code>{item.bytes.slice(0, item.length).map(hex8).join(" ")}</code>
-            <strong>{item.mnemonic}</strong>
-          </div>
-        ))}
-      </div>
-    );
-  }
   if (!firmware) return <EmptyState>NO BINARY IMAGE LOADED</EmptyState>;
-  const bytes = new Uint8Array(firmware.bytes).slice(0, 96);
-  const rows: ReactNode[] = [];
-  for (let offset = 0; offset < bytes.length; offset += 4) {
-    const chunk = bytes.slice(offset, offset + 4);
-    rows.push(
-      <div key={offset}>
-        <code>{hex16(offset)}</code>
-        <code>{Array.from(chunk, hex8).join(" ")}</code>
-        <strong>.DB {Array.from(chunk, (value) => `0x${hex8(value)}`).join(", ")}</strong>
-      </div>,
-    );
-  }
-  return <div className="source-lines" data-testid="trace-list">{rows}</div>;
+  const rows = disassemble(new Uint8Array(firmware.bytes), pc, 80);
+  return <div className="source-lines" data-testid="disassembly-list">{rows.map((item) =>
+    <div className={item.address === pc ? "current" : ""} data-testid={item.address === pc ? "current-instruction" : undefined} key={item.address}>
+      <code>{breakpoints.includes(item.address) ? "●" : " "} {hex16(item.address)}</code>
+      <code>{item.bytes.map(hex8).join(" ")}</code>
+      <strong>{item.text}</strong>
+    </div>)}</div>;
 }
 
 function MemoryView({
@@ -930,6 +1107,9 @@ function MemoryView({
   requestMemory,
   settings,
   updateMemoryAddress,
+  running,
+  writeMemory,
+  restoring,
 }: {
   chooseMemorySpace: (space: MemorySpace) => void;
   cpuState?: CpuViewState;
@@ -940,6 +1120,9 @@ function MemoryView({
   requestMemory: () => void;
   settings: WorkspaceSettings;
   updateMemoryAddress: (value: string) => void;
+  running: boolean;
+  restoring: boolean;
+  writeMemory: (space: WritableSpace, address: number, value: number) => void;
 }) {
   return (
     <div className="memory-workspace">
@@ -966,6 +1149,7 @@ function MemoryView({
           </label>
           <button onClick={requestMemory} disabled={!firmware}>REFRESH</button>
         </div>
+        <ByteEditor key={settings.selectedMemorySpace} space={settings.selectedMemorySpace} disabled={!firmware || running || restoring} onWrite={writeMemory} />
         <MemoryDump start={memoryAddress} bytes={memoryBytes} />
       </TerminalPanel>
 
@@ -1001,48 +1185,40 @@ function IoView({
   firmware,
   portHistory,
   portValues,
+  cpuState,
+  sfrBytes,
+  serialOutput,
+  restoring,
+  onPortInput,
+  onReceive,
 }: {
   firmware?: FirmwareState;
   portHistory: number[][];
   portValues: number[];
+  cpuState?: CpuViewState;
+  sfrBytes: Uint8Array<ArrayBufferLike>;
+  serialOutput: number[];
+  restoring: boolean;
+  onPortInput: (port: number, value: number) => void;
+  onReceive: (bytes: number[], ninthBit: boolean) => void;
 }) {
-  const digits = `${hex8(portValues[0] ?? 0xff)}${hex8(portValues[1] ?? 0xff)}`;
-  const rotorAngle = ((portValues[1] ?? 0) & 0x03) * 90;
   return (
     <div className="io-workspace">
       <div className="io-notice">
-        <strong>SFR PASSIVE MIRROR</strong>
-        <span>当前 v1 仅观察端口寄存器输出，不注入键盘或外设输入。</span>
+        <strong>GPIO_INPUT_OUTPUT</strong>
+        <span>数字引脚、定时器、五路中断与 UART；所有外设状态保存在本地工作区。</span>
       </div>
 
-      <TerminalPanel className="display-module" title="DISPLAY_MOD" bits={[`P0:${hex8(portValues[0] ?? 0xff)}`]}>
-        <div className="lcd-screen">
-          <span>{firmware ? "SYSTEM READY..." : "AWAITING FLASH..."}</span>
-          <strong>{firmware ? "INIT PERIPH OK_" : "LOAD ROM TO START_"}</strong>
-        </div>
-        <div className="seven-segment" aria-label={`端口十六进制值 ${digits}`}>
-          {digits.split("").map((digit, index) => <span key={index}>{digit}</span>)}
-        </div>
+      <TerminalPanel className="display-module gpio-module" title="GPIO_PORTS" bits={[`P0:${hex8(portValues[0] ?? 0xff)}`]}>
+        <GpioControls cpuState={cpuState} disabled={!firmware || restoring} onInput={onPortInput} />
       </TerminalPanel>
 
-      <TerminalPanel className="matrix-module" title="MATRIX_4X4" bits={["READ_ONLY"]}>
-        <div className="key-matrix">
-          {"123A456B789C*0#D".split("").map((key) => (
-            <button disabled key={key} title="v1 不支持外设输入注入">{key}</button>
-          ))}
-        </div>
+      <TerminalPanel className="matrix-module serial-module" title="UART_CONSOLE" bits={["RX/TX"]}>
+        <SerialControls cpuState={cpuState} disabled={!firmware || restoring} output={serialOutput} onReceive={onReceive} />
       </TerminalPanel>
 
-      <TerminalPanel className="stepper-module" title="STEPPER_MOD" bits={[`P1:${hex8(portValues[1] ?? 0xff)}`]}>
-        <div className="stepper-content">
-          <div className="phase-list">
-            {[0, 1, 2, 3].map((bit) => (
-              <span key={bit}><i className={(portValues[1] ?? 0) & (1 << bit) ? "on" : ""} />PH{String.fromCharCode(65 + bit)}</span>
-            ))}
-          </div>
-          <div className="rotor"><span style={{ transform: `rotate(${rotorAngle}deg)` }} /></div>
-          <code>POS: {rotorAngle}°<br />DIR: CW</code>
-        </div>
+      <TerminalPanel className="stepper-module timer-module" title="TIMERS_INTERRUPTS" bits={["T0/T1"]}>
+        <TimerStatus cpuState={cpuState} sfr={sfrBytes} />
       </TerminalPanel>
 
       <TerminalPanel className="logic-module" title="LOGIC_ANALYZER" bits={[`${portHistory.length} SAMPLES`]} active={portHistory.length > 1}>

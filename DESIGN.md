@@ -11,7 +11,7 @@ The interface is a retro-futuristic 8051 diagnostic terminal for engineers and l
 - Surfaces: layered transparent black panels; use borders, not soft card shadows, to establish hierarchy.
 - Motion: glow only for execution, selection, and live signals. Respect `prefers-reduced-motion`.
 - Motifs: 40 px circuit grid, subtle 4 px scanlines, compact status bits, monospaced data alignment.
-- Product truth wins over concept copy. Do not claim WebAssembly, cycle accuracy, active peripheral simulation, cloud sync, or source-level debugging until those capabilities exist.
+- Product truth wins over concept copy. The classic 8051 core now includes digital peripherals and instruction-boundary debugging; do not claim WebAssembly, precise bus timing, cloud sync, assembly editing, or source-level debugging.
 
 ## 2. Tokens
 
@@ -94,7 +94,7 @@ The application must remain usable when the named fonts are not installed; exter
 
 - Dark inset or transparent background, square corners, bottom border only for data entry.
 - Hex/address inputs use monospaced text and an explicit accessible label.
-- File input remains local-only and accepts `.bin` up to 64 KiB.
+- File input remains local-only and accepts `.bin` up to 64 KiB or `.hex`/`.ihx` text up to 1 MiB decoding to at most 64 KiB CODE.
 
 ## 4. Page patterns
 
@@ -102,17 +102,21 @@ The application must remain usable when the named fonts are not installed; exter
 
 Use a status chip, truthful product proposition, `INIT_ENV` and local firmware actions, a CSS-rendered 8051 chip motif, and a feature/metrics grid. The page explains the product; it does not expose dense debugger controls.
 
-### ASM_EDITOR
+### BIN_INSPECTOR
 
-Use the workbench composition: project/firmware pane, read-only binary or trace inspector, runtime controls, CPU monitor, output console, port LEDs, and execution settings. Until an assembler exists, label the center pane `BIN_INSPECTOR` and never imply editable assembly source.
+Use the workbench composition: firmware pane, disassembled instructions and trace inspector, runtime controls, debugger controls, CPU monitor, output console, port LEDs, and execution settings. Display actual operands and jump targets, highlight the current PC, and provide address breakpoints, memory change watchpoints, step over, and run to address. Register editing is available while stopped. Never imply editable assembly source.
 
 ### SYS_MEM
 
-Give the memory dump the largest area. Keep CODE/IRAM/SFR/XRAM tabs, address navigation, IRAM preview, watch values, and the register bank visible in adjacent terminal panes.
+Give the memory dump the largest area. Keep CODE/IRAM/SFR/XRAM tabs, address navigation, byte editing while stopped, IRAM preview, watch values, and the register bank visible in adjacent terminal panes. CODE remains read-only.
 
 ### I/O_PORTS
 
-Present a passive SFR output mirror: port-derived display, read-only matrix-keyboard concept, stepper phase/angle preview, and recent port-history waveforms. Always show the v1 limitation that peripheral input injection is unavailable.
+Present digital GPIO input and output: label external input, output latch, and observed pins separately. Provide accessible port bit controls, a UART console with local input and output, timer and interrupt status, and the PCON state. Inputs remain available while executing. Port-derived display and stepper previews are illustrative signals; never imply electrical or mechanical simulation.
+
+### Workspace transfer
+
+Provide local workspace download and a labeled JSON file input. Validate imported files before replacing the current workspace, show readable errors, and retain the active firmware on failure. Keep loading, restoring, and paused states explicit; imports and exports never use network requests.
 
 ## 5. Adding a page
 

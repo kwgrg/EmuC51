@@ -1,9 +1,11 @@
 import { Memory8051, SFR } from "./memory";
 import { opcodeMeta } from "./opcodes";
+import { Peripherals8051, validatePeripheralSnapshot } from "./peripherals";
 import { sign8, u8, u16 } from "./numbers";
 import {
   EmulatorFault,
   type CpuSnapshot,
+  type CpuSnapshotV2,
   type CpuViewState,
   type MemorySpace,
   type RunChunkResult,
@@ -15,12 +17,14 @@ const now = (): number =>
 
 export class Cpu8051 {
   readonly memory: Memory8051;
+  readonly peripherals: Peripherals8051;
   private pcValue = 0;
   private stepCount = 0;
   private cycleCount = 0;
 
   constructor(program: Uint8Array) {
     this.memory = new Memory8051(program);
+    this.peripherals = new Peripherals8051(this.memory);
   }
 
   get pc(): number {
@@ -32,9 +36,10 @@ export class Cpu8051 {
     this.stepCount = 0;
     this.cycleCount = 0;
     this.memory.resetSfr();
+    this.peripherals.reset();
   }
 
-  state(): CpuViewState {
+  state(includeSerialOutput = true): CpuViewState {
     return {
       pc: this.pcValue,
       acc: this.memory.acc,
@@ -47,26 +52,35 @@ export class Cpu8051 {
       ),
       steps: this.stepCount,
       machineCycles: this.cycleCount,
+      peripherals: this.peripherals.state(includeSerialOutput),
     };
   }
 
-  snapshot(): CpuSnapshot {
-    return this.memory.snapshot(this.pcValue, this.stepCount, this.cycleCount);
+  snapshot(): CpuSnapshotV2 {
+    return { ...this.memory.snapshot(this.pcValue, this.stepCount, this.cycleCount), coreStateVersion: 2, peripherals: this.peripherals.snapshot() };
   }
 
   restore(snapshot: CpuSnapshot): void {
     if (
+      !snapshot || !Number.isInteger(snapshot.pc) || snapshot.pc < 0 || snapshot.pc > 0xffff ||
       !Number.isSafeInteger(snapshot.steps) ||
       snapshot.steps < 0 ||
       !Number.isSafeInteger(snapshot.machineCycles) ||
-      snapshot.machineCycles < 0
+      snapshot.machineCycles < 0 ||
+      (snapshot.coreStateVersion === 2 && !validatePeripheralSnapshot(snapshot.peripherals))
     ) {
       throw new EmulatorFault({
         code: "INVALID_SNAPSHOT",
         message: "CPU 快照计数器无效",
       });
     }
+    this.memory.validateSnapshot(snapshot);
+    if (snapshot.coreStateVersion === 2 && [SFR.P0, SFR.P1, SFR.P2, SFR.P3].some((address, port) => snapshot.peripherals.lastPins[port] !== ((snapshot.sfr[address - 0x80] ?? 0) & snapshot.peripherals.portInputs[port]!))) {
+      throw new EmulatorFault({ code: "INVALID_SNAPSHOT", message: "CPU 快照 GPIO 引脚状态不一致" });
+    }
     this.memory.restore(snapshot);
+    if (snapshot.coreStateVersion === 2) this.peripherals.restore(snapshot.peripherals);
+    else this.peripherals.reset();
     this.pcValue = u16(snapshot.pc);
     this.stepCount = snapshot.steps;
     this.cycleCount = snapshot.machineCycles;
@@ -76,8 +90,55 @@ export class Cpu8051 {
     return this.memory.readMemory(space, address, length);
   }
 
+  writeMemory(space: MemorySpace, address: number, value: number): void {
+    const maximum = space === "iram" ? 0x7f : space === "sfr" ? 0xff : 0xffff;
+    const minimum = space === "sfr" ? 0x80 : 0;
+    if (space === "code" || !["iram", "sfr", "xram"].includes(space) || !Number.isInteger(address) || address < minimum || address > maximum || !Number.isInteger(value) || value < 0 || value > 0xff) {
+      throw new EmulatorFault({ code: "INVALID_INPUT", address, message: "内存编辑地址或字节无效（CODE 只读）" });
+    }
+    if (space === "xram") this.memory.writeXram(address, value);
+    else if (space === "iram") this.memory.writeIndirect(address, value);
+    else this.memory.writeDirect(address, value);
+    if (space === "sfr" && (address === SFR.ACC || address === SFR.PSW)) this.memory.updateParity();
+  }
+
+  setRegister(name: string, value: number): void {
+    const register = typeof name === "string" ? name.toUpperCase() : "";
+    const maximum = register === "PC" || register === "DPTR" ? 0xffff : 0xff;
+    if (!Number.isInteger(value) || value < 0 || value > maximum) throw new EmulatorFault({ code: "INVALID_REGISTER", message: `寄存器 ${register} 的值无效` });
+    if (register === "PC") this.pcValue = value;
+    else if (register === "DPTR") this.memory.dptr = value;
+    else if (/^R[0-7]$/.test(register)) this.memory.writeRegister(Number(register[1]), value);
+    else {
+      const address = ({ A: SFR.ACC, ACC: SFR.ACC, B: SFR.B, PSW: SFR.PSW, SP: SFR.SP } as Record<string, number>)[register];
+      if (address === undefined) throw new EmulatorFault({ code: "INVALID_REGISTER", message: `寄存器名称无效：${register}` });
+      this.writeMemory("sfr", address, value);
+    }
+  }
+
+  setPortInput(port: number, value: number): void { this.peripherals.setPortInput(port, value); }
+  receiveSerial(value: number, ninthBit = true): void { this.peripherals.receiveSerial(value, ninthBit); }
+  drainSerialOutput(): number[] { return this.peripherals.drainSerialOutput(); }
+
   step(): StepResult {
     const pcBefore = this.pcValue;
+    const interrupt = this.peripherals.nextInterrupt();
+    if (interrupt) {
+      this.pushReturnAddress(pcBefore);
+      this.pcValue = interrupt.vector;
+      this.peripherals.enterInterrupt(interrupt.source, interrupt.priority);
+      this.peripherals.advance(2);
+      this.cycleCount += 2;
+      return { kind: "interrupt", pcBefore, pcAfter: this.pcValue, bytes: [0, 0, 0], length: 1, mnemonic: `INT ${interrupt.source}`, machineCycles: 2, state: this.state(false) };
+    }
+    const powerMode = this.peripherals.powerMode;
+    if (powerMode !== "running") {
+      const cycles = powerMode === "idle" ? 1 : 0;
+      if (cycles > 0) this.peripherals.beginInstruction();
+      this.peripherals.advance(cycles);
+      this.cycleCount += cycles;
+      return { kind: powerMode, pcBefore, pcAfter: pcBefore, bytes: [0, 0, 0], length: 1, mnemonic: powerMode === "idle" ? "IDLE" : "POWER DOWN", machineCycles: cycles, state: this.state(false) };
+    }
     const opcode = this.memory.readCode(pcBefore);
     const meta = opcodeMeta(opcode);
     if (!meta.legal) {
@@ -95,9 +156,11 @@ export class Cpu8051 {
       meta.length >= 3 ? this.memory.readCode(pcBefore + 2) : 0,
     ];
     const postPc = u16(pcBefore + meta.length);
-    this.pcValue = postPc;
 
     try {
+      this.validateOperands(opcode, bytes[1], bytes[2]);
+      this.peripherals.beginInstruction();
+      this.pcValue = postPc;
       this.execute(opcode, bytes[1], bytes[2], postPc);
       this.memory.updateParity();
     } catch (error) {
@@ -114,15 +177,33 @@ export class Cpu8051 {
 
     this.stepCount += 1;
     this.cycleCount += meta.machineCycles;
+    this.peripherals.advance(meta.machineCycles);
     return {
+      kind: "instruction",
       pcBefore,
       pcAfter: this.pcValue,
       bytes,
       length: meta.length,
       mnemonic: meta.mnemonic,
       machineCycles: meta.machineCycles,
-      state: this.state(),
+      state: this.state(false),
     };
+  }
+
+  private validateOperands(opcode: number, operand1: number, operand2: number): void {
+    if (opcode === 0x12 || (opcode & 0x1f) === 0x11) {
+      this.memory.assertIndirect(u8(this.memory.sp + 1));
+      this.memory.assertIndirect(u8(this.memory.sp + 2));
+    }
+    if (opcode === 0xc0) this.memory.assertIndirect(u8(this.memory.sp + 1));
+    if (opcode === 0xd0 || opcode === 0x22 || opcode === 0x32) this.memory.assertIndirect(this.memory.sp);
+    if (opcode === 0x22 || opcode === 0x32) this.memory.assertIndirect(u8(this.memory.sp - 1));
+    if ([0x05, 0x15, 0x25, 0x35, 0x42, 0x43, 0x45, 0x52, 0x53, 0x55, 0x62, 0x63, 0x65, 0x75, 0x85, 0x86, 0x87, 0x95, 0xa6, 0xa7, 0xb5, 0xc0, 0xc5, 0xd0, 0xd5, 0xe5, 0xf5].includes(opcode) || (opcode >= 0x88 && opcode <= 0x8f) || (opcode >= 0xa8 && opcode <= 0xaf)) this.memory.assertDirect(operand1);
+    if (opcode === 0x85) this.memory.assertDirect(operand2);
+    if ([0x05, 0x15, 0x42, 0x43, 0x52, 0x53, 0x62, 0x63, 0x75, 0x86, 0x87, 0xc5, 0xd0, 0xd5, 0xf5].includes(opcode) || (opcode >= 0x88 && opcode <= 0x8f)) this.memory.assertWriteDirect(operand1);
+    if (opcode === 0x85) this.memory.assertWriteDirect(operand2);
+    if ([0x10, 0x20, 0x30, 0x72, 0x82, 0x92, 0xa0, 0xa2, 0xb0, 0xb2, 0xc2, 0xd2].includes(opcode)) this.memory.resolveBit(operand1);
+    if ([0x06, 0x07, 0x16, 0x17, 0x26, 0x27, 0x36, 0x37, 0x46, 0x47, 0x56, 0x57, 0x66, 0x67, 0x76, 0x77, 0x86, 0x87, 0x96, 0x97, 0xa6, 0xa7, 0xb6, 0xb7, 0xc6, 0xc7, 0xd6, 0xd7, 0xe6, 0xe7, 0xf6, 0xf7].includes(opcode)) this.memory.assertIndirect(this.memory.readRegister(opcode & 1));
   }
 
   runChunk(
@@ -251,7 +332,7 @@ export class Cpu8051 {
         this.memory.acc += 1;
         return;
       case 0x05:
-        this.memory.writeDirect(operand1, this.memory.readDirect(operand1) + 1);
+        this.memory.writeDirect(operand1, this.memory.readRmwDirect(operand1) + 1);
         return;
       case 0x06:
       case 0x07: {
@@ -260,7 +341,7 @@ export class Cpu8051 {
         return;
       }
       case 0x10:
-        if (this.memory.readBit(operand1)) {
+        if (this.memory.readBit(operand1, true)) {
           this.memory.writeBit(operand1, false);
           this.branch(postPc, operand2);
         }
@@ -280,7 +361,7 @@ export class Cpu8051 {
         this.memory.acc -= 1;
         return;
       case 0x15:
-        this.memory.writeDirect(operand1, this.memory.readDirect(operand1) - 1);
+        this.memory.writeDirect(operand1, this.memory.readRmwDirect(operand1) - 1);
         return;
       case 0x16:
       case 0x17: {
@@ -292,8 +373,11 @@ export class Cpu8051 {
         if (this.memory.readBit(operand1)) this.branch(postPc, operand2);
         return;
       case 0x22:
+        this.returnFromCall();
+        return;
       case 0x32:
         this.returnFromCall();
+        this.peripherals.returnFromInterrupt();
         return;
       case 0x23:
         this.memory.acc = (this.memory.acc << 1) | (this.memory.acc >>> 7);
@@ -332,10 +416,10 @@ export class Cpu8051 {
         if (this.memory.carry) this.branch(postPc, operand1);
         return;
       case 0x42:
-        this.memory.writeDirect(operand1, this.memory.readDirect(operand1) | this.memory.acc);
+        this.memory.writeDirect(operand1, this.memory.readRmwDirect(operand1) | this.memory.acc);
         return;
       case 0x43:
-        this.memory.writeDirect(operand1, this.memory.readDirect(operand1) | operand2);
+        this.memory.writeDirect(operand1, this.memory.readRmwDirect(operand1) | operand2);
         return;
       case 0x44:
         this.memory.acc |= operand1;
@@ -351,10 +435,10 @@ export class Cpu8051 {
         if (!this.memory.carry) this.branch(postPc, operand1);
         return;
       case 0x52:
-        this.memory.writeDirect(operand1, this.memory.readDirect(operand1) & this.memory.acc);
+        this.memory.writeDirect(operand1, this.memory.readRmwDirect(operand1) & this.memory.acc);
         return;
       case 0x53:
-        this.memory.writeDirect(operand1, this.memory.readDirect(operand1) & operand2);
+        this.memory.writeDirect(operand1, this.memory.readRmwDirect(operand1) & operand2);
         return;
       case 0x54:
         this.memory.acc &= operand1;
@@ -370,10 +454,10 @@ export class Cpu8051 {
         if (this.memory.acc === 0) this.branch(postPc, operand1);
         return;
       case 0x62:
-        this.memory.writeDirect(operand1, this.memory.readDirect(operand1) ^ this.memory.acc);
+        this.memory.writeDirect(operand1, this.memory.readRmwDirect(operand1) ^ this.memory.acc);
         return;
       case 0x63:
-        this.memory.writeDirect(operand1, this.memory.readDirect(operand1) ^ operand2);
+        this.memory.writeDirect(operand1, this.memory.readRmwDirect(operand1) ^ operand2);
         return;
       case 0x64:
         this.memory.acc ^= operand1;
@@ -388,9 +472,11 @@ export class Cpu8051 {
       case 0x70:
         if (this.memory.acc !== 0) this.branch(postPc, operand1);
         return;
-      case 0x72:
-        this.memory.carry = this.memory.carry || this.memory.readBit(operand1);
+      case 0x72: {
+        const bit = this.memory.readBit(operand1);
+        this.memory.carry = this.memory.carry || bit;
         return;
+      }
       case 0x73:
         this.pcValue = u16(this.memory.dptr + this.memory.acc);
         return;
@@ -407,9 +493,11 @@ export class Cpu8051 {
       case 0x80:
         this.branch(postPc, operand1);
         return;
-      case 0x82:
-        this.memory.carry = this.memory.carry && this.memory.readBit(operand1);
+      case 0x82: {
+        const bit = this.memory.readBit(operand1);
+        this.memory.carry = this.memory.carry && bit;
         return;
+      }
       case 0x83:
         this.memory.acc = this.memory.readCode(postPc + this.memory.acc);
         return;
@@ -444,9 +532,11 @@ export class Cpu8051 {
       case 0x97:
         this.subtract(this.readAtRegister(opcode & 1));
         return;
-      case 0xa0:
-        this.memory.carry = this.memory.carry || !this.memory.readBit(operand1);
+      case 0xa0: {
+        const bit = this.memory.readBit(operand1);
+        this.memory.carry = this.memory.carry || !bit;
         return;
+      }
       case 0xa2:
         this.memory.carry = this.memory.readBit(operand1);
         return;
@@ -463,11 +553,13 @@ export class Cpu8051 {
           this.memory.readDirect(operand1),
         );
         return;
-      case 0xb0:
-        this.memory.carry = this.memory.carry && !this.memory.readBit(operand1);
+      case 0xb0: {
+        const bit = this.memory.readBit(operand1);
+        this.memory.carry = this.memory.carry && !bit;
         return;
+      }
       case 0xb2:
-        this.memory.writeBit(operand1, !this.memory.readBit(operand1));
+        this.memory.writeBit(operand1, !this.memory.readBit(operand1, true));
         return;
       case 0xb3:
         this.memory.carry = !this.memory.carry;
@@ -483,7 +575,7 @@ export class Cpu8051 {
         this.compareAndJump(this.readAtRegister(opcode & 1), operand1, operand2, postPc);
         return;
       case 0xc0:
-        this.pushByte(this.memory.readDirect(operand1));
+        this.pushDirect(operand1);
         return;
       case 0xc2:
         this.memory.writeBit(operand1, false);
@@ -517,7 +609,7 @@ export class Cpu8051 {
         this.decimalAdjust();
         return;
       case 0xd5: {
-        const value = u8(this.memory.readDirect(operand1) - 1);
+        const value = u8(this.memory.readRmwDirect(operand1) - 1);
         this.memory.writeDirect(operand1, value);
         if (value !== 0) this.branch(postPc, operand2);
         return;
@@ -645,11 +737,11 @@ export class Cpu8051 {
     if (a !== b) this.branch(postPc, relative);
   }
 
-  private pushByte(value: number): void {
+  private pushDirect(address: number): void {
     const nextSp = u8(this.memory.sp + 1);
     this.memory.assertIndirect(nextSp);
     this.memory.sp = nextSp;
-    this.memory.writeIndirect(nextSp, value);
+    this.memory.writeIndirect(nextSp, this.memory.readDirect(address));
   }
 
   private pushReturnAddress(address: number): void {
@@ -678,8 +770,8 @@ export class Cpu8051 {
     const stackAddress = this.memory.sp;
     this.memory.assertIndirect(stackAddress);
     const value = this.memory.readIndirect(stackAddress);
-    this.memory.writeDirect(address, value);
     this.memory.sp = u8(this.memory.sp - 1);
+    this.memory.writeDirect(address, value);
   }
 
   private exchangeIndirect(register: number, lowNibbleOnly: boolean): void {
@@ -696,6 +788,6 @@ export class Cpu8051 {
   }
 
   private xramRegisterAddress(register: number): number {
-    return (this.memory.readDirect(SFR.P2) << 8) | this.memory.readRegister(register);
+    return (this.memory.readDirect(SFR.P2, true) << 8) | this.memory.readRegister(register);
   }
 }

@@ -4,8 +4,8 @@ import type {
   EmulatorFaultData,
   MemorySpace,
   StepResult,
-  StopReason,
 } from "../core/types";
+import type { DebugConfig, DebugStopReason, WatchpointChange, WritableMemorySpace } from "../core/debugger";
 
 interface CommandBase {
   requestId: number;
@@ -39,6 +39,48 @@ export interface RunCommand extends CommandBase {
   trace: boolean;
 }
 
+export interface RunToAddressCommand extends CommandBase {
+  type: "RunToAddress";
+  address: number;
+  maxSteps: number;
+  trace: boolean;
+}
+
+export interface StepOverCommand extends CommandBase {
+  type: "StepOver";
+  maxSteps: number;
+  trace: boolean;
+}
+
+export interface SetDebugConfigCommand extends CommandBase, DebugConfig {
+  type: "SetDebugConfig";
+}
+
+export interface WriteMemoryCommand extends CommandBase {
+  type: "WriteMemory";
+  space: WritableMemorySpace;
+  address: number;
+  value: number;
+}
+
+export interface SetRegisterCommand extends CommandBase {
+  type: "SetRegister";
+  name: string;
+  value: number;
+}
+
+export interface SetPortInputCommand extends CommandBase {
+  type: "SetPortInput";
+  port: number;
+  value: number;
+}
+
+export interface ReceiveSerialCommand extends CommandBase {
+  type: "ReceiveSerial";
+  value: number;
+  ninthBit?: boolean;
+}
+
 export interface PauseCommand extends CommandBase {
   type: "Pause";
 }
@@ -60,11 +102,21 @@ export type EmulatorCommand =
   | ResetCommand
   | StepCommand
   | RunCommand
+  | RunToAddressCommand
+  | StepOverCommand
+  | SetDebugConfigCommand
+  | WriteMemoryCommand
+  | SetRegisterCommand
+  | SetPortInputCommand
+  | ReceiveSerialCommand
   | PauseCommand
   | ReadMemoryCommand
   | CreateSnapshotCommand;
 
 export type EmulatorEvent =
+  | ({ type: "DebugConfigChanged"; requestId: number } & DebugConfig)
+  | { type: "SerialOutput"; requestId: number; bytes: number[] }
+  | { type: "CommandRejected"; requestId: number; error: EmulatorFaultData }
   | {
       type: "Ready";
       requestId: number;
@@ -100,7 +152,9 @@ export type EmulatorEvent =
   | {
       type: "Stopped";
       requestId: number;
-      reason: StopReason;
+      reason: DebugStopReason;
+      address?: number;
+      watchpoint?: WatchpointChange;
       state: CpuViewState;
       snapshot: CpuSnapshot;
     }
