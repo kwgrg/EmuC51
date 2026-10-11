@@ -1015,3 +1015,11 @@ select:focus-visible { outline: 1px solid var(--primary); outline-offset: 2px; }
 .sdcc-source .source-current { background: #17350d; color: var(--primary); }
 .sdcc-source span { overflow-wrap: anywhere; }
 @media (max-width: 700px) { .sdcc-card { grid-column: auto; grid-row: auto; } }
+.sdcc-target { border: 1px solid var(--outline-variant); padding: 8px; margin: 8px 0; }
+.sdcc-source .source-selected { box-shadow: inset 3px 0 var(--secondary); }
+.sdcc-source span button { padding: 2px 4px; font: inherit; }
+.sdcc-source span button[aria-pressed="true"] { border-color: var(--secondary); color: var(--secondary); }
+@media (max-width: 700px) {
+  .sdcc-source > div { grid-template-columns: 30px 30px minmax(0, 1fr); min-width: 0; }
+  .sdcc-source span { grid-column: 3; }
+}

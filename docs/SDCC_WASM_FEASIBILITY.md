@@ -70,3 +70,34 @@ SDCC_ROOT=/tmp/emuc51-sdcc/root/usr node scripts/probe-sdcc-pipeline.mjs
 - 完整交叉构建配方尚未验证，不能把原生探针称为已可用的 WASM 构建脚本。恢复后须先选出仅 mcs51 的目标，分别交叉编译工具、验证预处理输入及虚拟 FS，再处理上述 CDB 缺口。
 - Browser Worker 的编辑编译、错误、取消、二次构建、CSP 和实际内存峰值均**未运行/未测量**。下一原型可从每阶段新模块、每次新 Worker、256 MiB 单模块堆上限与 20 秒总任务超时开始试验；这些是待测预算，不是已证明能容纳 SDCC 的容量承诺。取消须 terminate Worker，旧任务身份不能接受结果；二次构建必须以真实 E2E 验证。
 - 发布前还需提供实际分发组件逐项许可/版权、对应源码包（含移植补丁）、构建配方、运行库来源和再现结果。现阶段不满足，故不将任何编译器资产合入自动发布主线。
+
+## 云环境最小访问清单（仅从既有记录读取，未重试）
+
+远端主线提交已只读核对为 `724fc938fcf94be72ad5a1a6773677c81b2f8189`（本清单整理时）。原 emsdk 安装失败的主机为 **storage.googleapis.com:443**，HTTPS CONNECT 被代理返回 `Tunnel connection failed: 403 Forbidden`；安装退出 1。
+
+固定 emsdk 4.0.19 的 `emsdk_manifest.json` Linux x86_64 SDK 只列两个工具依赖，可按以下精确 URL 配置许可：
+
+| 请求 | 精确 URL | 已知状态 |
+| --- | --- | --- |
+| Node 22.16.0 | `https://storage.googleapis.com/webassembly/emscripten-releases-builds/deps/node-v22.16.0-linux-x64.tar.xz` | 实际请求被 403 拒绝 |
+| LLVM/Binaryen/Emscripten 固定 release | `https://storage.googleapis.com/webassembly/emscripten-releases-builds/linux/8b01e2ec3f33e6b94842096d7312ce4ef5f33f6c/wasm-binaries.tar.xz` | 从已下载的清单和 release 对照推导，尚未请求，不能称为已被拒绝 |
+
+此外，`emsdk.py:1439–1478` 安装后执行 `npm ci --production`，以及存在时执行 `bootstrap.py`。可能需要 npm 官方仓库 `registry.npmjs.org:443`（或环境已经授权、锁文件完整性可校验的包缓存）；工具链归档尚未取得，因此尚不能列出其 package-lock 的精确包 URL 或 bootstrap 的附加请求。此项是待核对依赖，不能用宽泛的任意外网权限代替。SDK 引导 GitHub 仓库已取得，无需为当前恢复重新下载；Linux 清单没有额外 Python 下载依赖，当前已有 Python。
+
+源码构建还需 **flex、bison、m4、Boost 开发头文件**；make/g++/Python 已有，若选用 CMake 构建子组件再提供 cmake。可由环境管理员预装，或允许来自 Debian 官方包仓库 `deb.debian.org:443` 的具体依赖包及其发布摘要，版本/转依赖须按实际选取记录。已有 SDCC 源包和原生库不必重取。apt 配置文件读取拒绝应由环境方修复或预装依赖，不由任务改权限绕过。
+
+这份清单是当前已确认的最小恢复集合，不保证未经运行的整个交叉构建不会发现新依赖。仅调整开发云环境的访问，不需要放宽生产应用 CSP，也不需要服务器编译服务或用户源码上传。
+
+## 用户授权后的唯一重试与配置步骤
+
+用户于 2026-10-11 12:31:17 UTC 明确回复“允许访问”。因此通过当前执行工具支持的 `sandbox_permissions=with_additional_permissions`、`additional_permissions.network.enabled=true`，仅对同一 `/tmp/emuc51-emsdk/emsdk install 4.0.19` 重试一次。原 Node URL 仍返回 `Tunnel connection failed: 403 Forbidden`，退出 1。没有更换代理、镜像或 URL；此后停止下载。用户同意与环境代理实际放行是两件事，工具网络申请未消除本次代理拒绝；不是自动审批器拒绝执行命令。
+
+本会话工具没有提供修改 EmuC51 环境网络配置的接口。根据 [当前官方云环境说明](https://learn.chatgpt.com/docs/environments/cloud-environments#connect-to-services)，用户/环境管理员应：
+
+1. 打开 Settings → Codex Cloud → Environments，在 EmuC51 的菜单选择 Edit。
+2. 开启 Allow Codex to access internet；选 Package managers，在 Additional allowed domains 添加 `storage.googleapis.com`。固定归档精确路径见上表；npm/Debian 开发依赖按该清单提供所需访问或可信预装。
+3. 保存，在环境设置阶段验证访问，完成后选择 Republish。
+4. **从更新后的环境启动新任务**来使用并验证设置；既有任务保持自己的工作状态，不应假定对话里的授权会热更新这个容器。无需自行删除当前容器或修改代理。
+5. 若组织级策略仍拦截，请管理员核对该环境及适用的 Agent Security 网络限制；没有权限编辑环境时将此处精确 URL/错误交给管理员。
+
+官方说明要求重新发布后在新任务验证；本任务不能替用户改设置，也没有验证任何配置已生效。源码导航改进继续独立完成，浏览器 C 编译仍未实现。

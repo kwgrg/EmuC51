@@ -40,9 +40,9 @@ test("真实 SDCC 源码定位、共享地址断点、运行暂停、导航及�
 });
 test("一行多个地址全部切换；工作区可携带源码，篡改和缺失文件不替换当前状态", async ({ page }) => {
   await page.goto("/#editor"); await importBundle(page, "flow", "sdcc-flow");
-  await expect(page.getByLabel("源码第 3 行地址")).toContainText("00A8, 00AA, 00B2");
+  await expect(page.getByLabel("源码第 3 行地址", { exact: true })).toContainText("00A8, 00AA, 00B2");
   const line = page.getByRole("button", { name: "切换源码第 3 行断点" });
-  await line.click(); await expect(page.getByLabel("源码第 3 行地址")).toContainText("启用 3/3");
+  await line.click(); await expect(page.getByLabel("源码第 3 行地址", { exact: true })).toContainText("启用 3/3");
   await line.click(); await expect(line).toHaveAttribute("aria-pressed", "false");
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "导出工作区" }).click();
@@ -99,4 +99,92 @@ test("取消导入后可以重新选择，已取消文件不能覆盖新构建",
   await page.getByRole("button", { name: "单步" }).click();
   await expect(page.getByTestId("sdcc-status")).toContainText("flow.c");
   await expect(page.getByTestId("firmware-name")).toContainText("flow.ihx");
+});
+
+test("源码目标查看不改 PC，重复浏览保留历史，运行复用断点并在目标指令前停止", async ({ page }) => {
+  await page.goto("/#editor"); await importBundle(page);
+  const selected = page.getByTestId("sdcc-target");
+  const run = page.getByRole("button", { name: "运行至源码地址", exact: true });
+  await expect(run).toBeDisabled();
+  await page.getByRole("button", { name: "选择源码第 6 行地址 00AB" }).click();
+  await expect(selected).toContainText("第 6 行 · 地址 00AB");
+  await expect(page.getByTestId("register-PC")).toContainText("0000");
+  for (let repeat = 0; repeat < 2; repeat++) {
+    await page.getByRole("button", { name: "查看目标汇编" }).click();
+    await expect(page.getByLabel("反汇编起始地址")).toHaveValue("00AB");
+  }
+  await page.getByRole("button", { name: "返回上个地址" }).click();
+  await expect(page.getByLabel("反汇编起始地址")).toHaveValue("0000");
+  await page.getByRole("button", { name: "切换源码第 4 行断点" }).click();
+  await run.click();
+  await expect(page.getByTestId("register-PC")).toContainText("00A8");
+  await expect(page.locator(".footer-status")).toContainText("断点暂停");
+  await expect(selected).toContainText("00AB");
+  await page.getByRole("button", { name: "切换源码第 4 行断点" }).click();
+  await run.click();
+  await expect(page.locator(".footer-status")).toHaveText("已运行至地址 00AB");
+  await expect(page.getByTestId("sdcc-location")).toContainText("第 6 行");
+  const exported = async () => {
+    const download = page.waitForEvent("download");
+    await page.getByRole("button", { name: "导出工作区" }).click();
+    return JSON.parse(await readFile((await (await download).path())!, "utf8"));
+  };
+  const before = await exported();
+  expect(before.cpu.iram[8]).toBe(0); // INC counter at the selected address has not executed.
+  await run.click();
+  await expect(page.locator(".footer-status")).toHaveText("已运行至地址 00AB");
+  const after = await exported();
+  expect(after.cpu.steps).toBe(before.cpu.steps);
+  expect(after.settings.debugger.breakpoints).toEqual([]); // No persistent breakpoint was added.
+  await page.getByRole("button", { name: "单步" }).click();
+  await expect(page.getByTestId("sdcc-location")).toContainText("第 7 行");
+  await page.getByRole("button", { name: "取消源码选择" }).click();
+  await expect(run).toBeDisabled();
+});
+
+test("多地址源码行须显式选址，选择不跨导航、工作区或刷新恢复", async ({ page }) => {
+  await page.goto("/#editor"); await importBundle(page, "flow", "sdcc-flow");
+  await page.getByRole("button", { name: "选择源码第 3 行地址 00AA" }).click();
+  await page.getByRole("button", { name: "运行至源码地址" }).click();
+  await expect(page.getByTestId("register-PC")).toContainText("00AA");
+  await page.getByRole("button", { name: "选择源码第 3 行地址 00B2" }).click();
+  await page.getByRole("button", { name: "运行至源码地址" }).click();
+  await expect(page.getByTestId("register-PC")).toContainText("00B2");
+  await expect(page.getByTestId("sdcc-target")).toContainText("第 3 行 · 地址 00B2");
+  for (const width of [375, 820, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.getByTestId("sdcc-target").scrollIntoViewIfNeeded();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    if (width <= 700) expect(await page.locator(".sdcc-source").evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    await page.screenshot({ path: `/tmp/emuc51-source-navigation-${width}.png`, fullPage: true });
+  }
+  await page.goto("/#memory"); await page.goto("/#editor");
+  await expect(page.getByRole("button", { name: "运行至源码地址" })).toBeDisabled();
+  await page.getByRole("button", { name: "选择源码第 3 行地址 00AA" }).click();
+  await expect(page.getByRole("main")).toHaveAttribute("data-save-state", "saved");
+  await page.reload();
+  await expect(page.getByTestId("sdcc-status")).toContainText("flow.c");
+  await expect(page.getByRole("button", { name: "运行至源码地址" })).toBeDisabled();
+  await page.getByRole("button", { name: "选择源码第 3 行地址 00AA" }).click();
+  await importBundle(page);
+  await expect(page.getByTestId("sdcc-target")).not.toContainText("已选");
+  await expect(page.getByRole("button", { name: "运行至源码地址" })).toBeDisabled();
+});
+
+test("无法到达的源码目标遵守预算并可暂停，运行期间不能重复提交", async ({ page }) => {
+  await page.goto("/#editor"); await importBundle(page);
+  await page.getByRole("button", { name: "选择源码第 9 行地址 00B2" }).click();
+  await page.getByLabel("最大执行单元").fill("1");
+  await page.getByRole("button", { name: "运行至源码地址" }).click();
+  await expect(page.locator(".footer-status")).toHaveText("已达到本次运行步数上限");
+  await expect(page.getByTestId("register-PC")).not.toContainText("00B2");
+  await page.getByLabel("最大执行单元").fill("100000000");
+  await page.getByLabel("CAPTURE_TRACE").uncheck();
+  await page.getByRole("button", { name: "运行至源码地址" }).click();
+  await expect(page.getByRole("button", { name: "运行至源码地址" })).toBeDisabled();
+  await page.getByRole("button", { name: "暂停" }).click();
+  await expect(page.getByRole("button", { name: "运行至源码地址" })).toBeEnabled();
+  await expect(page.getByTestId("register-PC")).not.toContainText("00B2");
+  await page.getByRole("button", { name: "取消源码选择" }).click();
+  await expect(page.getByRole("button", { name: "运行至源码地址" })).toBeDisabled();
 });

@@ -768,6 +768,11 @@ export default function App() {
     if (!artifact || running || restoring) return;
     void loadFile(new File([artifact.bytes], artifact.project.name.replace(/\.asm$/i, ".bin")), artifact);
   };
+  const runToSdccAddress = (address: number): void => {
+    if (running || restoring || sdccImporting || sdcc.checking || !sdcc.verified?.locations.some(item => item.address === address)) return;
+    runToAddress(address);
+    document.querySelector(".source-view")?.scrollIntoView({ block: "start" });
+  };
   const toggleSdccLine = (addresses: number[]): void => {
     if (!sdcc.verified || running || restoring || sdccImporting) return;
     try { updateDebugConfig(toggleSourceBreakpoints(settingsRef.current.debugger ?? { breakpoints: [], watchpoints: [] }, addresses)); }
@@ -821,10 +826,11 @@ export default function App() {
             <WorkbenchView
               key={workspaceGeneration}
               asmBlocked={asmBlocked}
-              sdccPanel={<SdccSourcePanel verified={sdcc.verified} checking={sdcc.checking || sdccImporting} error={sdcc.error}
+              sdccPanel={onBrowseAddress => <SdccSourcePanel verified={sdcc.verified} checking={sdcc.checking || sdccImporting} error={sdcc.error}
                 disabled={running || restoring || sdccImporting} pc={cpuState?.pc} config={settings.debugger ?? { breakpoints: [], watchpoints: [] }}
                 onCancelImport={sdccImporting ? () => { fileActionRef.current += 1; setSdccImporting(false); setNotice("已取消 SDCC 导入"); } : undefined}
-                onFiles={files => void onSdccFiles(files)} onToggleLine={toggleSdccLine} />}
+                onFiles={files => void onSdccFiles(files)} onToggleLine={toggleSdccLine}
+                onBrowseAddress={onBrowseAddress} onRunToAddress={runToSdccAddress} />}
               asmPanel={<AsmPanel project={settings.asmProject} artifact={asm.artifact} diagnostics={asm.diagnostics} building={asm.building}
                 disabled={running || restoring} status={asmStatus} onProject={changeAsmProject} onBuild={asm.build} onCancel={asm.cancel} onLoad={loadAsm}
                 onNew={() => changeAsmProject({ name: "main.asm", source: ASM_EXAMPLE })} />}
@@ -1135,7 +1141,7 @@ function WorkbenchView({
   onFileChange,
   clearLocal,
 }: {
-  sdccPanel: ReactNode;
+  sdccPanel: (onBrowseAddress: (address: number) => void) => ReactNode;
   asmPanel: ReactNode;
   asmBlocked: boolean;
   coverageReport?: CoverageReport;
@@ -1166,7 +1172,7 @@ function WorkbenchView({
   onFileChange: (event: ChangeEvent<HTMLInputElement>) => void;
   clearLocal: () => Promise<void>;
 }) {
-  const [coverageNavigation, setCoverageNavigation] = useState<{ address: number }>();
+  const [instructionNavigation, setInstructionNavigation] = useState<{ address: number }>();
   const registerCards: Array<[string, string]> = cpuState
     ? [
         ["PC", hex16(cpuState.pc)],
@@ -1180,7 +1186,10 @@ function WorkbenchView({
 
   return (
     <div className="workbench-grid">
-      <TerminalPanel className="sdcc-card" title="SDCC_SOURCE" bits={["EXTERNAL BUILD", "READ ONLY"]}>{sdccPanel}</TerminalPanel>
+      <TerminalPanel className="sdcc-card" title="SDCC_SOURCE" bits={["EXTERNAL BUILD", "READ ONLY"]}>{sdccPanel(address => {
+        setInstructionNavigation({ address });
+        document.querySelector(".source-view")?.scrollIntoView({ block: "start" });
+      })}</TerminalPanel>
       <TerminalPanel className="asm-card" title="ASM_WORKBENCH" bits={["LOCAL", "SINGLE FILE"]}>{asmPanel}</TerminalPanel>
       <TerminalPanel className="project-files" title="PROJECT_FILES" bits={["FS", "RO"]}>
         <div className="tree-root">⌄ SRC</div>
@@ -1225,7 +1234,7 @@ function WorkbenchView({
           running={running}
         />
         {firmware ? <DisassemblyView key={`${firmware.sha256}:${firmware.loadedAt}`}
-          browseRequest={coverageNavigation}
+          browseRequest={instructionNavigation}
           program={firmware.bytes} pc={cpuState?.pc ?? 0}
           coverage={coverage} coverageSample={coverageSample} onReadCoverage={readCoverage}
           breakpoints={settings.debugger?.breakpoints ?? []}
@@ -1264,7 +1273,7 @@ function WorkbenchView({
       <TerminalPanel className="coverage-card" title="INSTRUCTION_COVERAGE" bits={["SESSION ONLY"]}>
         <CoveragePanel summary={coverage} disabled={!firmware || restoring} onEnable={setCoverageEnabled} onClear={clearCoverage}
           report={coverageReport} pending={coverageReportPending} onSample={requestCoverageReport}
-          onNavigate={address => setCoverageNavigation({ address })} />
+          onNavigate={address => setInstructionNavigation({ address })} />
       </TerminalPanel>
 
       <TerminalPanel className="debugger-config" title="DEBUGGER" bits={[`${settings.debugger?.breakpoints.length ?? 0} BP`, `${settings.debugger?.watchpoints.length ?? 0} WP`]}>

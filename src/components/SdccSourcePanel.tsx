@@ -1,15 +1,18 @@
-import { useMemo, useRef } from "react";
-import type { VerifiedSdccDebug } from "../core/sdcc-debug";
+import { Fragment, useMemo, useRef, useState } from "react";
+import type { SdccDebugData, VerifiedSdccDebug } from "../core/sdcc-debug";
 import type { DebugConfig } from "../core/debugger";
 import { hex16 } from "../core/numbers";
 
-export function SdccSourcePanel({ verified, checking, error, disabled, pc, config, onFiles, onToggleLine, onCancelImport }: {
+export function SdccSourcePanel({ verified, checking, error, disabled, pc, config, onFiles, onToggleLine, onCancelImport, onBrowseAddress, onRunToAddress }: {
   verified?: VerifiedSdccDebug; checking: boolean; error?: string;
   disabled: boolean; pc?: number; config: DebugConfig;
   onFiles: (files: File[]) => void; onToggleLine: (addresses: number[]) => void; onCancelImport?: () => void;
+  onBrowseAddress: (address: number) => void; onRunToAddress: (address: number) => void;
 }) {
   const scroller = useRef<HTMLDivElement>(null);
   const locations = verified?.locations;
+  const [selection, setSelection] = useState<{ data: SdccDebugData; line: number; address: number }>();
+  const target = !checking && selection?.data === verified?.data && locations?.some(item => item.line === selection?.line && item.address === selection.address) ? selection : undefined;
   const current = useMemo(() => locations?.filter(item => item.address === pc).map(item => item.line) ?? [], [locations, pc]);
   const byLine = useMemo(() => {
     const map = new Map<number, number[]>();
@@ -28,17 +31,28 @@ export function SdccSourcePanel({ verified, checking, error, disabled, pc, confi
     {verified && <>
       <p data-testid="sdcc-location">PC {hex16(pc ?? 0)} · {current.length ? `${verified.data.manifest.files.source.name} 第 ${current.join("、")} 行` : "无精确源码行映射（启动/运行库/地址空隙不推断）"}</p>
       <p>行断点设置该行全部已记录地址；复用地址断点的启停、条件和次数。全部地址已有断点时再次点击会移除这些地址，也影响共享同地址的其他源码行。不是 C 语句级单步。</p>
+      <div className="sdcc-target" aria-label="源码地址导航">
+        <p data-testid="sdcc-target">{target ? `已选 ${verified.data.manifest.files.source.name} 第 ${target.line} 行 · 地址 ${hex16(target.address)}` : "选择源码行旁的一个已验证地址，再查看汇编或运行至该地址。"}</p>
+        <div className="asm-actions">
+          <button disabled={disabled || !target} onClick={() => { if (target) onBrowseAddress(target.address); }}>查看目标汇编</button>
+          <button disabled={disabled || !target} onClick={() => { if (target) onRunToAddress(target.address); }}>运行至源码地址</button>
+          <button disabled={!selection} onClick={() => setSelection(undefined)}>取消源码选择</button>
+        </div>
+        <p>只运行到所选地址的指令执行前；不表示整条 C 语句完成。预算、暂停、已有断点和观察点仍有效，其他停止原因可能先发生。选择或查看地址不会修改 PC。</p>
+      </div>
       <div className="sdcc-source" ref={scroller}>
         {verified.data.source.split(/\r\n|\n|\r/).map((text, index) => {
           const line = index + 1;
           const addresses = byLine.get(line) ?? [];
           const configured = addresses.filter(address => config.breakpoints.includes(address));
           const enabled = configured.filter(address => config.breakpointOptions?.find(item => item.address === address)?.enabled !== false);
-          return <div key={line} className={current.includes(line) ? "source-current" : ""} data-source-line={line}>
+          return <div key={line} className={[current.includes(line) ? "source-current" : "", target?.line === line ? "source-selected" : ""].join(" ")} data-source-line={line}>
             <button disabled={disabled || checking || !addresses.length} aria-label={`切换源码第 ${line} 行断点`} aria-pressed={addresses.length > 0 && configured.length === addresses.length}
               onClick={() => onToggleLine(addresses)}>{configured.length ? "●" : "○"}</button>
             <code>{line}</code><pre>{text || " "}</pre>
-            <span aria-label={`源码第 ${line} 行地址`}>{addresses.length ? addresses.map(hex16).join(", ") : "—"}{configured.length ? ` · 启用 ${enabled.length}/${addresses.length}` : ""}</span>
+            <span aria-label={`源码第 ${line} 行地址`}>{addresses.length ? addresses.map((address, addressIndex) => <Fragment key={address}>{addressIndex > 0 && ", "}<button
+              aria-label={`选择源码第 ${line} 行地址 ${hex16(address)}`} aria-pressed={target?.line === line && target.address === address}
+              disabled={disabled || checking} onClick={() => setSelection({ data: verified.data, line, address })}>{hex16(address)}</button></Fragment>) : "—"}{configured.length ? ` · 启用 ${enabled.length}/${addresses.length}` : ""}</span>
           </div>;
         })}
       </div>
