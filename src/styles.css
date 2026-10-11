@@ -957,3 +957,11 @@ select:focus-visible { outline: 1px solid var(--primary); outline-offset: 2px; }
 .breakpoint-row input:not([type="checkbox"]) { width: 84px; }
 .breakpoint-row input[aria-invalid="true"] { border-color: var(--error); }
 .disassembly-lines .breakpoint-toggle[aria-pressed="true"][data-enabled="false"] { color: var(--outline); }
+
+.call-stack-panel { grid-column: 2 / -1; }
+.call-stack-list { display: grid; gap: 8px; max-height: 220px; overflow: auto; font-size: 10px; }
+.call-stack-list p { margin: 0; color: var(--outline); }
+.call-stack-list > div { display: flex; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid var(--outline-variant); padding: 5px 0; }
+.call-stack-list strong { color: var(--secondary); }
+.call-stack-list small { color: var(--outline); }
+@media (max-width: 1100px) { .call-stack-panel { grid-column: 1 / -1; } }

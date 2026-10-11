@@ -1,3 +1,4 @@
+import { CallStackTracker } from "./callstack";
 import { Memory8051, SFR } from "./memory";
 import { opcodeMeta } from "./opcodes";
 import { Peripherals8051, validatePeripheralSnapshot } from "./peripherals";
@@ -17,6 +18,7 @@ const now = (): number =>
 
 export class Cpu8051 {
   readonly memory: Memory8051;
+  readonly callStack = new CallStackTracker();
   readonly peripherals: Peripherals8051;
   private pcValue = 0;
   private stepCount = 0;
@@ -25,6 +27,7 @@ export class Cpu8051 {
   constructor(program: Uint8Array) {
     this.memory = new Memory8051(program);
     this.peripherals = new Peripherals8051(this.memory);
+    this.memory.debugWrite = (space, address) => this.callStack.written(space, address);
   }
 
   get pc(): number {
@@ -37,6 +40,7 @@ export class Cpu8051 {
     this.cycleCount = 0;
     this.memory.resetSfr();
     this.peripherals.reset();
+    this.callStack.reset();
   }
 
   state(includeSerialOutput = true): CpuViewState {
@@ -53,6 +57,7 @@ export class Cpu8051 {
       steps: this.stepCount,
       machineCycles: this.cycleCount,
       peripherals: this.peripherals.state(includeSerialOutput),
+      callStack: this.callStack.state(this.memory),
     };
   }
 
@@ -84,6 +89,7 @@ export class Cpu8051 {
     this.pcValue = u16(snapshot.pc);
     this.stepCount = snapshot.steps;
     this.cycleCount = snapshot.machineCycles;
+    this.callStack.invalidate("快照不含调用历史；仅追踪恢复后新进入的帧");
   }
 
   readMemory(space: MemorySpace, address: number, length: number): Uint8Array {
@@ -106,7 +112,10 @@ export class Cpu8051 {
     const register = typeof name === "string" ? name.toUpperCase() : "";
     const maximum = register === "PC" || register === "DPTR" ? 0xffff : 0xff;
     if (!Number.isInteger(value) || value < 0 || value > maximum) throw new EmulatorFault({ code: "INVALID_REGISTER", message: `寄存器 ${register} 的值无效` });
-    if (register === "PC") this.pcValue = value;
+    if (register === "PC") {
+      this.pcValue = value;
+      this.callStack.invalidate("PC 被手动修改，早期调用历史未知");
+    }
     else if (register === "DPTR") this.memory.dptr = value;
     else if (/^R[0-7]$/.test(register)) this.memory.writeRegister(Number(register[1]), value);
     else {
@@ -123,10 +132,15 @@ export class Cpu8051 {
   step(): StepResult;
   step(beforeInstruction: () => boolean): StepResult | undefined;
   step(beforeInstruction?: () => boolean): StepResult | undefined {
+    this.callStack.validate(this.memory);
     const pcBefore = this.pcValue;
+    const spBefore = this.memory.sp;
     const interrupt = this.peripherals.nextInterrupt();
     if (interrupt) {
-      this.pushReturnAddress(pcBefore);
+      this.callStack.stackOperation = true;
+      try { this.pushReturnAddress(pcBefore); }
+      finally { this.callStack.stackOperation = false; }
+      this.callStack.enter({ kind: "interrupt", callAddress: pcBefore, entryAddress: interrupt.vector, returnAddress: pcBefore, callerSp: spBefore, source: interrupt.source }, this.memory.sp);
       this.pcValue = interrupt.vector;
       this.peripherals.enterInterrupt(interrupt.source, interrupt.priority);
       this.peripherals.advance(2);
@@ -166,7 +180,14 @@ export class Cpu8051 {
       this.validateOperands(opcode, bytes[1], bytes[2]);
       this.peripherals.beginInstruction();
       this.pcValue = postPc;
-      this.execute(opcode, bytes[1], bytes[2], postPc);
+      const call = opcode === 0x12 || (opcode & 0x1f) === 0x11;
+      const returning = opcode === 0x22 || opcode === 0x32;
+      this.callStack.stackOperation = call || returning || opcode === 0xc0 || (opcode === 0xd0 && bytes[1] !== SFR.SP);
+      try { this.execute(opcode, bytes[1], bytes[2], postPc); }
+      finally { this.callStack.stackOperation = false; }
+      if (call) this.callStack.enter({ kind: "call", callAddress: pcBefore, entryAddress: this.pcValue, returnAddress: postPc, callerSp: spBefore }, this.memory.sp);
+      else if (returning) this.callStack.returned(opcode === 0x32 ? "interrupt" : "call", spBefore, this.pcValue, this.memory.sp);
+      this.callStack.validate(this.memory);
       this.memory.updateParity();
     } catch (error) {
       this.pcValue = pcBefore;

@@ -52,6 +52,12 @@ export interface StepOverCommand extends CommandBase {
   trace: boolean;
 }
 
+export interface StepOutCommand extends CommandBase {
+  type: "StepOut";
+  maxSteps: number;
+  trace: boolean;
+}
+
 export interface SetDebugConfigCommand extends CommandBase, DebugConfig {
   type: "SetDebugConfig";
 }
@@ -104,6 +110,7 @@ export type EmulatorCommand =
   | RunCommand
   | RunToAddressCommand
   | StepOverCommand
+  | StepOutCommand
   | SetDebugConfigCommand
   | WriteMemoryCommand
   | SetRegisterCommand
@@ -116,7 +123,7 @@ export type EmulatorCommand =
 export type EmulatorEvent =
   | ({ type: "DebugConfigChanged"; requestId: number } & DebugConfig)
   | { type: "SerialOutput"; requestId: number; bytes: number[] }
-  | { type: "CommandRejected"; requestId: number; error: EmulatorFaultData }
+  | { type: "CommandRejected"; requestId: number; error: EmulatorFaultData; running: boolean }
   | {
       type: "Ready";
       requestId: number;

@@ -80,7 +80,7 @@ Worker 使用带 `requestId` 的可判别联合协议，支持：
 
 - `LoadFirmware`、`RestoreWorkspace`；
 - `Reset`、`Step`、`Run`、`Pause`；
-- `SetDebugConfig`、`RunToAddress`、`StepOver`；
+- `SetDebugConfig`、`RunToAddress`、`StepOver`、`StepOut`；
 - `WriteMemory`、`SetRegister`、`SetPortInput`、`ReceiveSerial`；
 - `ReadMemory`、`CreateSnapshot`；
 - `Ready`、`StateChanged`、`TraceBatch`、`MemoryData`；
@@ -182,7 +182,7 @@ v2 记录升级到 v3 时保留 CPU v2 与所有原有配置；未配置选项�
 - 数字端口输入、串口输入/输出、定时器及中断状态；
 - 本地工作区下载和导入。
 
-默认单次运行预算为 1,000,000 个 `cpu.step()` 执行单元，包含成功指令、中断响应和空闲周期，以保证空闲固件也有执行上限；CPU 指令计数只累计成功指令。`StepLimitReached`、`Paused`、`Breakpoint`、`Watchpoint`、`RunToAddress`、`StepComplete` 和 `PowerDown` 都是正常停止。非法调试请求使用 `CommandRejected`，保持正在运行的 CPU；指令故障使用 `ExecutionFault`。
+默认单次运行预算为 1,000,000 个 `cpu.step()` 执行单元，包含成功指令、中断响应和空闲周期，以保证空闲固件也有执行上限；CPU 指令计数只累计成功指令。`StepLimitReached`、`Paused`、`Breakpoint`、`Watchpoint`、`RunToAddress`、`StepComplete`、`PowerDown` 和 `CallStackInvalidated` 都是正常停止。非法调试请求使用 `CommandRejected`，保持正在运行的 CPU；指令故障使用 `ExecutionFault`。
 
 ## 6. Cloudflare 配置
 
@@ -226,7 +226,7 @@ npm run deploy
 
 原始排期基准为一名熟悉 TypeScript 和 8051 的开发者全职约 7–9 周；实际工期会受开发者熟悉程度、指令语义测试深度和浏览器兼容性要求影响。里程碑完成表示当前验收门禁通过，不表示所有未来差分验证或扩展功能已经完成。
 
-M6 后续维护（2026-10-11）：内存地址草稿与读取结果分离，补充确认/取消、严格范围校验和翻页；修复哈希导航后的内存刷新及寄存器组标题。该批通过 192 项单元测试和 13 项 Chromium E2E。随后 KEIL 对照首批补充反汇编浏览、指令行断点和运行至行，该批通过 200 项单元测试与 14 项 Chromium E2E。第二批补充断点启停和每 N 次命中，工作区记录升级 v3，当前通过 231 项单元测试和 15 项 Chromium E2E，详见功能迭代清单。
+M6 后续维护（2026-10-11）：内存地址草稿与读取结果分离，补充确认/取消、严格范围校验和翻页；修复哈希导航后的内存刷新及寄存器组标题。该批通过 192 项单元测试和 13 项 Chromium E2E。随后 KEIL 对照首批补充反汇编浏览、指令行断点和运行至行，该批通过 200 项单元测试与 14 项 Chromium E2E。第二批补充断点启停和每 N 次命中，工作区记录升级 v3，该批通过 231 项单元测试和 15 项 Chromium E2E。第三批增加 Step Out 与可信调用帧，当前 261 项单元用例及 17 项 Chromium E2E 已验证，详见功能迭代清单。
 
 ## 8. 测试与完成标准
 
@@ -278,6 +278,17 @@ M6 后续维护（2026-10-11）：内存地址草稿与读取结果分离，补�
 - UART 使用机器周期或 T1 溢出来推进帧，支持 REN、TI/RI、SMOD 和第九位输入。收发队列及输出历史有界；串口控制台是数字帧模型，不提供串口硬件接线或精确位波形。
 - 空闲停止取指，外设和中断继续推进；经典掉电停止时钟，需要复位。输入、暂停和复位通过 Worker 消息处理，不阻塞主界面。
 - 清除工作区先禁止后续保存并停止 Worker，再删除 IndexedDB，避免页面退出事件重新写入。保存队列按顺序写入，加载代次用于丢弃旧固件的延迟消息。
+
+### 10.2 可信调用帧与 Step Out
+
+- 调用历史是 `CpuViewState.callStack` 中的临时调试状态，不属于 CPU/工作区快照；当前记录版本保持 v3、核心快照 v2。复位开始有已知空栈；恢复快照时不推测旧帧，标记早期历史未知。
+- 成功 ACALL/LCALL 记录调用地址、入口、post-PC、调用前 SP 和返回槽 SP；成功中断响应记录中断源及被中断 PC。入栈仍遵循已有低字节先入、高字节后入规则，不改变执行语义。
+- RET 只能验证 CALL 帧，RETI 只能验证中断帧；需 SP 位于帧顶、返回地址和退出后 SP 均吻合。RET 不释放中断在服务状态；误用 RET/RETI 仍执行原 CPU 语义，但不宣称调用栈可信。
+- 普通平衡 PUSH/POP 可在返回槽以上操作；返回槽的直接、间接、寄存器组、位写入（含同值写入）、显式写 SP、手工改 PC、POP 越过返回槽、错误返回和栈回绕会丢弃旧帧，说明未知原因。失去历史后新发生的 CALL/中断可建立部分可信帧。
+- 经典 128B IRAM 的越界栈访问仍严格报错；原子失败的压栈/返回不创建或移除帧。原有 8 位 SP 回绕行为保持，但不为回绕帧提供 Step Out。
+- Step Out 选取当前最内层已验证帧，持续执行直到该帧经匹配 RET/RETI 移除；嵌套调用或中断、恰好到达返回地址的跳转不能提前完成。信任代次变化则以 `CallStackInvalidated` 停止。
+- 断点在取指前停止，观察点在执行单元后检查；Step Out 完成检查随后执行，先于同边界的预算停止。运行期间可以暂停；无返回路径、idle 与掉电仍受预算/停止机制控制。中途停止会取消本次临时目标，再次点击跳出选择当时最内层帧。
+- 调用帧最多 64 项，受经典 IRAM 容量进一步约束；只显示机器地址，不声称拥有函数符号、C 局部变量或任意历史栈展开能力。
 
 ## 11. 参考资料
 

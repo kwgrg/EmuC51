@@ -1,3 +1,5 @@
+import type { CallStackState } from "./callstack";
+
 export type MemorySpace = "code" | "iram" | "sfr" | "xram";
 
 export type EmulatorFaultCode =
@@ -40,6 +42,7 @@ export interface CpuViewState {
   steps: number;
   machineCycles: number;
   peripherals: PeripheralViewState;
+  callStack: CallStackState;
 }
 
 export type InterruptSource = "external0" | "timer0" | "external1" | "timer1" | "serial";

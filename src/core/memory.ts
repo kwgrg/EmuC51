@@ -52,6 +52,7 @@ export class Memory8051 {
   readonly sfr = new Uint8Array(0x80);
   readonly xram = new Uint8Array(0x10000);
   peripheralHooks?: MemoryPeripheralHooks;
+  debugWrite?: (space: "iram" | "sfr", address: number) => void;
 
   constructor(program: Uint8Array) {
     if (program.byteLength > 0x10000) {
@@ -108,18 +109,20 @@ export class Memory8051 {
   writeSfrHardware(address: number, value: number): void {
     this.assertDirect(address);
     this.sfr[u8(address) - 0x80] = u8(value);
+    this.debugWrite?.("sfr", u8(address));
   }
 
   writeDirect(address: number, value: number): void {
     const direct = u8(address);
     this.assertDirect(direct);
     if (direct < 0x80) {
-      this.iram[direct] = u8(value);
+      this.writeIndirect(direct, value);
     } else {
       const previous = this.readSfrLatch(direct);
       const byte = u8(value);
       this.peripheralHooks?.beforeWriteSfr?.(direct, byte);
       this.sfr[direct - 0x80] = byte;
+      this.debugWrite?.("sfr", direct);
       this.peripheralHooks?.afterWriteSfr(direct, previous, byte);
     }
   }
@@ -147,6 +150,7 @@ export class Memory8051 {
   writeIndirect(address: number, value: number): void {
     this.assertIndirect(address);
     this.iram[address] = u8(value);
+    this.debugWrite?.("iram", address);
   }
 
   resolveBit(address: number): [number, number, "iram" | "sfr"] {
@@ -189,7 +193,7 @@ export class Memory8051 {
         : this.readDirect(byteAddress, true);
     const next = set ? current | (1 << bit) : current & ~(1 << bit);
     if (space === "iram") {
-      this.iram[byteAddress] = u8(next);
+      this.writeIndirect(byteAddress, next);
     } else {
       this.writeDirect(byteAddress, next);
     }
@@ -220,7 +224,7 @@ export class Memory8051 {
   }
 
   writeRegister(index: number, value: number): void {
-    this.iram[this.registerAddress(index)] = u8(value);
+    this.writeIndirect(this.registerAddress(index), value);
   }
 
   get acc(): number {

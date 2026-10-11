@@ -365,3 +365,131 @@ describe("breakpoint resume around interrupts", () => {
     expect(stopped()).toMatchObject({ reason: "Breakpoint", state: { pc: 6, acc: 1, steps: 5, sp: 9 } });
   });
 });
+
+describe("Step Out with verified frames", () => {
+  const out = (maxSteps = 50) => { send({ type: "StepOut", maxSteps, trace: true }); vi.runAllTimers(); };
+
+  it("leaves exactly the selected nested frame and completes at the budget boundary", () => {
+    load(0x12, 0, 4, 0, 0x12, 0, 8, 0x22, 0x04, 0x22);
+    send({ type: "Step", trace: true });
+    expect(stopped().state.callStack.frames).toHaveLength(1);
+    out(4); // Nested CALL, INC A, RET, outer RET.
+    expect(stopped()).toMatchObject({ reason: "StepComplete", state: { pc: 3, sp: 7, acc: 1, steps: 5 } });
+    expect(stopped().state.callStack.frames).toHaveLength(0);
+    out();
+    expect(events.at(-1)).toMatchObject({ type: "CommandRejected", running: false });
+  });
+
+  it("honors internal breakpoints, resumes, and does not stop on an address match alone", () => {
+    // Helper deliberately visits the outer return address at PC 3 with a deeper SP.
+    load(0x12, 0, 8, 0x04, 0x22, 0, 0, 0, 0x12, 0, 3, 0x22);
+    send({ type: "Step", trace: true });
+    send({ type: "SetDebugConfig", breakpoints: [3], watchpoints: [] });
+    out();
+    expect(stopped()).toMatchObject({ reason: "Breakpoint", state: { pc: 3, sp: 11 } });
+    expect(stopped().state.callStack.frames).toHaveLength(2);
+    out(); // New command selects the current (inner) frame.
+    expect(stopped()).toMatchObject({ reason: "StepComplete", state: { pc: 11, sp: 9, acc: 1 } });
+    out();
+    expect(stopped()).toMatchObject({ reason: "StepComplete", state: { pc: 3, sp: 7 } });
+  });
+
+  it("finishes an interrupt frame on RETI and preserves unknown older history", () => {
+    const program = new Uint8Array(12);
+    program[0x0b] = 0x32;
+    load(...program);
+    const snapshot = events.find((event) => event.type === "Ready")!.snapshot;
+    snapshot.sfr[8] = 0x20;
+    snapshot.sfr[0x28] = 0x82;
+    send({ type: "RestoreWorkspace", name: "irq.bin", bytes: program.buffer, snapshot });
+    send({ type: "Step", trace: true });
+    expect(stopped().state.callStack).toMatchObject({ complete: false, frames: [{ kind: "interrupt", source: "timer0" }] });
+    out(1);
+    expect(stopped()).toMatchObject({ reason: "StepComplete", state: { pc: 0, sp: 7, steps: 1 } });
+    expect(stopped().state.peripherals.interrupt.activePriorities).toEqual([]);
+  });
+
+  it.each([
+    ["return slot write", [0x75, 8, 3, 0x22]],
+    ["explicit SP edit", [0x75, 0x81, 9, 0x22]],
+    ["mismatched RETI", [0x32]],
+    ["unbalanced PUSH then RET", [0xc0, 0xe0, 0x22]],
+  ])("stops instead of pretending to return after %s", (_name, body) => {
+    load(0x12, 0, 4, 0, ...body);
+    send({ type: "Step", trace: true });
+    out();
+    expect(stopped().reason).toBe("CallStackInvalidated");
+    expect(stopped().state.callStack).toMatchObject({ complete: false, frames: [] });
+  });
+
+  it("is bounded, can pause between chunks, and cancels stale scheduled work", () => {
+    load(0x12, 0, 4, 0, 0x80, 0xfe);
+    send({ type: "Step", trace: true });
+    out(0);
+    expect(stopped()).toMatchObject({ reason: "StepLimitReached", state: { steps: 1 } });
+    out(5);
+    expect(stopped()).toMatchObject({ reason: "StepLimitReached", state: { steps: 6 } });
+    send({ type: "StepOut", maxSteps: 100_000, trace: false });
+    vi.runOnlyPendingTimers();
+    send({ type: "Pause" });
+    const steps = stopped().state.steps;
+    vi.runAllTimers();
+    expect(stopped()).toMatchObject({ reason: "Paused", state: { steps } });
+    expect(stopped().state.callStack.frames).toHaveLength(1);
+  });
+
+  it("reports stack faults, preserves trustworthy caller frames and respects power-down", () => {
+    load(0x12, 0, 4, 0, 0x12, 0, 4);
+    send({ type: "SetRegister", name: "SP", value: 0x7d });
+    send({ type: "Step", trace: true });
+    out();
+    expect(events.at(-1)).toMatchObject({ type: "ExecutionFault", error: { code: "INVALID_IRAM_ADDRESS" } });
+    const fault = events.at(-1);
+    if (fault?.type !== "ExecutionFault") throw new Error("expected fault");
+    expect(fault.state!.callStack.frames).toHaveLength(1);
+    load(0x12, 0, 4, 0, 0x75, 0x87, 2);
+    send({ type: "Step", trace: true });
+    out();
+    expect(stopped().reason).toBe("PowerDown");
+  });
+
+  it("rejects missing history and invalid requests without starting or cancelling a run", () => {
+    load(0x12, 0, 4, 0, 0x80, 0xfe);
+    out();
+    expect(events.at(-1)).toMatchObject({ type: "CommandRejected", running: false });
+    send({ type: "Step", trace: true });
+    const snapshot = stopped().snapshot;
+    send({ type: "RestoreWorkspace", name: "restored.bin", bytes: Uint8Array.of(0x12, 0, 4, 0, 0x80, 0xfe).buffer, snapshot });
+    out();
+    expect(events.at(-1)).toMatchObject({ type: "CommandRejected", running: false });
+    send({ type: "Run", maxSteps: 5, trace: false });
+    send({ type: "StepOut", maxSteps: 5, trace: false });
+    expect(events.at(-1)).toMatchObject({ type: "CommandRejected", running: true });
+    vi.runAllTimers();
+    expect(stopped().reason).toBe("StepLimitReached");
+  });
+});
+
+describe("Step Out stop boundaries", () => {
+  it("does not finish when control jumps to the return address without returning", () => {
+    load(0x12, 0, 6, 0x80, 0xfe, 0, 0x02, 0, 3);
+    send({ type: "Step", trace: false });
+    send({ type: "StepOut", maxSteps: 5, trace: false });
+    vi.runAllTimers();
+    expect(stopped()).toMatchObject({ reason: "StepLimitReached", state: { pc: 3, sp: 9 } });
+    expect(stopped().state.callStack.frames).toHaveLength(1);
+  });
+
+  it("honors watchpoints and charges idle cycles against the Step Out budget", () => {
+    load(0x12, 0, 4, 0, 0x75, 0x20, 0x42, 0x75, 0x87, 1);
+    send({ type: "Step", trace: false });
+    send({ type: "SetDebugConfig", breakpoints: [], watchpoints: [{ space: "iram", address: 0x20 }] });
+    send({ type: "StepOut", maxSteps: 50, trace: false });
+    vi.runAllTimers();
+    expect(stopped()).toMatchObject({ reason: "Watchpoint", state: { pc: 7, steps: 2 } });
+    expect(stopped().state.callStack.frames).toHaveLength(1);
+    send({ type: "StepOut", maxSteps: 5, trace: false });
+    vi.runAllTimers();
+    expect(stopped()).toMatchObject({ reason: "StepLimitReached", state: { pc: 10, steps: 3, peripherals: { powerMode: "idle" } } });
+  });
+});

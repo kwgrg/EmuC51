@@ -33,7 +33,8 @@ export type DebugStopReason =
   | "Watchpoint"
   | "StepComplete"
   | "RunToAddress"
-  | "PowerDown";
+  | "PowerDown"
+  | "CallStackInvalidated";
 
 export interface DebugStop {
   reason: DebugStopReason;

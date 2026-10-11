@@ -259,6 +259,7 @@ export default function App() {
               : event.reason === "Watchpoint" ? `监视点暂停 · ${event.watchpoint?.space.toUpperCase()} ${hex16(event.watchpoint?.address ?? 0)}`
               : event.reason === "RunToAddress" ? `已运行至地址 ${hex16(event.state.pc)}`
               : event.reason === "PowerDown" ? "CPU 已进入掉电模式；复位后继续执行"
+              : event.reason === "CallStackInvalidated" ? "调用帧失去可信度，已停止跳出；请检查栈或返回指令"
               : event.reason === "StepComplete" ? "工作区已保存在此浏览器" : "执行已暂停");
           });
           setTimeout(requestMemory, 0);
@@ -271,6 +272,7 @@ export default function App() {
           setTimeout(requestMemory, 0);
           break;
         case "CommandRejected":
+          setRunning(event.running);
           setError(formatFault({ ...event, type: "ExecutionFault" }));
           break;
       }
@@ -474,6 +476,12 @@ export default function App() {
     postCommand({ type: "StepOver", maxSteps: settings.maxSteps, trace: settings.traceEnabled });
   };
 
+  const stepOut = (): void => {
+    setError(undefined);
+    setRunning(true);
+    postCommand({ type: "StepOut", maxSteps: settings.maxSteps, trace: settings.traceEnabled });
+  };
+
   const writeMemory = (space: WritableSpace, address: number, value: number): void => {
     setError(undefined);
     postCommand({ type: "WriteMemory", space, address, value });
@@ -558,6 +566,7 @@ export default function App() {
     step,
     reset,
     stepOver,
+    stepOut,
   };
 
   const statusText = error ?? (restoring ? "正在准备工作区…" : notice);
@@ -867,6 +876,7 @@ interface ControlActions {
   step: () => void;
   reset: () => void;
   stepOver: () => void;
+  stepOut: () => void;
 }
 
 function WorkbenchView({
@@ -956,6 +966,7 @@ function WorkbenchView({
       <TerminalPanel className="source-view" title="BIN_INSPECTOR" bits={["READ", running ? "LIVE" : "IDLE"]} active={running}>
         <ControlStrip
           controls={controls}
+          canStepOut={Boolean(cpuState?.callStack.frames.length)}
           firmware={firmware}
           restoring={restoring}
           running={running}
@@ -997,6 +1008,18 @@ function WorkbenchView({
 
       <TerminalPanel className="debugger-config" title="DEBUGGER" bits={[`${settings.debugger?.breakpoints.length ?? 0} BP`, `${settings.debugger?.watchpoints.length ?? 0} WP`]}>
         <DebuggerPanel config={settings.debugger ?? { breakpoints: [], watchpoints: [] }} disabled={!firmware || restoring || running} onChange={updateDebugConfig} onRunTo={runToAddress} />
+      </TerminalPanel>
+
+      <TerminalPanel className="call-stack-panel" title="CALL_STACK" bits={[cpuState?.callStack.complete ? "TRACKED" : "PARTIAL / UNKNOWN"]}>
+        <div className="call-stack-list" data-testid="call-stack">
+          <p>{cpuState?.callStack.reason ?? (cpuState ? "从复位开始追踪；仅显示机器级调用帧" : "加载固件后开始追踪")}</p>
+          {cpuState?.callStack.frames.length === 0 && <p>没有已知调用帧</p>}
+          {cpuState?.callStack.frames.slice().reverse().map((frame) => <div key={frame.id} data-testid="call-frame">
+            <strong>{frame.kind === "interrupt" ? `ISR ${frame.source}` : "CALL"} {hex16(frame.entryAddress)}</strong>
+            <span>来自 {hex16(frame.callAddress)} → 返回 {hex16(frame.returnAddress)} · SP {hex8(frame.stackSp)}</span>
+          </div>)}
+          <small>历史仅保留于本次运行；刷新/导入后早期帧未知。跳出遵循执行预算，可暂停。</small>
+        </div>
       </TerminalPanel>
 
       <TerminalPanel className="compiler-output" title="RUNTIME_OUTPUT" bits={[error ? "FAULT" : "OK"]}>
@@ -1060,11 +1083,13 @@ function WorkbenchView({
 
 function ControlStrip({
   controls,
+  canStepOut,
   firmware,
   restoring,
   running,
 }: {
   controls: ControlActions;
+  canStepOut: boolean;
   firmware?: FirmwareState;
   restoring: boolean;
   running: boolean;
@@ -1081,6 +1106,7 @@ function ControlStrip({
       <button disabled={!running} onClick={controls.pause}>Ⅱ 暂停</button>
       <button disabled={!firmware || restoring || running} onClick={controls.step}>› 单步</button>
       <button disabled={!firmware || restoring || running} onClick={controls.stepOver}>» 步过</button>
+      <button disabled={!firmware || restoring || running || !canStepOut} onClick={controls.stepOut}>↗ 跳出</button>
       <button disabled={!firmware || restoring || running} onClick={controls.reset}>↺ 复位</button>
     </div>
   );

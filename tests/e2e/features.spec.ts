@@ -341,3 +341,59 @@ test("断点启停、每 N 次命中、计数重置及工作区往返", async ({
   await expect(count).toHaveValue("1");
   await expect(page.getByRole("alert")).toHaveCount(0);
 });
+
+test("可信调用帧与跳出，刷新后不虚构历史", async ({ page }) => {
+  await load(page, [0x12, 0, 4, 0, 0x12, 0, 8, 0x22, 0x04, 0x22]);
+  const out = page.getByRole("button", { name: "跳出", exact: false });
+  await expect(out).toBeDisabled();
+  await page.getByRole("button", { name: "单步" }).click();
+  await expect(page.getByTestId("call-frame")).toHaveCount(1);
+  await expect(page.getByTestId("call-frame")).toContainText("返回 0003");
+  await out.click();
+  await expect(page.getByTestId("register-PC")).toContainText("0003");
+  await expect(page.getByTestId("register-A")).toContainText("01");
+  await expect(page.getByTestId("call-frame")).toHaveCount(0);
+  await expect(out).toBeDisabled();
+  await page.getByRole("button", { name: "复位" }).click();
+  await page.getByRole("button", { name: "单步" }).click();
+  await expect(page.getByTestId("call-frame")).toHaveCount(1);
+  await page.reload();
+  await expect(page.getByTestId("register-PC")).toContainText("0004");
+  await expect(page.getByTestId("call-stack")).toContainText("快照不含调用历史");
+  await expect(page.getByTestId("call-frame")).toHaveCount(0);
+  await expect(out).toBeDisabled();
+  await page.getByRole("button", { name: "单步" }).click(); // New inner frame above unknown history.
+  await expect(page.getByTestId("call-frame")).toHaveCount(1);
+  await out.click();
+  await expect(page.getByTestId("register-PC")).toContainText("0007");
+  await expect(page.getByTestId("call-stack")).toContainText("快照不含调用历史");
+  await expect(out).toBeDisabled();
+});
+
+test("跳出支持预算和暂停，手动改写返回槽后停止提供跳出", async ({ page }) => {
+  await load(page, [0x12, 0, 4, 0, 0x80, 0xfe]);
+  await page.getByRole("button", { name: "单步" }).click();
+  const out = page.getByRole("button", { name: "跳出", exact: false });
+  await page.getByLabel("最大执行单元").fill("5");
+  await out.click();
+  await expect(page.locator(".footer-status")).toHaveText("已达到本次运行步数上限");
+  await expect(page.getByTestId("call-frame")).toHaveCount(1);
+  await page.getByLabel("最大执行单元").fill("100000000");
+  await page.getByRole("checkbox", { name: "CAPTURE_TRACE" }).uncheck();
+  await out.click();
+  await expect(out).toBeDisabled();
+  await navigate(page, "SYS_MEM");
+  await navigate(page, "BIN_INSPECTOR");
+  await page.getByRole("button", { name: "暂停" }).click();
+  await expect(out).toBeEnabled();
+  await navigate(page, "SYS_MEM");
+  await page.getByRole("button", { name: "IRAM", exact: true }).click();
+  await page.getByLabel("写入内存地址").fill("08");
+  await page.getByLabel("写入内存值").fill("03");
+  await page.getByRole("button", { name: "写入字节" }).click();
+  await navigate(page, "BIN_INSPECTOR");
+  await expect(page.getByTestId("call-stack")).toContainText("返回地址槽被写入");
+  await expect(out).toBeDisabled();
+  await page.getByRole("button", { name: "复位" }).click();
+  await expect(page.getByTestId("call-stack")).toContainText("从复位开始追踪");
+});

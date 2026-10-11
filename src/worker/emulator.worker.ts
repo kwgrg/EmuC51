@@ -17,6 +17,7 @@ let remainingSteps = 0;
 let traceEnabled = false;
 let lastStateAt = 0;
 let lastSnapshotAt = 0;
+let outTarget: { id: number; generation: number } | undefined;
 let target: { address: number; reason: "RunToAddress" | "StepComplete"; sp?: number } | undefined;
 
 const post = (event: EmulatorEvent): void => scope.postMessage(event);
@@ -49,6 +50,7 @@ const stopCurrentRun = (): void => {
   running = false;
   runToken += 1;
   target = undefined;
+  outTarget = undefined;
 };
 
 const finishRun = (requestId: number, stop: DebugStop): void => {
@@ -92,6 +94,15 @@ const traceStep = (step: StepResult): StepResult => ({
   },
 });
 
+const stepOutStop = (machine: Cpu8051): DebugStop | undefined => {
+  const currentTarget = outTarget;
+  if (!currentTarget) return undefined;
+  const stack = machine.callStack.state(machine.memory);
+  if (stack.generation !== currentTarget.generation) return { reason: "CallStackInvalidated", address: machine.pc };
+  if (!stack.frames.some((frame) => frame.id === currentTarget.id)) return { reason: "StepComplete", address: machine.pc };
+  return undefined;
+};
+
 const pump = (token: number): void => {
   if (!running || token !== runToken || !cpu) return;
   const machine = cpu;
@@ -102,6 +113,8 @@ const pump = (token: number): void => {
     const chunkLimit = Math.min(10_000, remainingSteps);
     let stop: DebugStop | undefined;
     for (let executed = 0; executed < chunkLimit; executed += 1) {
+      stop = stepOutStop(machine);
+      if (stop) break;
       if (target?.address === machine.pc && (target.sp === undefined || target.sp === machine.state().sp)) {
         stop = { reason: target.reason, address: target.address };
         break;
@@ -120,6 +133,8 @@ const pump = (token: number): void => {
       // Drain each step so trace states do not repeatedly copy a growing TX queue.
       serial.push(...machine.drainSerialOutput());
       stop = debugger8051.changed(machine.memory, watched);
+      if (stop) break;
+      stop = stepOutStop(machine);
       if (stop) break;
       if (result.state.peripherals.powerMode === "power-down") {
         stop = { reason: "PowerDown", address: machine.pc };
@@ -165,6 +180,7 @@ const startRun = (
   trace: boolean,
   runTarget?: typeof target,
   bypassCurrent = false,
+  frameTarget?: typeof outTarget,
 ): void => {
   assertInteger(maxSteps, 0, Number.MAX_SAFE_INTEGER, "执行步数");
   assertTrace(trace);
@@ -175,6 +191,7 @@ const startRun = (
   remainingSteps = maxSteps;
   traceEnabled = trace;
   target = runTarget;
+  outTarget = frameTarget;
   running = true;
   lastStateAt = performance.now();
   lastSnapshotAt = lastStateAt;
@@ -271,6 +288,16 @@ scope.onmessage = (message: MessageEvent<EmulatorCommand>): void => {
         }
         return;
       }
+      case "StepOut": {
+        assertInteger(command.maxSteps, 0, Number.MAX_SAFE_INTEGER, "执行步数");
+        assertTrace(command.trace);
+        const machine = requireStopped();
+        const stack = machine.callStack.state(machine.memory);
+        const frame = stack.frames.at(-1);
+        if (!frame) invalid("没有可验证的调用帧，无法跳出；请先执行调用或中断进入");
+        startRun(requestId, command.maxSteps, command.trace, undefined, true, { id: frame!.id, generation: stack.generation });
+        return;
+      }
       case "Pause":
         finishRun(requestId, { reason: "Paused" });
         return;
@@ -320,7 +347,7 @@ scope.onmessage = (message: MessageEvent<EmulatorCommand>): void => {
     }
   } catch (error) {
     if (executing) reportFault(requestId, error);
-    else post({ type: "CommandRejected", requestId, error: faultData(error) });
+    else post({ type: "CommandRejected", requestId, error: faultData(error), running });
   }
 };
 
