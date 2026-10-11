@@ -10,7 +10,7 @@ import {
 } from "react";
 import { hex16, hex8 } from "./core/numbers";
 import { MAX_HEX_FILE_SIZE, parseFirmware } from "./core/firmware";
-import { disassemble } from "./core/disassembler";
+import { DisassemblyView } from "./components/DisassemblyView";
 import { normalizeDebugConfig } from "./core/debugger";
 import { ByteEditor, DebuggerPanel, RegisterEditor, type DebugSettings, type WritableSpace } from "./components/DebuggerPanel";
 import { MemoryNavigation, memoryBounds } from "./components/MemoryNavigation";
@@ -960,9 +960,16 @@ function WorkbenchView({
           restoring={restoring}
           running={running}
         />
-        <div className="source-scroll">
-          <TraceSource firmware={firmware} pc={cpuState?.pc ?? 0} breakpoints={settings.debugger?.breakpoints ?? []} />
-        </div>
+        {firmware ? <DisassemblyView key={`${firmware.sha256}:${firmware.loadedAt}`}
+          program={firmware.bytes} pc={cpuState?.pc ?? 0}
+          breakpoints={settings.debugger?.breakpoints ?? []}
+          disabled={restoring} running={running} onRunTo={runToAddress}
+          onToggleBreakpoint={(address) => {
+            const config = settings.debugger ?? { breakpoints: [], watchpoints: [] };
+            updateDebugConfig({ ...config, breakpoints: config.breakpoints.includes(address)
+              ? config.breakpoints.filter((value) => value !== address)
+              : [...config.breakpoints, address] });
+          }} /> : <EmptyState>NO BINARY IMAGE LOADED</EmptyState>}
       </TerminalPanel>
 
       <TerminalPanel className="cpu-monitor" title="CPU_MONITOR" bits={[running ? "RUN" : "PAUSE"]} active={running}>
@@ -1076,25 +1083,6 @@ function ControlStrip({
       <button disabled={!firmware || restoring || running} onClick={controls.reset}>↺ 复位</button>
     </div>
   );
-}
-
-function TraceSource({
-  firmware,
-  pc,
-  breakpoints,
-}: {
-  firmware?: FirmwareState;
-  pc: number;
-  breakpoints: number[];
-}) {
-  if (!firmware) return <EmptyState>NO BINARY IMAGE LOADED</EmptyState>;
-  const rows = disassemble(new Uint8Array(firmware.bytes), pc, 80);
-  return <div className="source-lines" data-testid="disassembly-list">{rows.map((item) =>
-    <div className={item.address === pc ? "current" : ""} data-testid={item.address === pc ? "current-instruction" : undefined} key={item.address}>
-      <code>{breakpoints.includes(item.address) ? "●" : " "} {hex16(item.address)}</code>
-      <code>{item.bytes.map(hex8).join(" ")}</code>
-      <strong>{item.text}</strong>
-    </div>)}</div>;
 }
 
 function MemoryView({

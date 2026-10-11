@@ -38,3 +38,12 @@
 - 375/820/1280 px 实际浏览器内存页无页面横向溢出；重复刷新与离页取消草稿专项用例通过。
 - 静态部署干运行通过，输出 `No bindings found`。初次因默认 `/home/agent/.config/.wrangler` 不存在失败，设置 `XDG_CONFIG_HOME=/tmp/emuc51-config` 和 `WRANGLER_LOG_PATH=/tmp/emuc51-wrangler-logs` 后恢复；未执行真实部署。
 - 本轮仅在本地分支 `fix/memory-navigation` 实施；未推送、未创建 PR、未部署。Firefox/WebKit 浏览器未安装，本轮未运行。
+
+## 2026-10-11：主线合入及 KEIL 对照首批
+
+- 内存浏览修复 `c15bfaf159d8bddbf6daf638c8e46316b78faa6b` 已快进合入远端默认分支 `master`；无强推、无历史覆盖。远端分支接口显示未受保护，规则集为空；管理级保护明细接口因集成权限不足返回 403，未尝试修改保护规则。
+- GitHub Actions 无运行记录；既有 Cloudflare 集成自动触发的 [Workers Builds: emuc51](https://github.com/kwgrg/EmuC51/runs/114442679202) 检查成功，返回版本 `42931826-78b2-4f03-90e3-fe429de26386`。未执行独立部署命令，自动集成结果与手工部署区别记录。
+- 后续从该主线建立 `feat/disassembly-workbench`，增加 [KEIL 能力对照](KEIL_PARITY.md)，明确已实现、部分实现、缺失和暂不支持的能力及验证方法。
+- 本批完成反汇编任意 CODE 地址浏览、跟随 PC/固定位置、草稿确认/取消、按真实指令长度翻页、最多 64 项浏览历史、行断点切换和运行至指令。复用已有 Worker、断点设置和快照格式。
+- 验证通过：TypeScript、ESLint、生产构建、200 项单元测试、14 项 Chromium E2E；375/820/1280 px 布局无页面横向溢出，375 px 下实际点击断点和运行至行通过。静态部署干运行显示 `No bindings found`。
+- Firefox/WebKit 未安装，本批未运行。本批仅本地实现与提交，未推送、合入或独立部署。

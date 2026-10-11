@@ -936,3 +936,18 @@ select:focus-visible { outline: 1px solid var(--primary); outline-offset: 2px; }
 
 .memory-navigation { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-left: auto; }
 .memory-navigation input[aria-invalid="true"] { border-color: var(--error); }
+
+.disassembly-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px; border-bottom: 1px solid var(--outline-variant); }
+.disassembly-toolbar label { display: flex; align-items: center; gap: 6px; color: var(--outline); font-size: 9px; }
+.disassembly-toolbar input { width: 76px; }
+.disassembly-toolbar input[aria-invalid="true"] { border-color: var(--error); }
+.disassembly-toolbar button { min-height: 28px; padding: 4px 7px; font-size: 9px; }
+.disassembly-toolbar button[aria-pressed="true"] { color: var(--primary); border-color: var(--primary); }
+.disassembly-toolbar small { color: var(--outline); font-size: 9px; }
+.disassembly-lines > div { grid-template-columns: 28px 48px 100px minmax(170px, 1fr) 70px; gap: 4px; min-height: 30px; }
+.disassembly-lines code:nth-child(2) { color: var(--secondary); }
+.disassembly-lines code:nth-child(3) { color: var(--warning); }
+.disassembly-lines button { min-height: 26px; padding: 2px 4px; color: inherit; background: transparent; font-size: 9px; }
+.disassembly-lines .breakpoint-toggle { font-size: 16px; }
+.disassembly-lines .breakpoint-toggle[aria-pressed="true"] { color: var(--warning); }
+.disassembly-lines > div.current button { color: var(--terminal-bg); border-color: var(--terminal-bg); }
