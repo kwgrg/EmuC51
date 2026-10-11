@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 
-import { evaluateWatch, MAX_WATCH_EXPRESSIONS } from "../core/expressions";
+import { evaluateExpression, evaluateWatch, MAX_WATCH_EXPRESSIONS } from "../core/expressions";
 import { Cpu8051 } from "../core/cpu";
 import { Debugger8051, assertDebugAddress, assertWritableAddress, type DebugStop } from "../core/debugger";
 import { opcodeMeta } from "../core/opcodes";
@@ -122,7 +122,7 @@ const pump = (token: number): void => {
       }
       const watched = debugger8051.capture(machine.memory);
       const result = machine.step(() => {
-        stop = debugger8051.beforeStep(machine.pc);
+        stop = debugger8051.beforeStep(machine.pc, expression => evaluateExpression(machine, expression));
         return !stop;
       });
       if (!result) break;

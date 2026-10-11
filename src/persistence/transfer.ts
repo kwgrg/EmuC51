@@ -1,8 +1,8 @@
 import { normalizeWorkspaceRecord, sha256Hex, type WorkspaceRecord } from "./db";
 
 // A maximum-size 64 KiB firmware and 64 KiB XRAM encoded as JSON byte arrays,
-// including bounded peripheral queues and debugger configuration, fit in 1 MiB.
-export const MAX_WORKSPACE_IMPORT_BYTES = 1024 * 1024;
+// including 1024 escaped 256-character conditions and bounded queues, fit in 4 MiB.
+export const MAX_WORKSPACE_IMPORT_BYTES = 4 * 1024 * 1024;
 
 const invalidWorkspace = (): Error => new Error("工作区文件无效：版本、内存、外设状态或设置未通过校验");
 
@@ -38,7 +38,7 @@ export const exportWorkspace = (record: WorkspaceRecord): string => {
 /** Validate and verify the firmware checksum before the caller changes its current workspace. */
 export const importWorkspace = async (text: string): Promise<WorkspaceRecord> => {
   if (typeof text !== "string" || text.length > MAX_WORKSPACE_IMPORT_BYTES || new TextEncoder().encode(text).byteLength > MAX_WORKSPACE_IMPORT_BYTES) {
-    throw new Error("工作区文件超过 1 MiB 上限");
+    throw new Error("工作区文件超过 4 MiB 上限");
   }
   let value: unknown;
   try {

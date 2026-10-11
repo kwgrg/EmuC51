@@ -17,8 +17,8 @@ export interface WorkspaceSettings {
 }
 
 export interface WorkspaceRecord {
-  // Record versions 1/2 remain readable; v3 adds breakpoint options, CPU stays v2.
-  schemaVersion: 1 | 2 | 3;
+  // v4 adds condition semantics; v1-v3 remain readable, CPU stays v2.
+  schemaVersion: 1 | 2 | 3 | 4;
   coreStateVersion: 1 | 2;
   firmware: {
     name: string;
@@ -207,9 +207,10 @@ export const normalizeWorkspaceRecord = (value: unknown): WorkspaceRecord | unde
   const settings = normalizeWorkspaceSettings(value.settings);
   if (
     !firmware || !settings || !isInteger(value.updatedAt, 0) ||
-    (value.schemaVersion !== 1 && value.schemaVersion !== 2 && value.schemaVersion !== 3) ||
+    (value.schemaVersion !== 1 && value.schemaVersion !== 2 && value.schemaVersion !== 3 && value.schemaVersion !== 4) ||
     value.coreStateVersion !== (value.schemaVersion === 1 ? 1 : 2) ||
-    (value.schemaVersion !== 3 && settings.debugger?.breakpointOptions !== undefined) ||
+    ((value.schemaVersion === 1 || value.schemaVersion === 2) && settings.debugger?.breakpointOptions !== undefined) ||
+    (value.schemaVersion !== 4 && settings.debugger?.breakpointOptions?.some(option => option.condition !== undefined)) ||
     !isCpuSnapshot(value.cpu) || value.cpu.coreStateVersion !== value.coreStateVersion
   ) return undefined;
   try {
@@ -221,7 +222,7 @@ export const normalizeWorkspaceRecord = (value: unknown): WorkspaceRecord | unde
       xram: new Uint8Array(value.cpu.xram),
     });
     return {
-      schemaVersion: 3,
+      schemaVersion: 4,
       coreStateVersion: 2,
       firmware,
       cpu: cpu.snapshot(),

@@ -24,7 +24,7 @@ describe("工作区 JSON 导入导出", () => {
         rxFrame: { value: 0x5a, mode: 1, progress: 20, ninthBit: false },
       },
     };
-    record.settings.debugger!.breakpointOptions = [{ address: 2, enabled: false, hitCount: 5 }];
+    record.settings.debugger!.breakpointOptions = [{ address: 2, enabled: false, hitCount: 5, condition: "ACC == 0x42" }];
     record.cpu.iram[0x20] = 0x77;
     record.settings.watchExpressions = ["ACC", "XRAM[0x1234]", "1/0"];
     record.settings.memoryAddress = 0x1234;
@@ -53,12 +53,13 @@ describe("工作区 JSON 导入导出", () => {
     record.cpu.peripherals.serial.txOutput = Array(4096).fill(255);
     record.settings.debugger = {
       breakpoints: Array.from({ length: 1024 }, (_, index) => 0xffff - index),
-      breakpointOptions: Array.from({ length: 1024 }, (_, index) => ({ address: 0xffff - index, enabled: false, hitCount: 100_000_000 })),
+      breakpointOptions: Array.from({ length: 1024 }, (_, index) => ({ address: 0xffff - index, enabled: false, hitCount: 100_000_000, condition: "\u0001".repeat(256) })),
       watchpoints: Array.from({ length: 1024 }, (_, index) => ({ space: "xram", address: 0xffff - index })),
     };
-    record.settings.watchExpressions = Array.from({ length: 32 }, (_, i) => String(i).padEnd(256, " "));
+    record.settings.watchExpressions = Array.from({ length: 32 }, (_, i) => String(i).padEnd(256, "\u0001"));
     record.settings.memoryAddress = 65535;
     const text = exportWorkspace(record);
+    expect(new TextEncoder().encode(text).byteLength).toBeGreaterThan(1024 * 1024);
     expect(new TextEncoder().encode(text).byteLength).toBeLessThan(MAX_WORKSPACE_IMPORT_BYTES);
     expect((await importWorkspace(text)).cpu.xram[65535]).toBe(255);
   });
@@ -71,7 +72,7 @@ describe("工作区 JSON 导入导出", () => {
       cpu: { ...legacy.cpu, iram: Array.from(legacy.cpu.iram), sfr: Array.from(legacy.cpu.sfr), xram: Array.from(legacy.cpu.xram) },
     });
     const restored = await importWorkspace(text);
-    expect(restored.schemaVersion).toBe(3);
+    expect(restored.schemaVersion).toBe(4);
     expect(restored.cpu.coreStateVersion).toBe(2);
     expect(restored.cpu.pc).toBe(legacy.cpu.pc);
   });
@@ -80,10 +81,29 @@ describe("工作区 JSON 导入导出", () => {
     const legacy = JSON.parse(exportWorkspace(workspaceFixture()));
     legacy.schemaVersion = 2;
     const restored = await importWorkspace(JSON.stringify(legacy));
-    expect(restored.schemaVersion).toBe(3);
+    expect(restored.schemaVersion).toBe(4);
     expect(restored.settings.debugger?.breakpointOptions).toBeUndefined();
     legacy.settings.debugger.breakpointOptions = [{ address: 2, enabled: false, hitCount: 5 }];
     await expect(importWorkspace(JSON.stringify(legacy))).rejects.toThrow();
+  });
+
+  it("migrates v3 watches/counts and rejects conditions mislabeled as v3", async () => {
+    const legacy = JSON.parse(exportWorkspace(workspaceFixture()));
+    legacy.schemaVersion = 3;
+    legacy.settings.watchExpressions = ["ACC"];
+    legacy.settings.debugger.breakpointOptions = [{ address: 2, enabled: false, hitCount: 7 }];
+    const restored = await importWorkspace(JSON.stringify(legacy));
+    expect(restored.schemaVersion).toBe(4);
+    expect(restored.settings.watchExpressions).toEqual(["ACC"]);
+    expect(restored.settings.debugger?.breakpointOptions?.[0]).toEqual({ address: 2, enabled: false, hitCount: 7 });
+    legacy.settings.debugger.breakpointOptions[0].condition = "ACC >= 3";
+    await expect(importWorkspace(JSON.stringify(legacy))).rejects.toThrow();
+    legacy.schemaVersion = 4;
+    expect((await importWorkspace(JSON.stringify(legacy))).settings.debugger?.breakpointOptions?.[0]?.condition).toBe("ACC >= 3");
+    for (const condition of [null, 42, "x".repeat(257)]) {
+      legacy.settings.debugger.breakpointOptions[0].condition = condition;
+      await expect(importWorkspace(JSON.stringify(legacy))).rejects.toThrow();
+    }
   });
 
   it("校验和失败时不替换已有工作区", async () => {
@@ -155,7 +175,7 @@ describe("工作区 JSON 导入导出", () => {
   });
 
   it("读取前拒绝超限文件并按 UTF-8 字节计算限额", async () => {
-    await expect(importWorkspace(" ".repeat(MAX_WORKSPACE_IMPORT_BYTES + 1))).rejects.toThrow("1 MiB");
-    await expect(importWorkspace("中".repeat(Math.ceil(MAX_WORKSPACE_IMPORT_BYTES / 2)))).rejects.toThrow("1 MiB");
+    await expect(importWorkspace(" ".repeat(MAX_WORKSPACE_IMPORT_BYTES + 1))).rejects.toThrow("4 MiB");
+    await expect(importWorkspace("中".repeat(Math.ceil(MAX_WORKSPACE_IMPORT_BYTES / 2)))).rejects.toThrow("4 MiB");
   });
 });

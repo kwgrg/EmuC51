@@ -1,3 +1,4 @@
+import { MAX_EXPRESSION_LENGTH } from "./expressions";
 import { SFR } from "./memory";
 import { EmulatorFault, type StopReason } from "./types";
 
@@ -12,6 +13,7 @@ export interface BreakpointOptions {
   address: number;
   enabled: boolean;
   hitCount: number;
+  condition?: string;
 }
 
 export const MAX_BREAKPOINT_HIT_COUNT = 100_000_000;
@@ -30,6 +32,7 @@ export interface WatchpointChange extends MemoryWatchpoint {
 export type DebugStopReason =
   | StopReason
   | "Breakpoint"
+  | "BreakpointConditionError"
   | "Watchpoint"
   | "StepComplete"
   | "RunToAddress"
@@ -40,6 +43,7 @@ export interface DebugStop {
   reason: DebugStopReason;
   address?: number;
   watchpoint?: WatchpointChange;
+  conditionError?: { expression: string; message: string };
 }
 
 interface DebugMemory {
@@ -106,7 +110,9 @@ export const normalizeDebugConfig = (config: DebugConfig): DebugConfig => {
       if (!config.breakpoints.includes(item.address) || options.has(item.address) ||
           typeof item.enabled !== "boolean" || !Number.isSafeInteger(item.hitCount) ||
           item.hitCount < 1 || item.hitCount > MAX_BREAKPOINT_HIT_COUNT) invalid("断点选项需对应唯一地址，命中次数须为 1 到 100000000 的整数");
-      options.set(item.address, { address: item.address, enabled: item.enabled, hitCount: item.hitCount });
+      if (item.condition !== undefined && (typeof item.condition !== "string" || item.condition.length > MAX_EXPRESSION_LENGTH)) invalid("断点条件须为最多 256 字符的字符串");
+      const condition = item.condition?.trim();
+      options.set(item.address, { address: item.address, enabled: item.enabled, hitCount: item.hitCount, ...(condition ? { condition } : {}) });
     }
   }
   const watchpoints = new Map<string, MemoryWatchpoint>();
@@ -137,7 +143,7 @@ export class Debugger8051 {
     const next = new Map(validated.breakpoints.map((address) => [address, breakpointOptions(validated, address)]));
     for (const [address, old] of this.breakpoints) {
       const option = next.get(address);
-      if (!option || option.enabled !== old.enabled || option.hitCount !== old.hitCount) {
+      if (!option || option.enabled !== old.enabled || option.hitCount !== old.hitCount || option.condition !== old.condition) {
         this.hits.delete(address);
         if (this.lastBreakpoint === address) this.lastBreakpoint = undefined;
         if (this.skipBreakpoint === address) this.skipBreakpoint = undefined;
@@ -164,13 +170,25 @@ export class Debugger8051 {
     this.lastBreakpoint = undefined;
   }
 
-  beforeStep(pc: number): DebugStop | undefined {
+  beforeStep(pc: number, evaluate?: (expression: string) => number): DebugStop | undefined {
     if (this.skipBreakpoint === pc) {
       this.skipBreakpoint = undefined;
       return undefined;
     }
     const option = this.breakpoints.get(pc);
     if (!option?.enabled) return undefined;
+    if (option.condition) {
+      try {
+        if (!evaluate) throw new Error("条件求值器不可用");
+        const value = evaluate(option.condition);
+        if (!Number.isSafeInteger(value)) throw new Error("条件结果不是安全整数");
+        if (value === 0) return undefined;
+      } catch (error) {
+        return { reason: "BreakpointConditionError", address: pc, conditionError: {
+          expression: option.condition, message: error instanceof Error ? error.message : "条件求值失败",
+        } };
+      }
+    }
     const hits = (this.hits.get(pc) ?? 0) + 1;
     this.hits.set(pc, hits === option.hitCount ? 0 : hits);
     return hits === option.hitCount ? { reason: "Breakpoint", address: pc } : undefined;

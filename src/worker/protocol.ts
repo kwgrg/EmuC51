@@ -170,6 +170,7 @@ export type EmulatorEvent =
       reason: DebugStopReason;
       address?: number;
       watchpoint?: WatchpointChange;
+      conditionError?: { expression: string; message: string };
       state: CpuViewState;
       snapshot: CpuSnapshot;
     }

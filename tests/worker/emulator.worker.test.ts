@@ -517,3 +517,81 @@ describe("watch expression sampling", () => {
     expect(events.find(e => e.requestId === id)).toMatchObject({ type: "WatchResults", results: [{ value: 7 }] });
   });
 });
+
+describe("conditional breakpoint execution", () => {
+  const configure = (condition: string, hitCount = 1, address = 0, enabled = true) => send({
+    type: "SetDebugConfig", breakpoints: [address], watchpoints: [], breakpointOptions: [{ address, enabled, hitCount, condition }],
+  });
+  const run = (maxSteps = 100) => { send({ type: "Run", maxSteps, trace: true }); vi.runAllTimers(); };
+  it("counts matching loop visits and resumes once, resets condition progress on restore", () => {
+    const program = Uint8Array.of(0x04, 0x80, 0xfd);
+    load(...program);
+    configure("ACC >= 2", 2);
+    run();
+    expect(stopped()).toMatchObject({ reason: "Breakpoint", state: { pc: 0, acc: 3, steps: 6 } });
+    run();
+    expect(stopped()).toMatchObject({ reason: "Breakpoint", state: { acc: 5, steps: 10 } });
+    const snapshot = stopped().snapshot;
+    send({ type: "RestoreWorkspace", name: "loop.bin", bytes: program.buffer, snapshot });
+    run();
+    expect(stopped()).toMatchObject({ reason: "Breakpoint", state: { acc: 6, steps: 12 } });
+  });
+  it.each(["1/ACC", "IRAM[128]", "missing == 0", "ACC = 1"])("stops on %s before execution and retries errors on resume", condition => {
+    load(0x04, 0x80, 0xfd);
+    configure(condition);
+    run();
+    expect(stopped()).toMatchObject({ reason: "BreakpointConditionError", state: { pc: 0, acc: 0, steps: 0 }, conditionError: { expression: condition } });
+    const snapshot = stopped().snapshot;
+    run();
+    expect(stopped().snapshot).toEqual(snapshot);
+    expect(stopped().reason).toBe("BreakpointConditionError");
+    configure("ACC == 0");
+    run();
+    expect(stopped()).toMatchObject({ reason: "Breakpoint", state: { steps: 0 } });
+    send({ type: "Step", trace: false });
+    expect(stopped()).toMatchObject({ reason: "StepComplete", state: { acc: 1 } });
+  });
+  it("does not evaluate an idle instruction or the interrupted PC before IRQ entry", () => {
+    const program = new Uint8Array(12);
+    program[0x0b] = 0x32;
+    load(...program);
+    configure("1/0");
+    send({ type: "WriteMemory", space: "sfr", address: 0x87, value: 1 });
+    run(3);
+    expect(stopped()).toMatchObject({ reason: "StepLimitReached", state: { pc: 0, steps: 0 } });
+    send({ type: "WriteMemory", space: "sfr", address: 0x88, value: 0x20 });
+    send({ type: "WriteMemory", space: "sfr", address: 0xa8, value: 0x82 });
+    run();
+    expect(traces().some(step => step.kind === "interrupt")).toBe(true);
+    expect(stopped()).toMatchObject({ reason: "BreakpointConditionError", state: { pc: 0, sp: 7, steps: 1 } });
+  });
+  it("does not use peripheral read hooks or mutate the CPU while testing a true condition", () => {
+    load(0x00);
+    send({ type: "SetPortInput", port: 1, value: 0 });
+    send({ type: "ReceiveSerial", value: 42 });
+    send({ type: "CreateSnapshot" });
+    const before = events.filter(event => event.type === "SnapshotCreated").at(-1)!.snapshot;
+    configure("(P1 == 255) & (SFR[0x90] == 255) & (SBUF >= 0) & (IE >= 0) & (IP >= 0)");
+    run();
+    expect(stopped().reason).toBe("Breakpoint");
+    expect(stopped().snapshot).toEqual(before);
+  });
+  it("preserves completed trace and the verified frame when Step Over/Out stops on a condition error", () => {
+    load(0x12, 0, 6, 0x00, 0x00, 0x00, 0x04, 0x22);
+    configure("1/0", 1, 7);
+    send({ type: "StepOver", maxSteps: 20, trace: true });
+    vi.runAllTimers();
+    expect(stopped()).toMatchObject({ reason: "BreakpointConditionError", state: { pc: 7, acc: 1, steps: 2 } });
+    expect(traces()).toHaveLength(2);
+    expect(stopped().state.callStack.frames).toHaveLength(1);
+    // Move back one instruction while keeping the same trusted frame using a fresh run.
+    send({ type: "Reset" });
+    send({ type: "Step", trace: false });
+    send({ type: "StepOut", maxSteps: 20, trace: false });
+    vi.runAllTimers();
+    expect(stopped()).toMatchObject({ reason: "BreakpointConditionError", state: { pc: 7, sp: 9 } });
+    configure("0", 1, 7);
+    run(1);
+    expect(stopped()).toMatchObject({ reason: "StepLimitReached", state: { pc: 3, sp: 7 } });
+  });
+});

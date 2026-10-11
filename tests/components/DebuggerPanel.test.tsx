@@ -40,3 +40,33 @@ describe("breakpoint controls", () => {
     expect(screen.getByLabelText("启用断点 0002")).toBeDisabled();
   });
 });
+
+describe("condition editing", () => {
+  const conditional = { ...config, breakpointOptions: [{ ...config.breakpointOptions[0]!, condition: "ACC >= 2" }] };
+  it("keeps drafts local, cancels with Escape and trims on apply", () => {
+    const onChange = vi.fn();
+    render(<DebuggerPanel config={conditional} disabled={false} onChange={onChange} onRunTo={vi.fn()} />);
+    const input = screen.getByLabelText("断点 0002 条件");
+    fireEvent.change(input, { target: { value: "1/0" } });
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(input).toHaveValue("ACC >= 2");
+    fireEvent.change(input, { target: { value: " ACC == 3 " } });
+    fireEvent.submit(input.closest("form")!);
+    expect(onChange.mock.calls[0]?.[0].breakpointOptions[0].condition).toBe("ACC == 3");
+  });
+  it("preserves conditions when disabling and removes them when cleared", () => {
+    const onChange = vi.fn();
+    render(<DebuggerPanel config={conditional} disabled={false} onChange={onChange} onRunTo={vi.fn()} />);
+    fireEvent.click(screen.getByLabelText("启用断点 0002"));
+    expect(onChange.mock.calls[0]?.[0].breakpointOptions[0]).toMatchObject({ enabled: false, condition: "ACC >= 2" });
+    const input = screen.getByLabelText("断点 0002 条件");
+    fireEvent.change(input, { target: { value: "  " } });
+    fireEvent.submit(input.closest("form")!);
+    expect(onChange.mock.calls[1]?.[0].breakpointOptions[0].condition).toBeUndefined();
+  });
+  it("disables condition edits during execution", () => {
+    render(<DebuggerPanel config={conditional} disabled onChange={vi.fn()} onRunTo={vi.fn()} />);
+    expect(screen.getByLabelText("断点 0002 条件")).toBeDisabled();
+  });
+});

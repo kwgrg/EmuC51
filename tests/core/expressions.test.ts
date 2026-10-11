@@ -44,3 +44,17 @@ describe("read-only watch expressions", () => {
     ]);
   });
 });
+
+describe("comparison expressions", () => {
+  it.each([
+    ["2 == 2", 1], ["2 == 3", 0], ["2 != 3", 1], ["2 != 2", 0],
+    ["-1 < 0", 1], ["2 <= 2", 1], ["2 > 3", 0], ["3 >= 3", 1],
+    ["1 + 2 << 1 >= 6", 1], ["1 == 2 < 3", 1], ["2 & 1 == 1", 0],
+    ["(2 & 1) == 0", 1], ["~0 > 0", 1], ["2 < 1 < 1", 1],
+  ])("evaluates %s with integer comparison precedence", (source, value) => {
+    expect(evaluate(new Cpu8051(new Uint8Array()), source)).toBe(value);
+  });
+  it.each(["A = 1", "A === 1", "A !== 1", "1 && 1", "1 || 0", "0 & (1/0)", "1 == (1/0)"])("rejects unsupported or failing syntax %s without short circuit", source => {
+    expect(() => evaluate(new Cpu8051(new Uint8Array()), source)).toThrow();
+  });
+});

@@ -5,7 +5,7 @@ export const MAX_WATCH_EXPRESSIONS = 32;
 export const MAX_EXPRESSION_LENGTH = 256;
 export interface WatchResult { expression: string; value?: number; error?: string }
 
-const precedence: Record<string, number> = { "|": 1, "^": 2, "&": 3, "<<": 4, ">>": 4, "+": 5, "-": 5, "*": 6, "/": 6, "%": 6 };
+const precedence: Record<string, number> = { "|": 1, "^": 2, "&": 3, "==": 4, "!=": 4, "<": 5, "<=": 5, ">": 5, ">=": 5, "<<": 6, ">>": 6, "+": 7, "-": 7, "*": 8, "/": 8, "%": 8 };
 const fail = (message: string): never => { throw new Error(message); };
 const checked = (value: number): number => Number.isSafeInteger(value) ? value : fail("整数溢出");
 
@@ -15,7 +15,7 @@ export function evaluateExpression(cpu: Cpu8051, expression: string): number {
   const tokens: string[] = [];
   let remaining = expression.trim();
   while (remaining) {
-    const token = /^(0x[0-9a-f]+|[0-9]+|[a-z_][a-z0-9_]*|<<|>>|[()+\-*/%&|^~[\]])/i.exec(remaining)?.[0];
+    const token = /^(0x[0-9a-f]+|[0-9]+|[a-z_][a-z0-9_]*|==|!=|<=|>=|<<|>>|[<>()+\-*/%&|^~[\]])/i.exec(remaining)?.[0];
     if (!token) fail(`不支持的字符：${remaining[0]}`);
     tokens.push(token!);
     if (tokens.length > 128) fail("表达式最多 128 个词元");
@@ -50,7 +50,7 @@ export function evaluateExpression(cpu: Cpu8051, expression: string): number {
     let left: number;
     if (token === "(") { left = parse(1, depth + 1); expect(")"); }
     else if (["+", "-", "~"].includes(token)) {
-      const value = parse(7, depth + 1);
+      const value = parse(9, depth + 1);
       left = token === "~" ? (~value >>> 0) : token === "-" ? -value : value;
     } else if (/^(0x[0-9a-f]+|[0-9]+)$/i.test(token)) left = checked(Number(token));
     else if (/^[a-z_][a-z0-9_]*$/i.test(token)) {
@@ -69,6 +69,12 @@ export function evaluateExpression(cpu: Cpu8051, expression: string): number {
       index += 1;
       const right = parse(priority + 1, depth + 1);
       switch (operator) {
+        case "==": left = Number(left === right); break;
+        case "!=": left = Number(left !== right); break;
+        case "<": left = Number(left < right); break;
+        case "<=": left = Number(left <= right); break;
+        case ">": left = Number(left > right); break;
+        case ">=": left = Number(left >= right); break;
         case "+": left += right; break;
         case "-": left -= right; break;
         case "*": left *= right; break;

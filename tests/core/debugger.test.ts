@@ -160,3 +160,61 @@ describe("breakpoint enablement and encounter counts", () => {
     expect(debug.getConfig().breakpointOptions![0]!.enabled).toBe(true);
   });
 });
+
+describe("conditional breakpoint decisions", () => {
+  const config = (condition = "ACC >= 2", hitCount = 2, enabled = true) => ({
+    breakpoints: [0], watchpoints: [], breakpointOptions: [{ address: 0, enabled, hitCount, condition }],
+  });
+  it("counts only true evaluations, preserving progress across false results and normal resume", () => {
+    const debug = new Debugger8051();
+    debug.setConfig(config());
+    expect(debug.beforeStep(0, () => 0)).toBeUndefined();
+    expect(debug.beforeStep(0, () => 1)).toBeUndefined();
+    expect(debug.beforeStep(0, () => 0)).toBeUndefined();
+    const stop = debug.beforeStep(0, () => -1)!;
+    expect(stop.reason).toBe("Breakpoint");
+    debug.stopped(stop);
+    debug.beginRun(0);
+    expect(debug.beforeStep(0, () => { throw new Error("must skip resumed instruction"); })).toBeUndefined();
+    expect(debug.beforeStep(0, () => 1)).toBeUndefined();
+    expect(debug.beforeStep(0, () => 1)?.reason).toBe("Breakpoint");
+  });
+  it("fails closed on evaluation errors without consuming counts or bypassing the next run", () => {
+    const debug = new Debugger8051();
+    debug.setConfig(config());
+    debug.beforeStep(0, () => 1);
+    const bad = () => { throw new Error("cannot divide by zero"); };
+    const stop = debug.beforeStep(0, bad)!;
+    expect(stop).toMatchObject({ reason: "BreakpointConditionError", address: 0, conditionError: { message: "cannot divide by zero" } });
+    debug.stopped(stop);
+    debug.beginRun(0);
+    expect(debug.beforeStep(0, bad)?.reason).toBe("BreakpointConditionError");
+    expect(debug.beforeStep(0, () => 1)?.reason).toBe("Breakpoint");
+  });
+  it("does not silently pass a condition without an evaluator or with invalid evaluator results", () => {
+    const debug = new Debugger8051();
+    debug.setConfig(config());
+    expect(debug.beforeStep(0)?.reason).toBe("BreakpointConditionError");
+    expect(debug.beforeStep(0, () => NaN)?.reason).toBe("BreakpointConditionError");
+  });
+  it("does not evaluate disabled conditions and resets counts when the condition changes", () => {
+    const debug = new Debugger8051();
+    debug.setConfig(config("1/0", 2, false));
+    expect(debug.beforeStep(0)).toBeUndefined();
+    debug.setConfig(config());
+    debug.beforeStep(0, () => 1);
+    debug.setConfig(config(" ACC >= 2 ")); // Canonically unchanged.
+    expect(debug.beforeStep(0, () => 1)?.reason).toBe("Breakpoint");
+    debug.beforeStep(0, () => 1);
+    debug.setConfig(config("ACC > 3"));
+    expect(debug.beforeStep(0, () => 1)).toBeUndefined();
+    expect(debug.beforeStep(0, () => 1)?.reason).toBe("Breakpoint");
+  });
+  it.each([null, 1, {}, "1".repeat(257)])("rejects malformed condition %# atomically", condition => {
+    const debug = new Debugger8051();
+    debug.setConfig(config());
+    debug.beforeStep(0, () => 1);
+    expect(() => debug.setConfig(config(condition as string))).toThrow();
+    expect(debug.beforeStep(0, () => 1)?.reason).toBe("Breakpoint");
+  });
+});

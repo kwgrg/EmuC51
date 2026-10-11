@@ -1,3 +1,4 @@
+import { MAX_EXPRESSION_LENGTH } from "../core/expressions";
 import { useState } from "react";
 import { hex16, hex8 } from "../core/numbers";
 import { breakpointOptions, removeBreakpoint, MAX_BREAKPOINT_HIT_COUNT, type BreakpointOptions, type DebugConfig } from "../core/debugger";
@@ -42,14 +43,14 @@ export function DebuggerPanel({ config, disabled, onChange, onRunTo }: {
         {config.breakpoints.length === 0 && <span className="muted">暂无断点</span>}
         {config.breakpoints.map((item) => {
           const option = breakpointOptions(config, item);
-          return <BreakpointRow key={`${item}:${option.hitCount}`} option={option} disabled={disabled}
+          return <BreakpointRow key={`${item}:${option.hitCount}:${option.condition ?? ""}`} option={option} disabled={disabled}
             onRemove={() => onChange(removeBreakpoint(config, item))}
             onUpdate={(next) => onChange({ ...config, breakpointOptions: [
               ...(config.breakpointOptions ?? []).filter((value) => value.address !== item), next,
             ] })} />;
         })}
       </div>
-      <p className="panel-help">每 N 次到达指令前暂停；继续保留计数，单步不计。复位、加载/恢复、编辑 PC 或该断点设置后重新计数。</p>
+      <p className="panel-help">条件非零才计入每 N 次命中，空条件始终成立；条件错误立即停止。继续保留计数，单步不计。复位、加载/恢复、编辑 PC 或该断点设置后重新计数。</p>
       <form className="debug-field" onSubmit={(event) => {
         event.preventDefault();
         if (!disabled && validWatchAddress && parsedWatchAddress !== undefined && !config.watchpoints.some((watch) => watch.space === space && watch.address === parsedWatchAddress)) onChange({ ...config, watchpoints: [...config.watchpoints, { space, address: parsedWatchAddress }] });
@@ -76,18 +77,22 @@ function BreakpointRow({ option, disabled, onUpdate, onRemove }: {
   onRemove: () => void;
 }) {
   const [draft, setDraft] = useState(String(option.hitCount));
+  const [condition, setCondition] = useState(option.condition ?? "");
   const count = Number(draft);
-  const valid = /^\d+$/.test(draft) && Number.isSafeInteger(count) && count >= 1 && count <= MAX_BREAKPOINT_HIT_COUNT;
+  const valid = /^\d+$/.test(draft) && Number.isSafeInteger(count) && count >= 1 && count <= MAX_BREAKPOINT_HIT_COUNT && condition.length <= MAX_EXPRESSION_LENGTH;
   const address = hex16(option.address);
   return <form className="breakpoint-row" onSubmit={(event) => {
     event.preventDefault();
-    if (!disabled && valid) { onUpdate({ ...option, hitCount: count }); setDraft(String(count)); }
+    if (!disabled && valid) { onUpdate({ ...option, hitCount: count, condition: condition.trim() || undefined }); setDraft(String(count)); setCondition(condition.trim()); }
   }}>
     <label><input type="checkbox" aria-label={`启用断点 ${address}`} checked={option.enabled} disabled={disabled}
       onChange={(event) => onUpdate({ ...option, enabled: event.target.checked })} />PC {address}</label>
     <label>每 N 次<input aria-label={`断点 ${address} 命中次数`} value={draft} disabled={disabled} aria-invalid={!valid}
       inputMode="numeric" onChange={(event) => setDraft(event.target.value)}
       onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); setDraft(String(option.hitCount)); } }} /></label>
+    <label className="breakpoint-condition">条件<input aria-label={`断点 ${address} 条件`} value={condition} disabled={disabled} maxLength={MAX_EXPRESSION_LENGTH}
+      placeholder="ACC >= 3（空为始终成立）" onChange={event => setCondition(event.target.value)}
+      onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); setCondition(option.condition ?? ""); } }} /></label>
     <button disabled={disabled || !valid} aria-label={`应用断点 ${address}`}>应用</button>
     <button type="button" disabled={disabled} aria-label={`删除断点 ${address}`} onClick={onRemove}>×</button>
   </form>;

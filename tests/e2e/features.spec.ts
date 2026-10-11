@@ -21,6 +21,7 @@ test("HEX 解码、真实反汇编与无效 HEX 保留当前工作区", async ({
   await expect(page.getByRole("alert")).toBeVisible();
   await expect(page.getByTestId("firmware-name")).toContainText("program.hex");
   await expect(page.getByTestId("register-PC")).toContainText("0002");
+  await expect(page.getByRole("main")).toHaveAttribute("data-save-state", "saved");
   await page.reload();
   await expect(page.getByTestId("firmware-name")).toContainText("program.hex");
   await expect(page.getByTestId("register-PC")).toContainText("0002");
@@ -36,6 +37,7 @@ test("断点暂停后恢复执行，并保存调试配置", async ({ page }) => 
   await page.locator(".control-strip").getByRole("button", { name: "运行" }).click();
   await expect(page.getByTestId("register-A")).toContainText("01");
   await expect(page.getByTestId("register-PC")).toContainText("0002");
+  await expect(page.getByRole("main")).toHaveAttribute("data-save-state", "saved");
   await page.reload();
   await expect(page.getByRole("button", { name: "删除断点 0002" })).toBeVisible();
   await expect(page.getByTestId("register-A")).toContainText("01");
@@ -95,6 +97,7 @@ test("连续运行时注入 GPIO 与 UART RX 并显示 TX", async ({ page }) => 
   await navigate(page, "BIN_INSPECTOR");
   await page.getByRole("button", { name: "暂停" }).click();
   await expect(page.getByRole("button", { name: "单步" })).toBeEnabled();
+  await expect(page.getByRole("main")).toHaveAttribute("data-save-state", "saved");
   await page.reload();
   await navigate(page, "I/O_PORTS");
   await expect(page.getByTestId("serial-output")).toContainText("41");
@@ -113,7 +116,7 @@ test("工作区导出与校验后导入恢复 CPU 和断点", async ({ page }) =
   const file = await download.path();
   expect(file).toBeTruthy();
   const text = await readFile(file!, "utf8");
-  expect(JSON.parse(text).schemaVersion).toBe(3);
+  expect(JSON.parse(text).schemaVersion).toBe(4);
   await page.getByRole("button", { name: "复位" }).click();
   await expect(page.getByTestId("register-PC")).toContainText("0000");
   const corrupted = JSON.parse(text);
@@ -125,6 +128,7 @@ test("工作区导出与校验后导入恢复 CPU 和断点", async ({ page }) =
   await expect(page.getByTestId("register-PC")).toContainText("0002");
   await expect(page.getByTestId("register-A")).toContainText("2A");
   await expect(page.getByRole("button", { name: "删除断点 0002" })).toBeVisible();
+  await expect(page.getByRole("main")).toHaveAttribute("data-save-state", "saved");
   await page.reload();
   await expect(page.getByTestId("register-PC")).toContainText("0002");
 });
@@ -269,6 +273,7 @@ test("反汇编独立浏览、行断点持久化与运行至指令", async ({ pa
   await page.locator(".control-strip").getByRole("button", { name: "运行" }).click();
   await expect(page.locator(".footer-status")).toHaveText("断点暂停 · PC=0003");
   await expect(page.getByTestId("register-A")).toContainText("43");
+  await expect(page.getByRole("main")).toHaveAttribute("data-save-state", "saved");
   await page.reload();
   await expect(page.getByRole("button", { name: "切换断点 0003" })).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "复位" }).click();
@@ -318,8 +323,9 @@ test("断点启停、每 N 次命中、计数重置及工作区往返", async ({
   await page.getByRole("button", { name: "导出工作区" }).click();
   const download = await downloadPromise;
   const portable = await readFile((await download.path())!, "utf8");
-  expect(JSON.parse(portable).schemaVersion).toBe(3);
+  expect(JSON.parse(portable).schemaVersion).toBe(4);
   expect(JSON.parse(portable).coreStateVersion).toBe(2);
+  await expect(page.getByRole("main")).toHaveAttribute("data-save-state", "saved");
   await page.reload();
   await expect(page.getByLabel("启用断点 0000")).not.toBeChecked();
   await expect(count).toHaveValue("3");
@@ -357,6 +363,7 @@ test("可信调用帧与跳出，刷新后不虚构历史", async ({ page }) => 
   await page.getByRole("button", { name: "复位" }).click();
   await page.getByRole("button", { name: "单步" }).click();
   await expect(page.getByTestId("call-frame")).toHaveCount(1);
+  await expect(page.getByRole("main")).toHaveAttribute("data-save-state", "saved");
   await page.reload();
   await expect(page.getByTestId("register-PC")).toContainText("0004");
   await expect(page.getByTestId("call-stack")).toContainText("快照不含调用历史");
@@ -439,6 +446,7 @@ test("Watch 表达式独立报错、刷新、取消、导航和重新载入", as
   await input.fill("SP");
   await input.press("Enter");
   await expect(row("SP")).toContainText("7 (0x7)");
+  await expect(page.getByRole("main")).toHaveAttribute("data-save-state", "saved");
   await page.reload();
   await expect(page.getByLabel("观察表达式")).toBeVisible();
   await expect(page.getByTestId("watch-expression-row")).toHaveCount(2);
@@ -460,6 +468,7 @@ test("调试会话恢复隔离草稿、旧结果和调用历史，导入同一�
   }
   await page.getByLabel("内存起始地址").fill("0010");
   await page.getByLabel("内存起始地址").press("Enter");
+  await expect(page.getByRole("main")).toHaveAttribute("data-save-state", "saved");
   await page.getByLabel("内存起始地址").fill("0030"); // unconfirmed draft
   await page.reload();
   await expect(page.getByLabel("内存起始地址")).toHaveValue("0010");
@@ -518,4 +527,111 @@ test("调试会话恢复隔离草稿、旧结果和调用历史，导入同一�
   await navigate(page, "SYS_MEM");
   await expect(page.getByLabel("内存起始地址")).toHaveValue("0080");
   await expect(page.getByTestId("watch-expression-row")).toHaveCount(0);
+});
+
+test("条件断点计数、错误重试、编辑取消及 v4 恢复", async ({ page }) => {
+  await load(page, [0x04, 0x80, 0xfd]);
+  await page.getByRole("button", { name: "切换断点 0000" }).click();
+  const condition = page.getByLabel("断点 0000 条件");
+  const count = page.getByLabel("断点 0000 命中次数");
+  const runButton = page.locator(".control-strip").getByRole("button", { name: "运行" });
+  await count.fill("2");
+  await condition.fill(" ACC >= 2 ");
+  await condition.press("Enter");
+  await expect(condition).toHaveValue("ACC >= 2");
+  await runButton.click();
+  await expect(page.getByTestId("register-A")).toContainText("03");
+  await expect(page.locator(".footer-status")).toHaveText("断点暂停 · PC=0000");
+  await runButton.click();
+  await expect(page.getByTestId("register-A")).toContainText("05");
+  await condition.fill("discard = 1");
+  await condition.press("Escape");
+  await expect(condition).toHaveValue("ACC >= 2");
+  await navigate(page, "SYS_MEM");
+  await page.getByLabel("观察表达式").fill("ACC >= 2");
+  await page.getByLabel("观察表达式").press("Enter");
+  await expect(page.getByTestId("watch-expression-row")).toContainText("1 (0x1)");
+  await navigate(page, "BIN_INSPECTOR");
+  await expect(page.getByRole("main")).toHaveAttribute("data-save-state", "saved");
+  await page.reload();
+  await expect(condition).toHaveValue("ACC >= 2");
+  await expect(count).toHaveValue("2");
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "导出工作区" }).click();
+  const portable = await readFile((await (await downloadPromise).path())!, "utf8");
+  const saved = JSON.parse(portable);
+  expect(saved.schemaVersion).toBe(4);
+  expect(saved.settings.debugger.breakpointOptions[0].condition).toBe("ACC >= 2");
+  for (const width of [375, 820, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await condition.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `/tmp/emuc51-conditions-${width}.png`, fullPage: true });
+  }
+  await page.getByRole("button", { name: "复位" }).click();
+  await expect(page.getByTestId("register-A")).toContainText("00");
+  await condition.fill("1 / ACC");
+  await condition.press("Enter");
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await runButton.click();
+    await expect(page.getByRole("alert")).toContainText("条件断点 0000：1 / ACC — 不能除以零");
+    await expect(page.getByTestId("register-PC")).toContainText("0000");
+    await expect(page.getByTestId("register-A")).toContainText("00");
+  }
+  await page.getByLabel("启用断点 0000").uncheck();
+  await expect(condition).toHaveValue("1 / ACC");
+  await page.getByLabel("最大执行单元").fill("2");
+  await runButton.click();
+  await expect(page.getByTestId("register-A")).toContainText("01");
+  const invalid = structuredClone(saved);
+  invalid.schemaVersion = 3; // Old format must not silently discard condition semantics.
+  await page.getByTestId("workspace-input").setInputFiles({ name: "invalid-v3.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(invalid)) });
+  await expect(page.getByRole("alert")).toContainText("工作区文件无效");
+  await expect(condition).toHaveValue("1 / ACC");
+  await page.getByTestId("workspace-input").setInputFiles({ name: "conditional.json", mimeType: "application/json", buffer: Buffer.from(portable) });
+  await expect(page.getByTestId("register-A")).toContainText("05");
+  await expect(condition).toHaveValue("ACC >= 2");
+  await runButton.click();
+  await expect(page.getByTestId("register-A")).toContainText("06");
+  await condition.fill("");
+  await condition.press("Enter");
+  await expect(condition).toHaveValue("");
+  await runButton.click();
+  await expect(page.getByTestId("register-A")).toContainText("07");
+});
+
+test("连续设置保存等待最新 IndexedDB 提交后才显示完成", async ({ page }) => {
+  await load(page, [0, 0x80, 0xfd]);
+  await expect(page.getByRole("main")).toHaveAttribute("data-save-state", "saved");
+  // Hold a real write transaction open so that both queued application saves stay pending.
+  await page.evaluate(() => new Promise<void>((resolve, reject) => {
+    const open = indexedDB.open("emuc51", 1);
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const db = open.result;
+      const tx = db.transaction("workspace", "readwrite");
+      let keepAlive = true;
+      (window as typeof window & { releaseSaveBlock?: () => void }).releaseSaveBlock = () => { keepAlive = false; };
+      const next = () => {
+        const request = tx.objectStore("workspace").get("current");
+        request.onsuccess = () => { if (keepAlive) next(); };
+      };
+      tx.oncomplete = () => db.close();
+      next();
+      resolve();
+    };
+  }));
+  await navigate(page, "SYS_MEM");
+  await page.getByLabel("观察表达式").fill("PC == 0");
+  await page.getByLabel("观察表达式").press("Enter");
+  await page.getByLabel("内存起始地址").fill("0120");
+  await page.getByLabel("内存起始地址").press("Enter");
+  await expect(page.getByRole("main")).toHaveAttribute("data-save-state", "saving");
+  await expect(page.locator(".footer-status")).toHaveText("正在保存工作区…");
+  await page.evaluate(() => (window as typeof window & { releaseSaveBlock?: () => void }).releaseSaveBlock!());
+  await expect(page.getByRole("main")).toHaveAttribute("data-save-state", "saved");
+  await page.reload();
+  await expect(page.getByLabel("内存起始地址")).toHaveValue("0120");
+  await expect(page.getByTestId("watch-expression-row")).toContainText("PC == 0");
+  await expect(page.getByTestId("watch-expression-row")).toContainText("1 (0x1)");
 });

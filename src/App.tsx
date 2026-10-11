@@ -100,12 +100,14 @@ export default function App() {
   const fileActionRef = useRef(0);
   const clearingRef = useRef(false);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const saveRevisionRef = useRef(0);
 
   const [activeView, setActiveView] = useState<AppView>(viewFromHash);
   const [firmware, setFirmware] = useState<FirmwareState>();
   const [cpuState, setCpuState] = useState<CpuViewState>();
   const [settings, setSettingsState] = useState(DEFAULT_SETTINGS);
   const [running, setRunning] = useState(false);
+  const [saveState, setSaveState] = useState("idle");
   const [workspaceGeneration, setWorkspaceGeneration] = useState(0);
   const watchExpressions = useMemo(() => settings.watchExpressions ?? [], [settings.watchExpressions]);
   const [watchSample, setWatchSample] = useState<Extract<EmulatorEvent, { type: "WatchResults" }>>();
@@ -153,7 +155,7 @@ export default function App() {
     const currentFirmware = firmwareRef.current;
     if (!currentFirmware) return undefined;
     return {
-      schemaVersion: 3,
+      schemaVersion: 4,
       coreStateVersion: snapshot.coreStateVersion,
       firmware: { ...currentFirmware, bytes: copyBuffer(currentFirmware.bytes) },
       cpu: snapshot,
@@ -163,18 +165,28 @@ export default function App() {
   }, []);
 
   const persistSnapshot = useCallback(
-    async (snapshot: CpuSnapshot): Promise<void> => {
-      if (clearingRef.current) return;
+    async (snapshot: CpuSnapshot): Promise<boolean> => {
+      if (clearingRef.current) return false;
       captureSnapshot(snapshot);
       const record = workspaceRecord(snapshot);
-      if (!record) return;
+      if (!record) return false;
+      const revision = ++saveRevisionRef.current;
+      setSaveState("saving");
+      setNotice("正在保存工作区…");
       try {
         const write = saveQueueRef.current.catch(() => undefined).then(() => saveWorkspace(record));
         saveQueueRef.current = write;
         await write;
+        if (revision !== saveRevisionRef.current || clearingRef.current) return false;
+        setSaveState("saved");
         setNotice("工作区已保存在此浏览器");
+        return true;
       } catch {
-        setNotice("无法写入浏览器存储；本次会话仍可继续");
+        if (revision === saveRevisionRef.current && !clearingRef.current) {
+          setSaveState("error");
+          setNotice("无法写入浏览器存储；本次会话仍可继续");
+        }
+        return false;
       }
     },
     [captureSnapshot, workspaceRecord],
@@ -259,10 +271,13 @@ export default function App() {
           }
           break;
         case "Stopped":
+          if (event.reason === "BreakpointConditionError") setError(`条件断点 ${hex16(event.address ?? event.state.pc)}：${event.conditionError?.expression} — ${event.conditionError?.message}`);
           setCpuState(event.state);
           setRunning(false);
-          void persistSnapshot(event.snapshot).then(() => {
+          void persistSnapshot(event.snapshot).then((saved) => {
+            if (!saved) return;
             setNotice(event.reason === "StepLimitReached" ? "已达到本次运行步数上限"
+              : event.reason === "BreakpointConditionError" ? `条件求值失败 · PC=${hex16(event.state.pc)}`
               : event.reason === "Breakpoint" ? `断点暂停 · PC=${hex16(event.state.pc)}`
               : event.reason === "Watchpoint" ? `监视点暂停 · ${event.watchpoint?.space.toUpperCase()} ${hex16(event.watchpoint?.address ?? 0)}`
               : event.reason === "RunToAddress" ? `已运行至地址 ${hex16(event.state.pc)}`
@@ -526,7 +541,7 @@ export default function App() {
     const action = ++fileActionRef.current;
     setError(undefined);
     try {
-      if (file.size > MAX_WORKSPACE_IMPORT_BYTES) throw new Error("工作区文件超过 1 MiB 上限");
+      if (file.size > MAX_WORKSPACE_IMPORT_BYTES) throw new Error("工作区文件超过 4 MiB 上限");
       const record = await importWorkspace(await file.text());
       if (action !== fileActionRef.current) return;
       // Validation finishes before changing the active CPU or persisted record.
@@ -627,7 +642,7 @@ export default function App() {
           />
         )}
 
-        <main className="view-stage" data-view={activeView}>
+        <main className="view-stage" data-view={activeView} data-save-state={saveState}>
           {activeView === "home" && (
             <HomeView
               cpuState={cpuState}
