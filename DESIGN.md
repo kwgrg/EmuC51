@@ -143,3 +143,5 @@ The SYS_MEM Watch panel accepts read-only expressions saved with the workspace. 
 Debug sessions persist accepted Watch rows and confirmed memory positions only. Drafts and disassembly history remain temporary. Successful workspace imports replace settings and reset disassembly browsing even when the imported firmware matches the current image.
 
 Conditional breakpoint rows provide a bounded condition draft alongside the hit threshold. Enter applies both fields, Escape cancels the current draft, and disabled breakpoints retain their condition. Runtime condition errors stop execution and show the address, expression and diagnostic in the alert area; they never render as a successful ordinary breakpoint or silently resume.
+
+Instruction coverage is opt-in and session-only. The summary reports successful instruction count and unique instruction-start addresses, never a source/byte/branch coverage percentage. Disassembly shows sampled counts only while recording or when retained data exists. Keep polling bounded to the visible rows; loading a new firmware removes old labels immediately.

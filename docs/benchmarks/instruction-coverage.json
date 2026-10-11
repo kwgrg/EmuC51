@@ -1,0 +1,103 @@
+{
+  "baselineRef": "e57399d",
+  "instructionsPerRun": 200000,
+  "rounds": 5,
+  "baseline": {
+    "medianMs": 551,
+    "runsMs": [
+      551,
+      527,
+      582,
+      677,
+      545
+    ],
+    "coverageMessages": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "coverageJsonBytes": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "disabled": {
+    "medianMs": 525,
+    "runsMs": [
+      520,
+      578,
+      525,
+      478,
+      1209
+    ],
+    "coverageMessages": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "coverageJsonBytes": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "enabled": {
+    "medianMs": 554,
+    "runsMs": [
+      525,
+      542,
+      558,
+      554,
+      558
+    ],
+    "coverageMessages": [
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "coverageJsonBytes": [
+      137,
+      137,
+      137,
+      137,
+      137
+    ]
+  },
+  "sampled": {
+    "medianMs": 581,
+    "runsMs": [
+      646,
+      581,
+      559,
+      521,
+      619
+    ],
+    "coverageMessages": [
+      3,
+      3,
+      3,
+      3,
+      3
+    ],
+    "coverageJsonBytes": [
+      1251,
+      1253,
+      1253,
+      1253,
+      1253
+    ]
+  },
+  "disabledRatio": 0.953,
+  "sampledRatio": 1.054
+}

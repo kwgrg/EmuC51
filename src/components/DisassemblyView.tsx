@@ -1,10 +1,14 @@
+import type { CoverageSummary } from "../core/coverage";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { BreakpointOptions } from "../core/debugger";
 import { disassemble } from "../core/disassembler";
 import { hex16, hex8, u16 } from "../core/numbers";
 import { parseHex } from "./DebuggerPanel";
 
-export function DisassemblyView({ program, pc, breakpoints, breakpointOptions, disabled, running, onToggleBreakpoint, onRunTo }: {
+export function DisassemblyView({ program, pc, breakpoints, breakpointOptions, disabled, running, onToggleBreakpoint, onRunTo, coverage, coverageSample, onReadCoverage }: {
+  coverage?: CoverageSummary;
+  coverageSample?: { summary: CoverageSummary; addresses: number[]; counts: number[] };
+  onReadCoverage?: (addresses: number[]) => void;
   program: ArrayBuffer;
   pc: number;
   breakpoints: number[];
@@ -22,6 +26,24 @@ export function DisassemblyView({ program, pc, breakpoints, breakpointOptions, d
   const input = draft ?? hex16(address);
   const parsed = parseHex(input, 0xffff);
   const rows = useMemo(() => disassemble(new Uint8Array(program), address, 80), [program, address]);
+  const addressesRef = useRef<number[]>([]);
+  useEffect(() => { addressesRef.current = rows.map(row => row.address); }, [rows]);
+  const pausedInstructions = running ? undefined : coverage?.instructions;
+  const visibleCoverage = coverage && (coverage.enabled || coverage.instructions > 0);
+  const counts = useMemo(() => new Map(coverageSample?.summary.epoch === coverage?.epoch
+    ? coverageSample?.addresses.map((address, index) => [address, coverageSample.counts[index]!]) : []), [coverageSample, coverage?.epoch]);
+  useEffect(() => {
+    if (disabled || !onReadCoverage || !visibleCoverage) return;
+    const read = () => onReadCoverage(addressesRef.current);
+    read();
+    if (running && coverage.enabled) {
+      const timer = setInterval(read, 250);
+      return () => clearInterval(timer);
+    }
+  }, [disabled, onReadCoverage, running, coverage?.enabled, coverage?.epoch, pausedInstructions, visibleCoverage]);
+  useEffect(() => {
+    if (!disabled && !running && visibleCoverage) onReadCoverage?.(rows.map(row => row.address));
+  }, [disabled, running, rows, visibleCoverage, onReadCoverage]);
   const last = rows[rows.length - 1]!;
   const navigate = (next: number) => {
     if (next !== address) setHistory((current) => [...current, address].slice(-64));
@@ -63,7 +85,7 @@ export function DisassemblyView({ program, pc, breakpoints, breakpointOptions, d
       <small>{pinnedAddress === undefined ? "跟随执行位置" : "固定浏览位置"} · PC {hex16(pc)}</small>
     </form>
     <div className="source-scroll" ref={scrollRef}>
-      <div className="source-lines disassembly-lines" data-testid="disassembly-list">
+      <div className={`source-lines disassembly-lines${visibleCoverage ? " with-coverage" : ""}`} data-testid="disassembly-list">
         {rows.map((item) => {
           const breakpoint = breakpoints.includes(item.address);
           const enabled = breakpointOptions?.find((option) => option.address === item.address)?.enabled ?? true;
@@ -77,6 +99,7 @@ export function DisassemblyView({ program, pc, breakpoints, breakpointOptions, d
             <code>{hex16(item.address)}</code>
             <code>{item.bytes.map(hex8).join(" ")}</code>
             <strong>{item.text}</strong>
+            {visibleCoverage && <code className="instruction-hits" aria-label={`地址 ${hex16(item.address)} 执行次数`} title="最近采样的成功执行次数；仅指令起始地址">{counts.has(item.address) ? `${counts.get(item.address) === 0xffffffff ? "≥" : ""}${counts.get(item.address)}` : "…"}</code>}
             <button type="button" className="run-to-line" aria-label={`运行至指令 ${hex16(item.address)}`}
               disabled={disabled || running} onClick={() => onRunTo(item.address)}>运行至此</button>
           </div>;

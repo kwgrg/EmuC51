@@ -1,6 +1,7 @@
 /// <reference lib="webworker" />
 
 import { evaluateExpression, evaluateWatch, MAX_WATCH_EXPRESSIONS } from "../core/expressions";
+import { InstructionCoverage } from "../core/coverage";
 import { Cpu8051 } from "../core/cpu";
 import { Debugger8051, assertDebugAddress, assertWritableAddress, type DebugStop } from "../core/debugger";
 import { opcodeMeta } from "../core/opcodes";
@@ -9,6 +10,8 @@ import type { EmulatorCommand, EmulatorEvent } from "./protocol";
 
 const scope = self as unknown as DedicatedWorkerGlobalScope;
 const debugger8051 = new Debugger8051();
+const coverage = new InstructionCoverage();
+const postCoverage = (requestId: number): void => post({ type: "CoverageChanged", requestId, summary: coverage.summary() });
 
 let cpu: Cpu8051 | undefined;
 let running = false;
@@ -58,6 +61,7 @@ const finishRun = (requestId: number, stop: DebugStop): void => {
   const machine = requireCpu();
   stopCurrentRun();
   debugger8051.stopped(stop);
+  if (coverage.enabled) postCoverage(requestId);
   post({ type: "Stopped", requestId, ...stop, state: machine.state(), snapshot: machine.snapshot() });
 };
 
@@ -75,6 +79,7 @@ const reportFault = (requestId: number, error: unknown): void => {
   stopCurrentRun();
   debugger8051.stopped({ reason: "Paused" });
   postSerialOutput(requestId);
+  if (coverage.enabled) postCoverage(requestId);
   post({ type: "ExecutionFault", requestId, error: faultData(error), state: cpu?.state(), snapshot: cpu?.snapshot() });
 };
 
@@ -126,6 +131,7 @@ const pump = (token: number): void => {
         return !stop;
       });
       if (!result) break;
+      if (coverage.enabled && result.kind === "instruction") coverage.record(result.pcBefore);
       remainingSteps -= 1;
       if (traceEnabled) {
         trace.push(traceStep(result));
@@ -212,6 +218,7 @@ const stepOnce = (requestId: number, trace: boolean): void => {
   debugger8051.stopped({ reason: "StepComplete" });
   const watched = debugger8051.capture(machine.memory);
   const step = machine.step();
+  if (coverage.enabled && step.kind === "instruction") coverage.record(step.pcBefore);
   flushOutput(requestId, trace ? [traceStep(step)] : [], machine.drainSerialOutput());
   post({ type: "StateChanged", requestId, state: machine.state(), step, running: false });
   post({ type: "SnapshotCreated", requestId, snapshot: machine.snapshot(), automatic: false });
@@ -251,11 +258,15 @@ scope.onmessage = (message: MessageEvent<EmulatorCommand>): void => {
         stopCurrentRun();
         debugger8051.resetHits();
         cpu = loaded;
+        coverage.clear(true);
+        postCoverage(requestId);
         post({ type: "Ready", requestId, name: command.name, state: cpu.state(), snapshot: cpu.snapshot() });
         return;
       }
       case "Reset": {
         requireCpu().reset();
+        coverage.clear();
+        postCoverage(requestId);
         debugger8051.resetHits();
         finishRun(requestId, { reason: "Paused" });
         return;
@@ -334,6 +345,24 @@ scope.onmessage = (message: MessageEvent<EmulatorCommand>): void => {
         requireCpu().receiveSerial(command.value, command.ninthBit);
         postEditedState(requestId);
         return;
+      case "SetCoverage":
+        requireCpu();
+        if (typeof command.enabled !== "boolean") invalid("覆盖统计开关必须是布尔值");
+        coverage.setEnabled(command.enabled);
+        postCoverage(requestId);
+        return;
+      case "ClearCoverage":
+        requireCpu();
+        coverage.clear();
+        postCoverage(requestId);
+        return;
+      case "ReadCoverage": {
+        requireCpu();
+        if (!Array.isArray(command.addresses) || command.addresses.length > 256) invalid("覆盖查询最多 256 个 CODE 地址");
+        for (const address of command.addresses) assertDebugAddress(address);
+        post({ type: "CoverageData", requestId, summary: coverage.summary(), addresses: command.addresses, counts: coverage.read(command.addresses) });
+        return;
+      }
       case "EvaluateExpressions": {
         if (!Array.isArray(command.expressions) || command.expressions.length > MAX_WATCH_EXPRESSIONS ||
             Array.from(command.expressions).some((expression) => typeof expression !== "string")) invalid("观察列表须为最多 32 项的字符串数组");

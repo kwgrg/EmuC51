@@ -595,3 +595,115 @@ describe("conditional breakpoint execution", () => {
     expect(stopped()).toMatchObject({ reason: "StepLimitReached", state: { pc: 3, sp: 7 } });
   });
 });
+
+describe("instruction coverage transport and execution boundaries", () => {
+  const enable = () => send({ type: "SetCoverage", enabled: true });
+  const read = (addresses = [0, 1, 2, 3, 6, 7]) => {
+    const id = send({ type: "ReadCoverage", addresses });
+    return events.find(event => event.type === "CoverageData" && event.requestId === id)! as Extract<EmulatorEvent, { type: "CoverageData" }>;
+  };
+  const run = (maxSteps: number) => { send({ type: "Run", maxSteps, trace: false }); vi.runAllTimers(); };
+  it("defaults off, counts only starts, preserves disabled records and resumes accumulation", () => {
+    load(0x74, 0x12, 0x80, 0xfc);
+    run(4);
+    expect(read().summary.instructions).toBe(0);
+    enable();
+    run(4);
+    expect(read([0, 1, 2, 3])).toMatchObject({ counts: [2, 0, 2, 0], summary: { instructions: 4, uniqueAddresses: 2 } });
+    send({ type: "SetCoverage", enabled: false });
+    run(6);
+    expect(read().summary.instructions).toBe(4);
+    enable();
+    send({ type: "Step", trace: false });
+    expect(read([0, 2]).counts).toEqual([3, 2]);
+  });
+  it("does not count pre-instruction breakpoint/condition stops or failed instructions", () => {
+    load(0x00, 0xa5); // NOP; reserved opcode.
+    enable();
+    send({ type: "SetDebugConfig", breakpoints: [0], watchpoints: [], breakpointOptions: [{ address: 0, enabled: true, hitCount: 1, condition: "1/0" }] });
+    run(10);
+    expect(stopped().reason).toBe("BreakpointConditionError");
+    expect(read().summary.instructions).toBe(0);
+    send({ type: "SetDebugConfig", breakpoints: [], watchpoints: [] });
+    run(10);
+    expect(events.at(-1)?.type).toBe("ExecutionFault");
+    expect(read([0, 1])).toMatchObject({ counts: [1, 0], summary: { instructions: 1, uniqueAddresses: 1 } });
+  });
+  it("excludes idle/power-down and IRQ entry but counts actual ISR instructions", () => {
+    const program = new Uint8Array(12);
+    program[0x0b] = 0x32;
+    load(...program);
+    enable();
+    send({ type: "WriteMemory", space: "sfr", address: 0x87, value: 1 });
+    run(5);
+    expect(read().summary.instructions).toBe(0);
+    send({ type: "WriteMemory", space: "sfr", address: 0x88, value: 0x20 });
+    send({ type: "WriteMemory", space: "sfr", address: 0xa8, value: 0x82 });
+    run(3); // IE-write delay idle tick, IRQ entry, then RETI.
+    expect(read([0, 0x0b])).toMatchObject({ counts: [0, 1], summary: { instructions: 1 } });
+    send({ type: "WriteMemory", space: "sfr", address: 0x87, value: 2 });
+    send({ type: "Step", trace: false });
+    expect(read().summary.instructions).toBe(1);
+  });
+  it("counts calls/returns during Step Over/Out and the write that triggers a watchpoint", () => {
+    load(0x12, 0, 6, 0, 0, 0, 0x04, 0x22);
+    enable();
+    send({ type: "StepOver", maxSteps: 10, trace: false });
+    vi.runAllTimers();
+    expect(read([0, 6, 7]).counts).toEqual([1, 1, 1]);
+    send({ type: "SetRegister", name: "PC", value: 0 });
+    send({ type: "Step", trace: false });
+    send({ type: "StepOut", maxSteps: 10, trace: false });
+    vi.runAllTimers();
+    expect(read([0, 6, 7]).counts).toEqual([2, 2, 2]);
+    send({ type: "SetRegister", name: "PC", value: 6 });
+    send({ type: "SetDebugConfig", breakpoints: [], watchpoints: [{ space: "sfr", address: 0xe0 }] });
+    run(10);
+    expect(stopped().reason).toBe("Watchpoint");
+    expect(read([6]).counts).toEqual([3]);
+  });
+  it("clears on reset, disables on restore/replacement, and does not serialize coverage", () => {
+    const bytes = Uint8Array.of(0x00);
+    load(...bytes);
+    enable();
+    send({ type: "Step", trace: false });
+    expect(stopped().snapshot).not.toHaveProperty("coverage");
+    const snapshot = stopped().snapshot;
+    send({ type: "RestoreWorkspace", name: "invalid.bin", bytes: bytes.buffer, snapshot: { ...snapshot, iram: new Uint8Array(2) } });
+    expect(events.at(-1)?.type).toBe("CommandRejected");
+    expect(read().summary).toMatchObject({ enabled: true, instructions: 1 });
+    send({ type: "Reset" });
+    expect(read().summary).toMatchObject({ enabled: true, instructions: 0 });
+    send({ type: "Step", trace: false });
+    send({ type: "RestoreWorkspace", name: "same.bin", bytes: bytes.buffer, snapshot });
+    expect(read().summary).toMatchObject({ enabled: false, instructions: 0 });
+    enable();
+    send({ type: "Step", trace: false });
+    load(0);
+    expect(read().summary).toMatchObject({ enabled: false, instructions: 0 });
+  });
+  it("bounds read payloads, rejects malformed requests, and clears between running chunks without cancelling execution", () => {
+    load(0x80, 0xfe);
+    enable();
+    const id = send({ type: "Run", maxSteps: 20_000, trace: false });
+    vi.runOnlyPendingTimers();
+    expect(read().summary.instructions).toBe(10_000);
+    const before = read().summary.epoch;
+    for (const addresses of [Array(257).fill(0), [-1], [65536], Array(1)]) {
+      const requestId = send({ type: "ReadCoverage", addresses });
+      expect(events.find(event => event.requestId === requestId)).toMatchObject({ type: "CommandRejected", running: true });
+    }
+    send({ type: "SetCoverage", enabled: "true" as unknown as boolean });
+    expect(events.at(-1)).toMatchObject({ type: "CommandRejected", running: true });
+    expect(read().summary).toMatchObject({ enabled: true, instructions: 10_000 });
+    send({ type: "ClearCoverage" });
+    expect(read().summary).toMatchObject({ enabled: true, instructions: 0 });
+    expect(read().summary.epoch).toBeGreaterThan(before);
+    vi.runAllTimers();
+    expect(stopped()).toMatchObject({ requestId: id, reason: "StepLimitReached", state: { steps: 20_000 } });
+    expect(read().summary.instructions).toBe(10_000);
+    expect(read(Array.from({ length: 256 }, (_, i) => i)).counts).toHaveLength(256);
+    // No automatic dense coverage messages in the hot execution loop.
+    expect(events.filter(event => event.type === "CoverageChanged" && event.requestId === id)).toHaveLength(1);
+  });
+});

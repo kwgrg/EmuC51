@@ -10,6 +10,8 @@ import {
 } from "react";
 import { hex16, hex8 } from "./core/numbers";
 import { MAX_HEX_FILE_SIZE, parseFirmware } from "./core/firmware";
+import { CoveragePanel } from "./components/CoveragePanel";
+import type { CoverageSummary } from "./core/coverage";
 import { WatchPanel } from "./components/WatchPanel";
 import { DisassemblyView } from "./components/DisassemblyView";
 import { normalizeDebugConfig, removeBreakpoint } from "./core/debugger";
@@ -95,6 +97,9 @@ export default function App() {
   const memoryAddressRef = useRef(0);
   const memoryRequestRef = useRef(0);
   const watchRequestRef = useRef(0);
+  const coverageRequestRef = useRef(0);
+  const coverageControlRef = useRef(0);
+  const coverageEpochRef = useRef(-1);
   const exportRequestRef = useRef<number | undefined>(undefined);
   const firmwareRequestRef = useRef(0);
   const fileActionRef = useRef(0);
@@ -110,6 +115,8 @@ export default function App() {
   const [saveState, setSaveState] = useState("idle");
   const [workspaceGeneration, setWorkspaceGeneration] = useState(0);
   const watchExpressions = useMemo(() => settings.watchExpressions ?? [], [settings.watchExpressions]);
+  const [coverage, setCoverage] = useState<CoverageSummary>();
+  const [coverageSample, setCoverageSample] = useState<Extract<EmulatorEvent, { type: "CoverageData" }>>();
   const [watchSample, setWatchSample] = useState<Extract<EmulatorEvent, { type: "WatchResults" }>>();
   const [restoring, setRestoring] = useState(true);
   const [dragging, setDragging] = useState(false);
@@ -242,6 +249,20 @@ export default function App() {
           break;
         case "TraceBatch":
           setTrace((current) => [...current, ...event.trace].slice(-1000));
+          break;
+        case "CoverageChanged":
+          if (coverageControlRef.current && event.requestId < coverageControlRef.current) break;
+          if (event.requestId === coverageControlRef.current) coverageControlRef.current = 0;
+          if (event.summary.epoch < coverageEpochRef.current) break;
+          if (event.summary.epoch !== coverageEpochRef.current) setCoverageSample(undefined);
+          coverageEpochRef.current = event.summary.epoch;
+          setCoverage(event.summary);
+          break;
+        case "CoverageData":
+          if (event.requestId !== coverageRequestRef.current || event.summary.epoch < coverageEpochRef.current) break;
+          coverageEpochRef.current = event.summary.epoch;
+          setCoverage(event.summary);
+          setCoverageSample(event);
           break;
         case "WatchResults":
           if (event.requestId === watchRequestRef.current) setWatchSample(event);
@@ -389,6 +410,20 @@ export default function App() {
     return () => window.removeEventListener("pagehide", saveOnHide);
   }, [persistSnapshot]);
 
+  const readCoverage = useCallback((addresses: number[]) => {
+    coverageRequestRef.current = postCommand({ type: "ReadCoverage", addresses });
+  }, [postCommand]);
+
+  const setCoverageEnabled = (enabled: boolean): void => {
+    coverageRequestRef.current = postCommand({ type: "SetCoverage", enabled });
+    coverageControlRef.current = coverageRequestRef.current;
+    setCoverage(current => current ? { ...current, enabled } : current);
+  };
+  const clearCoverage = (): void => {
+    coverageRequestRef.current = postCommand({ type: "ClearCoverage" });
+    coverageControlRef.current = coverageRequestRef.current;
+  };
+
   const refreshWatch = useCallback(() => {
     if (!firmware || restoring || watchExpressions.length === 0) return;
     watchRequestRef.current = postCommand({ type: "EvaluateExpressions", expressions: watchExpressions });
@@ -433,6 +468,10 @@ export default function App() {
       setWorkspaceGeneration(current => current + 1);
       firmwareRef.current = nextFirmware;
       snapshotRef.current = undefined;
+      coverageRequestRef.current = -1;
+      coverageControlRef.current = 0;
+      setCoverage(undefined);
+      setCoverageSample(undefined);
       setFirmware(nextFirmware);
       setCpuState(undefined);
       setTrace([]);
@@ -549,6 +588,10 @@ export default function App() {
       setWorkspaceGeneration(current => current + 1);
       firmwareRef.current = nextFirmware;
       snapshotRef.current = undefined;
+      coverageRequestRef.current = -1;
+      coverageControlRef.current = 0;
+      setCoverage(undefined);
+      setCoverageSample(undefined);
       settingsRef.current = record.settings;
       setFirmware(nextFirmware);
       setSettingsState(record.settings);
@@ -655,6 +698,8 @@ export default function App() {
           {activeView === "editor" && (
             <WorkbenchView
               key={workspaceGeneration}
+              coverage={coverage} coverageSample={coverageSample} readCoverage={readCoverage}
+              setCoverageEnabled={setCoverageEnabled} clearCoverage={clearCoverage}
               controls={controls}
               cpuState={cpuState}
               error={error}
@@ -937,6 +982,7 @@ interface ControlActions {
 }
 
 function WorkbenchView({
+  coverage, coverageSample, readCoverage, setCoverageEnabled, clearCoverage,
   controls,
   cpuState,
   error,
@@ -956,6 +1002,11 @@ function WorkbenchView({
   onFileChange,
   clearLocal,
 }: {
+  coverage?: CoverageSummary;
+  coverageSample?: Extract<EmulatorEvent, { type: "CoverageData" }>;
+  readCoverage: (addresses: number[]) => void;
+  setCoverageEnabled: (enabled: boolean) => void;
+  clearCoverage: () => void;
   controls: ControlActions;
   cpuState?: CpuViewState;
   error?: string;
@@ -1030,6 +1081,7 @@ function WorkbenchView({
         />
         {firmware ? <DisassemblyView key={`${firmware.sha256}:${firmware.loadedAt}`}
           program={firmware.bytes} pc={cpuState?.pc ?? 0}
+          coverage={coverage} coverageSample={coverageSample} onReadCoverage={readCoverage}
           breakpoints={settings.debugger?.breakpoints ?? []}
           breakpointOptions={settings.debugger?.breakpointOptions}
           disabled={restoring} running={running} onRunTo={runToAddress}
@@ -1061,6 +1113,10 @@ function WorkbenchView({
         ) : (
           <EmptyState>FLASH_ROM TO INITIALIZE CPU</EmptyState>
         )}
+      </TerminalPanel>
+
+      <TerminalPanel className="coverage-card" title="INSTRUCTION_COVERAGE" bits={["SESSION ONLY"]}>
+        <CoveragePanel summary={coverage} disabled={!firmware || restoring} onEnable={setCoverageEnabled} onClear={clearCoverage} />
       </TerminalPanel>
 
       <TerminalPanel className="debugger-config" title="DEBUGGER" bits={[`${settings.debugger?.breakpoints.length ?? 0} BP`, `${settings.debugger?.watchpoints.length ?? 0} WP`]}>

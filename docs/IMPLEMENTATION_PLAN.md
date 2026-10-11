@@ -308,3 +308,7 @@ M6 后续维护（2026-10-11）：内存地址草稿与读取结果分离，补�
 `Debugger8051.beforeStep` 接收 Worker 提供的只读求值回调；假条件不计数、真条件累计、异常转为携带表达式和错误的 `BreakpointConditionError`。异常停止不设置普通断点的继续绕过；条件变更清空该地址进度。CPU 的取指前回调位置不变，因此 idle/中断响应不求值。解析器比较优先级位于位移和按位运算之间；无赋值、调用或短路逻辑。
 
 工作区升级 v4，兼容 v1–v3，无条件旧配置迁移后行为不变。旧版本标记携带有效条件时拒绝，避免降级。前端展示错误停止、条件草稿和取消状态；详见 [条件断点规则](CONDITIONAL_BREAKPOINTS.md)。
+
+## 指令覆盖记录
+
+`InstructionCoverage` 在 Worker 中维护可选 Uint32 计数表，只有成功的 `instruction` 结果被累计；不修改 CPU 快照。Set/Clear 命令改变代次，ReadCoverage 最多查询 256 个 CODE 地址。前端每 250ms 采样可见行，离页停止，默认关闭时没有循环消息。完整生命周期及基准命令见 [INSTRUCTION_COVERAGE.md](INSTRUCTION_COVERAGE.md)。

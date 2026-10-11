@@ -107,3 +107,34 @@ describe("DisassemblyView", () => {
     expect(screen.getByRole("button", { name: "运行至指令 0002" })).toBeDisabled();
   });
 });
+
+it("labels only sampled counts from the current coverage epoch", () => {
+  const summary = { enabled: true, epoch: 2, instructions: 3, uniqueAddresses: 1, saturated: false };
+  const p = props();
+  const { rerender } = render(<DisassemblyView {...p} coverage={summary}
+    coverageSample={{ summary, addresses: [0], counts: [3] }} />);
+  expect(screen.getByLabelText("地址 0000 执行次数")).toHaveTextContent("3");
+  rerender(<DisassemblyView {...p} coverage={{ ...summary, epoch: 3, instructions: 0 }}
+    coverageSample={{ summary, addresses: [0], counts: [3] }} />);
+  expect(screen.getByLabelText("地址 0000 执行次数")).toHaveTextContent("…");
+});
+
+it("polls only visible instruction starts at 250ms while running and stops on unmount", () => {
+  vi.useFakeTimers();
+  try {
+    const summary = { enabled: true, epoch: 1, instructions: 0, uniqueAddresses: 0, saturated: false };
+    const onReadCoverage = vi.fn();
+    const p = props();
+    const { rerender, unmount } = render(<DisassemblyView {...p} running coverage={summary} onReadCoverage={onReadCoverage} />);
+    expect(onReadCoverage).toHaveBeenCalledTimes(1);
+    expect(onReadCoverage.mock.calls[0]?.[0]).toHaveLength(80);
+    vi.advanceTimersByTime(1000);
+    expect(onReadCoverage).toHaveBeenCalledTimes(5);
+    rerender(<DisassemblyView {...p} pc={0x100} running coverage={summary} onReadCoverage={onReadCoverage} />);
+    vi.advanceTimersByTime(250);
+    expect(onReadCoverage.mock.calls.at(-1)?.[0][0]).toBe(0x100);
+    unmount();
+    vi.advanceTimersByTime(1000);
+    expect(onReadCoverage).toHaveBeenCalledTimes(6);
+  } finally { vi.useRealTimers(); }
+});
