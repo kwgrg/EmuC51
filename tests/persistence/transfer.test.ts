@@ -26,6 +26,8 @@ describe("工作区 JSON 导入导出", () => {
     };
     record.settings.debugger!.breakpointOptions = [{ address: 2, enabled: false, hitCount: 5 }];
     record.cpu.iram[0x20] = 0x77;
+    record.settings.watchExpressions = ["ACC", "XRAM[0x1234]", "1/0"];
+    record.settings.memoryAddress = 0x1234;
     const text = exportWorkspace(record);
     const encoded = JSON.parse(text);
     expect(Array.isArray(encoded.firmware.bytes)).toBe(true);
@@ -54,6 +56,8 @@ describe("工作区 JSON 导入导出", () => {
       breakpointOptions: Array.from({ length: 1024 }, (_, index) => ({ address: 0xffff - index, enabled: false, hitCount: 100_000_000 })),
       watchpoints: Array.from({ length: 1024 }, (_, index) => ({ space: "xram", address: 0xffff - index })),
     };
+    record.settings.watchExpressions = Array.from({ length: 32 }, (_, i) => String(i).padEnd(256, " "));
+    record.settings.memoryAddress = 65535;
     const text = exportWorkspace(record);
     expect(new TextEncoder().encode(text).byteLength).toBeLessThan(MAX_WORKSPACE_IMPORT_BYTES);
     expect((await importWorkspace(text)).cpu.xram[65535]).toBe(255);
@@ -95,6 +99,9 @@ describe("工作区 JSON 导入导出", () => {
   });
 
   const invalidMutations: [string, string, unknown][] = [
+    ["观察列表溢出", "settings.watchExpressions", Array(33).fill("PC")],
+    ["观察列表类型", "settings.watchExpressions", [42]],
+    ["浏览地址越界", "settings.memoryAddress", 65536],
     ["未知版本", "schemaVersion", 99],
     ["外层核心版本不一致", "coreStateVersion", 1],
     ["PC 越界", "cpu.pc", 65536],

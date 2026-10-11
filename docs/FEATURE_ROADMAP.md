@@ -89,3 +89,13 @@
 - `38fa117133fdc4d673a7d24ba9fc9a0280e6e1b6` 已快进合入，Cloudflare [自动检查成功](https://github.com/kwgrg/EmuC51/runs/114449240272)。随后复查桌面截图发现固定高度 WATCH 面板裁剪长列表；在独立分支 `fix/watch-panel-overflow` 增加面板内部纵向滚动和内边距。
 - E2E 增加桌面滚动至末行后删除的实际交互，保留手机操作与三个宽度检查。此处记录发现和修复时序，不将先前“无页面横向溢出”等同于列表内容均可访问。
 - 修正后最终再次完整通过：308 项单元测试、18 项 Chromium E2E（含桌面末行点击删除）、类型检查、Lint、构建和静态干运行。Firefox/WebKit 仍未安装、未运行。
+
+## 2026-10-11：调试会话持久化与跨流程回归
+
+- 从远端 `ce10f18293be926c88c92172feb5a29edf727f43` 建立 `feat/debug-session-persistence`，采用最小兼容扩展：工作区 v3 的可选 `watchExpressions`、`memoryAddress`，CPU 快照仍为 v2。旧 v1/v2/v3 缺失字段时使用空列表和空间起点；早期 v3 应用可读取旧状态但会忽略新增字段。
+- Watch 添加/删除和已确认内存地址自动保存，刷新及 JSON 往返恢复。草稿不保存；复位/替换固件保留配置并重新采样，JSON 导入替换设置。修复导入继续沿用旧内存地址的问题。
+- 跨流程 Chromium 用例明确复现“导入同一固件仍停留在先前固定反汇编地址”，通过独立的工作区会话标识重建临时视图状态修复。新旧会话不共享反汇编固定地址、浏览历史或草稿。
+- 回归覆盖：v1/v2/v3 缺省迁移、合法求值错误的保存、重复/超长/超量/稀疏/非字符串列表、各空间地址范围、损坏导入保留当前会话、未确认草稿、同固件导入、刷新后未知调用历史、复位、替换固件、禁用计数断点配置和新固件 Watch 采样。断点计数进度、可信调用历史、运行目标及采样结果均不持久化；测试验证伪造历史字段被规范化丢弃。
+- 跨浏览器尝试：使用项目自带 Playwright 官方 CLI，`PLAYWRIGHT_BROWSERS_PATH=/tmp/emuc51-playwright node node_modules/playwright/cli.js install firefox webkit` 下载 Firefox 153.0/build1538 失败；另行 `install webkit` 下载 WebKit 26.5/build2336 也失败。官方 CDN 与工具自动回退的 Microsoft 下载地址均返回 HTTP 403 `Domain forbidden`。未绕过限制；Firefox/WebKit 未运行，不能据 Chromium 结果声称跨浏览器通过。
+- 下一最高优先级：条件断点，复用有界无副作用表达式求值器。真实依赖是定义条件错误时的停止行为、条件与命中计数的组合顺序、补充比较运算及中断/idle 边界测试；不依赖外部编译工具。源码符号/局部变量仍需要真实调试格式和样本，不能从裸 BIN 推断。
+- 最终代码完整通过：331 项单元测试、19 项 Chromium E2E、类型检查、Lint、生产构建、`git diff --check` 和静态干运行（`No bindings found`）；E2E 同时覆盖 375/820/1280 px 布局和手机增删。首次同固件导入用例在修复前失败，修复后全量重跑通过，未跳过或改弱断言。

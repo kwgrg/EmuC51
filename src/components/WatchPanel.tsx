@@ -22,7 +22,7 @@ export function WatchPanel({ expressions, sample, disabled, onChange, onRefresh 
     </form>
     {duplicate && <small>该表达式已在列表中</small>}
     <p>十进制 / 0x 十六进制；PC、DPTR、R0–R7、SFR 名称；IRAM[]、SFR[]、XRAM[]、CODE[]。</p>
-    <p>支持 + − * / %、&amp; | ^ ~、&lt;&lt; &gt;&gt; 和括号。SFR 为锁存值；列表仅本次会话保留。</p>
+    <p>支持 + − * / %、&amp; | ^ ~、&lt;&lt; &gt;&gt; 和括号。SFR 为锁存值；列表随工作区保存。</p>
     <small data-testid="watch-sample">{sample && !disabled ? `采样 PC ${hex16(sample.pc)} · ${sample.steps} 条指令` : "等待采样"}</small>
     {expressions.map((expression, index) => {
       const result = !disabled && sample?.results[index]?.expression === expression ? sample.results[index] : undefined;

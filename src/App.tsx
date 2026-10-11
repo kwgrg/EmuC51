@@ -106,7 +106,8 @@ export default function App() {
   const [cpuState, setCpuState] = useState<CpuViewState>();
   const [settings, setSettingsState] = useState(DEFAULT_SETTINGS);
   const [running, setRunning] = useState(false);
-  const [watchExpressions, setWatchExpressions] = useState<string[]>([]);
+  const [workspaceGeneration, setWorkspaceGeneration] = useState(0);
+  const watchExpressions = useMemo(() => settings.watchExpressions ?? [], [settings.watchExpressions]);
   const [watchSample, setWatchSample] = useState<Extract<EmulatorEvent, { type: "WatchResults" }>>();
   const [restoring, setRestoring] = useState(true);
   const [dragging, setDragging] = useState(false);
@@ -319,6 +320,9 @@ export default function App() {
         settingsRef.current = savedSettings;
         setFirmware(restoredFirmware);
         setSettingsState(savedSettings);
+        const restoredAddress = savedSettings.memoryAddress ?? (savedSettings.selectedMemorySpace === "sfr" ? 0x80 : 0);
+        memoryAddressRef.current = restoredAddress;
+        setMemoryAddress(restoredAddress);
         const transferBytes = copyBuffer(savedFirmware.bytes);
         if (loaded.kind === "complete") {
           firmwareRequestRef.current = postCommand(
@@ -384,7 +388,7 @@ export default function App() {
   const updateWatch = (expressions: string[]): void => {
     watchRequestRef.current = -1;
     setWatchSample(undefined);
-    setWatchExpressions(expressions);
+    updateSettings({ ...settingsRef.current, watchExpressions: expressions });
   };
 
   const updateSettings = (next: WorkspaceSettings): void => {
@@ -411,6 +415,7 @@ export default function App() {
         loadedAt: Date.now(),
       };
       if (action !== fileActionRef.current) return;
+      setWorkspaceGeneration(current => current + 1);
       firmwareRef.current = nextFirmware;
       snapshotRef.current = undefined;
       setFirmware(nextFirmware);
@@ -526,11 +531,18 @@ export default function App() {
       if (action !== fileActionRef.current) return;
       // Validation finishes before changing the active CPU or persisted record.
       const nextFirmware = { ...record.firmware, bytes: copyBuffer(record.firmware.bytes) };
+      setWorkspaceGeneration(current => current + 1);
       firmwareRef.current = nextFirmware;
       snapshotRef.current = undefined;
       settingsRef.current = record.settings;
       setFirmware(nextFirmware);
       setSettingsState(record.settings);
+      const restoredAddress = record.settings.memoryAddress ?? (record.settings.selectedMemorySpace === "sfr" ? 0x80 : 0);
+      memoryAddressRef.current = restoredAddress;
+      setMemoryAddress(restoredAddress);
+      watchRequestRef.current = -1;
+      setWatchSample(undefined);
+      setMemoryBytes(new Uint8Array());
       setTrace([]);
       setPortHistory([]);
       setRestoring(true);
@@ -570,12 +582,13 @@ export default function App() {
     const nextAddress = space === "sfr" ? 0x80 : 0;
     memoryAddressRef.current = nextAddress;
     setMemoryAddress(nextAddress);
-    updateSettings({ ...settingsRef.current, selectedMemorySpace: space });
+    updateSettings({ ...settingsRef.current, selectedMemorySpace: space, memoryAddress: nextAddress });
     requestMemory();
   };
 
   const updateMemoryAddress = (address: number): void => {
     memoryAddressRef.current = address;
+    updateSettings({ ...settingsRef.current, memoryAddress: address });
     requestMemory();
   };
 
@@ -626,6 +639,7 @@ export default function App() {
           )}
           {activeView === "editor" && (
             <WorkbenchView
+              key={workspaceGeneration}
               controls={controls}
               cpuState={cpuState}
               error={error}

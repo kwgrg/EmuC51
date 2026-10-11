@@ -1,4 +1,5 @@
 import { openDB, type DBSchema } from "idb";
+import { MAX_EXPRESSION_LENGTH, MAX_WATCH_EXPRESSIONS } from "../core/expressions";
 import { Cpu8051 } from "../core/cpu";
 import { normalizeDebugConfig, type DebugConfig } from "../core/debugger";
 import { validatePeripheralSnapshot } from "../core/peripherals";
@@ -11,6 +12,8 @@ export interface WorkspaceSettings {
   traceEnabled: boolean;
   selectedMemorySpace: MemorySpace;
   debugger?: WorkspaceDebugConfig;
+  watchExpressions?: string[];
+  memoryAddress?: number;
 }
 
 export interface WorkspaceRecord {
@@ -163,11 +166,23 @@ export const normalizeWorkspaceSettings = (value: unknown): WorkspaceSettings | 
   ) return undefined;
   const debuggerConfig = value.debugger === undefined ? undefined : normalizeWorkspaceDebugConfig(value.debugger);
   if (value.debugger !== undefined && !debuggerConfig) return undefined;
+  let watchExpressions: string[] | undefined;
+  if (value.watchExpressions !== undefined) {
+    if (!Array.isArray(value.watchExpressions) || value.watchExpressions.length > MAX_WATCH_EXPRESSIONS ||
+        Array.from(value.watchExpressions).some(item => typeof item !== "string" || !item.trim() || item.length > MAX_EXPRESSION_LENGTH)) return undefined;
+    watchExpressions = (value.watchExpressions as string[]).map(item => item.trim());
+    if (new Set(watchExpressions).size !== watchExpressions.length) return undefined;
+  }
+  const minimum = value.selectedMemorySpace === "sfr" ? 0x80 : 0;
+  const maximum = value.selectedMemorySpace === "iram" ? 0x7f : value.selectedMemorySpace === "sfr" ? 0xff : 0xffff;
+  if (value.memoryAddress !== undefined && !isInteger(value.memoryAddress, minimum, maximum)) return undefined;
   return {
     maxSteps: value.maxSteps,
     traceEnabled: value.traceEnabled,
     selectedMemorySpace: value.selectedMemorySpace as MemorySpace,
     ...(debuggerConfig ? { debugger: debuggerConfig } : {}),
+    ...(watchExpressions ? { watchExpressions } : {}),
+    ...(value.memoryAddress !== undefined ? { memoryAddress: value.memoryAddress as number } : {}),
   };
 };
 

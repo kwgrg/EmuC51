@@ -301,4 +301,4 @@ M6 后续维护（2026-10-11）：内存地址草稿与读取结果分离，补�
 
 ## 只读表达式实现
 
-`core/expressions.ts` 提供有界词法分析和优先级解析；Worker 的 `EvaluateExpressions` 一次性采样，`WatchResults` 带请求编号、PC 和指令计数。SFR 只读锁存器，禁止外设访问钩子。App 作废旧请求并在状态更新/页面导航后刷新，WatchPanel 保留独立草稿与逐行错误。表达式列表不持久化，现有工作区/快照格式保持不变。完整语义见 [WATCH_EXPRESSIONS.md](WATCH_EXPRESSIONS.md)。
+`core/expressions.ts` 提供有界词法分析和优先级解析；Worker 的 `EvaluateExpressions` 一次性采样，`WatchResults` 带请求编号、PC 和指令计数。SFR 只读锁存器，禁止外设访问钩子。App 作废旧请求并在状态更新/页面导航后刷新，WatchPanel 保留独立草稿与逐行错误。表达式列表通过工作区 v3 的可选 `watchExpressions` 字段持久化，已确认浏览地址通过可选 `memoryAddress` 字段保存；CPU 快照 v2 不变。旧记录缺省为空列表/空间起点，输入结构严格校验。完整语义见 [WATCH_EXPRESSIONS.md](WATCH_EXPRESSIONS.md)。

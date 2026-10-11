@@ -138,4 +138,6 @@ Provide local workspace download and a labeled JSON file input. Validate importe
 
 ## Watch panel
 
-The SYS_MEM Watch panel accepts session-only read-only expressions. Each row shows its expression and either a decimal/hex value or a local error. Show sampling PC and instruction count; discard superseded replies when the list or firmware changes. Enter adds a trimmed expression, Escape cancels the draft, duplicate entries and lists over 32 rows are blocked. Narrow layouts wrap expressions without page overflow. See [expression semantics](docs/WATCH_EXPRESSIONS.md).
+The SYS_MEM Watch panel accepts read-only expressions saved with the workspace. Each row shows its expression and either a decimal/hex value or a local error. Show sampling PC and instruction count; discard superseded replies when the list or firmware changes. Enter adds a trimmed expression, Escape cancels the draft, duplicate entries and lists over 32 rows are blocked. Narrow layouts wrap expressions without page overflow. See [expression semantics](docs/WATCH_EXPRESSIONS.md).
+
+Debug sessions persist accepted Watch rows and confirmed memory positions only. Drafts and disassembly history remain temporary. Successful workspace imports replace settings and reset disassembly browsing even when the imported firmware matches the current image.
