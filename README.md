@@ -19,6 +19,8 @@ Cloudflare 只托管编译后的 HTML、CSS、JavaScript 等静态应用文件�
 
 ## 已实现能力
 
+- [GPIO/UART 输入场景重放](docs/INPUT_SCENARIOS.md)：有界声明式 JSON、固件摘要绑定、干净复位、稳定周期投递、取消及目标/实际周期时间线；附 Timer/INT0/UART 回显示例，刷新不自动启用。
+
 - [经典外设核对与 UART TI 修复](docs/CLASSIC_PERIPHERAL_AUDIT.md)：异步串口在停止位开始置 TI，附可构建的 Timer/UART/idle/ISR 示例。
 
 - [CPU 字节与位操作数访问观察点](docs/CPU_OPERAND_WATCHPOINTS.md)：DATA/IDATA/XDATA/SFR 字节与 BIT 位读写、同值写入、RMW 顺序及指令 PC；与原字节值变化观察点并存。

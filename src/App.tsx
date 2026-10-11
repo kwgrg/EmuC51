@@ -1,3 +1,5 @@
+import { InputScenarioPanel } from "./components/InputScenarioPanel";
+import type { InputScenario, ReplayView } from "./core/input-scenario";
 import { AsmSourcePanel } from "./components/AsmSourcePanel";
 import { SdccSourcePanel } from "./components/SdccSourcePanel";
 import { useSdccDebug } from "./components/useSdccDebug";
@@ -100,6 +102,9 @@ const formatFault = (
 export default function App() {
   const workerRef = useRef<Worker | undefined>(undefined);
   const requestIdRef = useRef(0);
+  const scenarioRequestRef = useRef(0);
+  const [scenarioPending, setScenarioPending] = useState(false);
+  const [replay, setReplay] = useState<ReplayView>({active:false,delivered:[]});
   const firmwareRef = useRef<FirmwareState | undefined>(undefined);
   const snapshotRef = useRef<CpuSnapshot | undefined>(undefined);
   const settingsRef = useRef<WorkspaceSettings>(DEFAULT_SETTINGS);
@@ -252,7 +257,19 @@ export default function App() {
     (event: EmulatorEvent): void => {
       if (event.requestId < firmwareRequestRef.current) return;
       switch (event.type) {
+        case "ScenarioChanged":
+          setReplay(event.replay);
+          if (event.requestId === scenarioRequestRef.current) { scenarioRequestRef.current=0;setScenarioPending(false); }
+          if (event.definitionChanged) {
+            const next={...settingsRef.current,inputScenario:event.scenario};
+            settingsRef.current=next;setSettingsState(next);
+          }
+          break;
         case "Ready":
+          if (settingsRef.current.inputScenario) {
+            setScenarioPending(true);
+            scenarioRequestRef.current=postCommand({type:"InstallScenario",scenario:settingsRef.current.inputScenario});
+          }
           setCpuState(event.state);
           setRunning(false);
           setRestoring(false);
@@ -364,6 +381,7 @@ export default function App() {
           setTimeout(requestMemory, 0);
           break;
         case "CommandRejected":
+          if(event.requestId===scenarioRequestRef.current){scenarioRequestRef.current=0;setScenarioPending(false);}
           if (event.requestId === coverageReportRequestRef.current?.id) cancelCoverageReport();
           setRunning(event.running);
           setError(formatFault({ ...event, type: "ExecutionFault" }));
@@ -534,9 +552,10 @@ export default function App() {
         setError("源码或产物已变化，未加载旧构建；请重新构建"); return;
       }
       if (!built) asm.cancel();
-      const nextSettings = { ...settingsRef.current, asmBinding: built?.binding, sdccDebug };
+      const nextSettings = { ...settingsRef.current, asmBinding: built?.binding, sdccDebug, inputScenario:undefined };
       settingsRef.current = nextSettings; setSettingsState(nextSettings);
       setWorkspaceGeneration(current => current + 1);
+      setReplay({active:false,delivered:[]});setScenarioPending(false);scenarioRequestRef.current=0;
       firmwareRef.current = nextFirmware;
       snapshotRef.current = undefined;
       coverageRequestRef.current = -1;
@@ -597,6 +616,7 @@ export default function App() {
   };
 
   const allowExecution = (): boolean => {
+    if (scenarioPending) { setError("请等待场景验证完成或取消"); return false; }
     if (asmBlocked) { setError("ASM 源码与当前固件未验证匹配；请构建当前源码并加载产物"); return false; }
     return true;
   };
@@ -622,6 +642,7 @@ export default function App() {
   };
 
   const reset = (): void => {
+    scenarioRequestRef.current=0;setScenarioPending(false);
     cancelCoverageReport();
     setError(undefined);
     setTrace([]);
@@ -662,12 +683,14 @@ export default function App() {
   };
 
   const writeMemory = (space: WritableSpace, address: number, value: number): void => {
+    if (replay.active) { setError("请先取消输入重放再修改内存"); return; }
     setError(undefined);
     postCommand({ type: "WriteMemory", space, address, value });
     requestMemory();
   };
 
   const writeRegister = (name: string, value: number): void => {
+    if (replay.active) { setError("请先取消输入重放再修改寄存器"); return; }
     setError(undefined);
     postCommand({ type: "SetRegister", name, value });
   };
@@ -684,6 +707,7 @@ export default function App() {
       // Validation finishes before changing the active CPU or persisted record.
       const nextFirmware = { ...record.firmware, bytes: copyBuffer(record.firmware.bytes) };
       setWorkspaceGeneration(current => current + 1);
+      setReplay({active:false,delivered:[]});setScenarioPending(false);scenarioRequestRef.current=0;
       firmwareRef.current = nextFirmware;
       snapshotRef.current = undefined;
       coverageRequestRef.current = -1;
@@ -741,6 +765,20 @@ export default function App() {
     window.location.reload();
   };
 
+  const installScenario = (scenario:InputScenario): void => {
+    if(running||restoring||replay.active)return;
+    setError(undefined);setScenarioPending(true);
+    scenarioRequestRef.current=postCommand({type:"InstallScenario",scenario});
+  };
+  const startScenario = (): void => {
+    if(!allowExecution()||running||restoring||replay.active||scenarioPending)return;
+    cancelCoverageReport();setTrace([]);setPortHistory([]);setSerialOutput([]);setError(undefined);
+    setScenarioPending(true);scenarioRequestRef.current=postCommand({type:"StartScenario"});
+  };
+  const cancelScenario = (): void => {
+    setScenarioPending(false);scenarioRequestRef.current=0;
+    postCommand({type:"CancelScenario"});
+  };
   const chooseMemorySpace = (space: MemorySpace): void => {
     const nextAddress = space === "sfr" ? 0x80 : 0;
     memoryAddressRef.current = nextAddress;
@@ -892,7 +930,15 @@ export default function App() {
               writeMemory={writeMemory}
             />
           )}
-          {activeView === "io" && (
+          {activeView === "io" && (<>
+            <ControlStrip controls={controls} blocked={asmBlocked||scenarioPending} canStepOut={Boolean(cpuState?.callStack.frames.length)} firmware={firmware} restoring={restoring} running={running} />
+            <label>重放运行预算<input aria-label="重放运行预算" type="number" min="0" max="100000000" value={settings.maxSteps} disabled={running||restoring} onChange={event=>{
+              const maxSteps=Number(event.target.value);if(Number.isSafeInteger(maxSteps)&&maxSteps>=0&&maxSteps<=100000000)updateSettings({...settingsRef.current,maxSteps});
+            }} /></label>
+            {asmBlocked&&<p className="asm-stale-warning">ASM 源码与固件须先在工作台重建验证，才能继续执行或重放。</p>}
+            <InputScenarioPanel key={workspaceGeneration} scenario={settings.inputScenario} replay={replay} disabled={!firmware||restoring||asmBlocked} running={running}
+              pending={scenarioPending} firmwareSha256={firmware?.sha256} onInstall={installScenario} onStart={startScenario} onCancel={cancelScenario}
+              onClear={()=>postCommand({type:"ClearScenario"})} />
             <IoView
               firmware={firmware}
               portHistory={portHistory}
@@ -901,10 +947,11 @@ export default function App() {
               sfrBytes={sfrBytes}
               serialOutput={serialOutput}
               restoring={restoring}
+              inputLocked={replay.active}
               onPortInput={(port, value) => postCommand({ type: "SetPortInput", port, value })}
               onReceive={(bytes, ninthBit) => { for (const value of bytes) postCommand({ type: "ReceiveSerial", value, ninthBit }); }}
             />
-          )}
+          </>)}
         </main>
       </div>
 
@@ -1487,6 +1534,7 @@ function IoView({
   sfrBytes,
   serialOutput,
   restoring,
+  inputLocked,
   onPortInput,
   onReceive,
 }: {
@@ -1497,6 +1545,7 @@ function IoView({
   sfrBytes: Uint8Array<ArrayBufferLike>;
   serialOutput: number[];
   restoring: boolean;
+  inputLocked: boolean;
   onPortInput: (port: number, value: number) => void;
   onReceive: (bytes: number[], ninthBit: boolean) => void;
 }) {
@@ -1508,11 +1557,11 @@ function IoView({
       </div>
 
       <TerminalPanel className="display-module gpio-module" title="GPIO_PORTS" bits={[`P0:${hex8(portValues[0] ?? 0xff)}`]}>
-        <GpioControls cpuState={cpuState} disabled={!firmware || restoring} onInput={onPortInput} />
+        <GpioControls cpuState={cpuState} disabled={!firmware || restoring || inputLocked} onInput={onPortInput} />
       </TerminalPanel>
 
       <TerminalPanel className="matrix-module serial-module" title="UART_CONSOLE" bits={["RX/TX"]}>
-        <SerialControls cpuState={cpuState} disabled={!firmware || restoring} output={serialOutput} onReceive={onReceive} />
+        <SerialControls cpuState={cpuState} disabled={!firmware || restoring || inputLocked} output={serialOutput} onReceive={onReceive} />
       </TerminalPanel>
 
       <TerminalPanel className="stepper-module timer-module" title="TIMERS_INTERRUPTS" bits={["T0/T1"]}>

@@ -1033,3 +1033,10 @@ select:focus-visible { outline: 1px solid var(--primary); outline-offset: 2px; }
 .asm-source-row > .asm-actions { grid-column: 3 / -1; }
 .asm-source-row button { padding: 3px 5px; min-height: 25px; font-size: 10px; }
 .asm-source-row.source-current { background: color-mix(in srgb, var(--primary) 18%, transparent); }
+
+.input-scenario-panel { border:1px solid var(--outline-variant); padding:16px; margin-bottom:16px; min-width:0; }
+.input-scenario-panel p { overflow-wrap:anywhere; }
+.input-scenario-panel textarea { display:block; width:100%; min-height:180px; box-sizing:border-box; padding:10px; border:1px solid var(--outline-variant); background:var(--surface); color:var(--on-surface); font:12px/1.5 monospace; resize:vertical; }
+.input-scenario-panel input[type=file] { max-width:100%; }
+.input-scenario-panel .asm-actions > label { min-width:0; max-width:100%; }
+.scenario-timeline { max-height:350px; overflow:auto; font:12px/1.5 monospace; }

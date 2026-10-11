@@ -165,3 +165,5 @@ ASM 工作台作为 BIN_INSPECTOR 下方独立面板，保留原二进制调试�
 经典 UART TI 正确性：模式 1/2/3 在停止位开始置 TI，完整输出仍等待停止位结束；可选帧标记 tiRaised 保留软件确认状态，避免恢复或结束时重复中断。CPU v2/工作区 v4 保持兼容，独立 ASM 程序验证 T0/T1、idle、ISR 和 RETI。详见 [外设核对](docs/CLASSIC_PERIPHERAL_AUDIT.md)。
 
 ASM 真实行映射：汇编器第二遍成功编码生成 line/column/address/length/kind，Worker 与摘要一起传递，失败不返回部分映射。仅匹配已加载 ASM 绑定时启用；指令起点可行断点/导航/运行，数据/空隙不猜测。列表每页 100 行，刷新后匹配重建，不增加持久化字段。当前未完成核心项及依赖统一见 [最新路线图](docs/KEIL_PARITY.md)。
+
+2026-10-11：补齐有界 GPIO/UART 输入场景重放，绑定固件、按执行边界投递并记录实际周期；定义可持久化，恢复默认不启用调度。详见 [输入场景](docs/INPUT_SCENARIOS.md)。下一批聚焦可信静态符号，未引入通用脚本、多文件工程或新工具链。
