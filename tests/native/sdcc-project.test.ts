@@ -23,6 +23,20 @@ it.skipIf(!process.env.SDCC_BIN)("never publishes a partial package after a real
   const { root, manifest, output } = setup(); writeFileSync(join(root,"project/src/compute.c"),"not valid C !!!");
   expect(() => build(manifest, output)).toThrow(); expect(existsSync(output)).toBe(false);
 });
+it.skipIf(!process.env.SDCC_BIN)("rebuilds changed headers and leaves previous success intact when a later build fails", () => {
+  const { root, manifest, output } = setup(); build(manifest, output);
+  const previous=readFileSync(join(output,"emuc51-project.build.json"),"utf8");
+  const header=join(root,"project/include/shared.h");
+  writeFileSync(header,readFileSync(header,"utf8")+"\n#define asm_add(value) ((unsigned char)42)\n");
+  const next=join(root,"changed");build(manifest,next);
+  const changed=JSON.parse(readFileSync(join(next,"emuc51-project.build.json"),"utf8")), original=JSON.parse(previous);
+  expect(changed.manifest.files.ihx.sha256).not.toBe(original.manifest.files.ihx.sha256);
+  expect(changed.inputs.find((input:{path:string})=>input.path.endsWith(".h")).sha256).not.toBe(original.inputs.find((input:{path:string})=>input.path.endsWith(".h")).sha256);
+  writeFileSync(header,"#error deliberately broken header\n");
+  const failed=join(root,"failed");expect(()=>build(manifest,failed)).toThrow();expect(existsSync(failed)).toBe(false);
+  expect(()=>build(manifest,output)).toThrow();
+  expect(readFileSync(join(output,"emuc51-project.build.json"),"utf8")).toBe(previous);
+});
 it("rejects escaping includes, macro directives, symlinks and arbitrary project commands before compiling", () => {
   for (const malicious of ['#include "/etc/passwd"', '#include "../outside.h"', '#include NEXT', '#pragma preproc_asm +', '_Pragma("whatever")']) {
     const { root, manifest, output } = setup(); writeFileSync(join(root,"project/src/main.c"),malicious);

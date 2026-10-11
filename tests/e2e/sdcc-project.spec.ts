@@ -2,6 +2,37 @@ import { expect, test } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 const bundlePath = "tests/fixtures/sdcc-mixed/emuc51-project.build.json";
+test("混合工程：重复导入及原单文件工作区往返不保留旧文件或符号样本", async ({ page }) => {
+  test.setTimeout(60000);
+  const snapshot=async()=>{
+    const download=page.waitForEvent("download");await page.getByRole("button",{name:"导出工作区",exact:true}).click();
+    return JSON.parse(await readFile((await(await download).path())!,"utf8"));
+  };
+  await page.goto("/#editor");
+  await page.getByLabel("导入 SDCC 构建文件").setInputFiles(["emuc51-sdcc.json","symbols.c","symbols.ihx","symbols.cdb"].map(name=>`tests/fixtures/sdcc-symbols/${name}`));
+  await expect(page.getByTestId("sdcc-status")).toContainText("已校验文件摘要 · symbols.c");
+  await page.getByRole("button",{name:"单步"}).click();
+  const single=await snapshot();expect(single.settings.sdccDebug.manifest.version).toBe(1);
+  for(let attempt=0;attempt<2;attempt++) {
+    await page.getByLabel("导入 SDCC 构建文件").setInputFiles(bundlePath);
+    await expect(page.getByLabel("工程源文件")).toHaveValue("src/main.c");
+    await page.getByLabel("工程源文件").selectOption("src/compute.c");
+    await page.getByRole("button",{name:"观察 CDB::compute::Fcompute$shadow$0_0$0",exact:true}).click();
+    await expect(page.getByTestId("symbol-integer")).toHaveText("0");
+  }
+  const mixed=await snapshot();expect(mixed.settings.sdccDebug.manifest.version).toBe(2);
+  await page.getByTestId("workspace-input").setInputFiles({name:"single.json",mimeType:"application/json",buffer:Buffer.from(JSON.stringify(single))});
+  await expect(page.getByTestId("sdcc-status")).toContainText("已校验文件摘要 · symbols.c");
+  await expect(page.getByLabel("工程源文件")).toHaveCount(0);await expect(page.getByTestId("symbol-integer")).toHaveCount(0);
+  expect((await snapshot()).cpu).toEqual(single.cpu);
+  await expect(page.getByRole("main")).toHaveAttribute("data-save-state","saved");await page.reload();
+  await expect(page.getByTestId("sdcc-status")).toContainText("已校验文件摘要 · symbols.c");
+  expect((await snapshot()).cpu).toEqual(single.cpu);
+  await page.getByTestId("workspace-input").setInputFiles({name:"mixed.json",mimeType:"application/json",buffer:Buffer.from(JSON.stringify(mixed))});
+  await expect(page.getByLabel("工程源文件")).toHaveValue("src/main.c");
+  await expect(page.getByTestId("symbol-integer")).toHaveCount(0);
+  const restored=await snapshot();expect(restored.cpu).toEqual(mixed.cpu);expect(restored.settings.sdccDebug).toEqual(mixed.settings.sdccDebug);
+});
 test("混合工程：跨文件 C/SDAS 精确行断点、ABI 执行、同名静态对象和恢复", async ({ page }) => {
   await page.goto("/#editor"); await page.getByLabel("导入 SDCC 构建文件").setInputFiles(bundlePath);
   await expect(page.getByTestId("sdcc-status")).toContainText("已校验文件摘要 · src/main.c");

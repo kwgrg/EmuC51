@@ -39,10 +39,23 @@ it("rejects commands, duplicate basename/module, unlisted entry and arbitrary fl
     {...raw.project,entry:"missing.c"},{...raw.project,sources:[...raw.project.sources,{path:"other/main.c",language:"c"}]},
     {...raw.project,sources:[...raw.project.sources,{path:"asm/main.asm",language:"sdas8051"}]}])expect(()=>normalizeSdccProject(project)).toThrow();
 });
+it("rejects case-folded file/module collisions and noncanonical input paths", async () => {
+  for (const source of [{path:"other/Main.c",language:"c"},{path:"asm/MAIN.asm",language:"sdas8051"}])
+    expect(()=>normalizeSdccProject({...raw.project,sources:[...raw.project.sources,source]})).toThrow();
+  expect(()=>normalizeSdccProject({...raw.project,headers:[...raw.project.headers,"other/Shared.h"]})).toThrow();
+  for (const path of ["src/Main.c","src/./main.c","src//main.c"]) {
+    const changed=structuredClone(raw);changed.inputs[0].path=path;
+    await expect(verifySdccDebug(changed)).rejects.toThrow();
+  }
+  const duplicate=structuredClone(raw);duplicate.inputs[1]=duplicate.inputs[0];
+  await expect(verifySdccDebug(duplicate)).rejects.toThrow();
+});
 it("atomically binds headers, sources, project configuration and firmware",async()=>{
   for(const key of ["source","ihx","cdb"] as const) await expect(verifySdccDebug({...raw,[key]:raw[key]+"\n"})).rejects.toThrow();
   const changed=structuredClone(raw);changed.inputs.find((item:{path:string})=>item.path.endsWith(".h")).text+="\n";
   await expect(verifySdccDebug(changed)).rejects.toThrow("SHA-256");
+  const source=structuredClone(raw);source.inputs.find((item:{path:string})=>item.path==="src/compute.c").text+="\n";
+  await expect(verifySdccDebug(source)).rejects.toThrow("SHA-256");
   await expect(verifySdccDebug({...raw,project:{...raw.project,includeDirs:[]}})).rejects.toThrow("项目清单 SHA");
   await expect(verifySdccDebug(raw,new Uint8Array([0]).buffer)).rejects.toThrow("当前固件");
 });
@@ -56,6 +69,7 @@ it.each([
   ["unknown ASM module", (cdb:string)=>cdb.replace("L:A$bridge$","L:A$alien$")],
   ["C row beyond source", (cdb:string)=>cdb.replace(/L:C\$main.c\$\d+\$/, "L:C$main.c$999$")],
   ["missing entry module", (cdb:string)=>cdb.replace("M:main","M:alien")],
+  ["missing secondary module", (cdb:string)=>cdb.replace("M:compute\n","")],
 ])("rejects malformed multi-module debug records: %s",async(_name,edit)=>{
   const changed=structuredClone(raw);changed.cdb=edit(changed.cdb);changed.manifest.files.cdb.sha256=createHash("sha256").update(changed.cdb).digest("hex");
   await expect(verifySdccDebug(changed)).rejects.toThrow();

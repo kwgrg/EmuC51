@@ -56,6 +56,6 @@ SDCC_BIN=/path/to/sdcc node scripts/build-sdcc-project.mjs tests/fixtures/sdcc-m
 
 ## 验证与后续
 
-原生测试通过 `SDCC_BIN=/path/to/sdcc npm test -- tests/native/sdcc-project.test.ts` 执行。未设置 SDCC_BIN 时明确跳过两项需要编译器的测试；路径/命令拒绝测试仍运行。真实包独立重建逐字节一致，编译失败不生成输出，既有目标不覆盖；核心及浏览器测试覆盖 ABI、同名静态、C/SDAS 行断点、源文件切换、移动宽度、工作区恢复和篡改拒绝。
+原生测试通过 `SDCC_BIN=/path/to/sdcc npm test -- tests/native/sdcc-project.test.ts` 执行。未设置 SDCC_BIN 时明确跳过三项需要编译器的测试；路径/命令拒绝测试仍运行。真实包独立重建逐字节一致，编译失败不生成输出，既有目标不覆盖；核心及浏览器测试覆盖 ABI、同名静态、C/SDAS 行断点、源文件切换、移动宽度、工作区恢复和篡改拒绝。头文件重建、大小写冲突及新旧工作区往返证据见[混合工程一致性复查](MIXED_PROJECT_REVIEW_2026-10-11.md)。
 
 本批未实现工程编辑器、浏览器 C/SDAS 编译、任意链接库/脚本、完整宏方言或通用 C 类型。SDK 403 阻塞未重试；Firefox/WebKit 未安装时不声称通过。下一步可依据真实混合工程用例扩展受限 ABI/方言，浏览器工具链仍需环境实际恢复后单独验证。
