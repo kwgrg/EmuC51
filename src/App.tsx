@@ -1,3 +1,7 @@
+import { SdccSourcePanel } from "./components/SdccSourcePanel";
+import { useSdccDebug } from "./components/useSdccDebug";
+import { toggleSourceBreakpoints, type SdccDebugData } from "./core/sdcc-debug";
+import { importSdccFiles } from "./persistence/sdcc-import";
 import { AsmPanel } from "./components/AsmPanel";
 import { useAsmBuild } from "./components/useAsmBuild";
 import { ASM_EXAMPLE, type AsmArtifact, type AsmProject } from "./core/assembler";
@@ -117,6 +121,8 @@ export default function App() {
   const [cpuState, setCpuState] = useState<CpuViewState>();
   const [settings, setSettingsState] = useState(DEFAULT_SETTINGS);
   const asm = useAsmBuild(settings.asmProject);
+  const sdcc = useSdccDebug(settings.sdccDebug, firmware?.bytes);
+  const [sdccImporting, setSdccImporting] = useState(false);
   const asmBlocked = Boolean(settings.asmBinding && (!asm.artifact ||
     asm.artifact.binding.sourceSha256 !== settings.asmBinding.sourceSha256 ||
     asm.artifact.binding.firmwareSha256 !== firmware?.sha256 ||
@@ -504,8 +510,9 @@ export default function App() {
     if (snapshot) void persistSnapshot(snapshot);
   };
 
-  const loadFile = async (file: File, built?: AsmArtifact): Promise<void> => {
+  const loadFile = async (file: File, built?: AsmArtifact, sdccDebug?: SdccDebugData): Promise<void> => {
     const action = ++fileActionRef.current;
+    setSdccImporting(false);
     setError(undefined);
     if (file.size > MAX_HEX_FILE_SIZE) {
       setError("固件源文件超过 1 MiB 上限；CODE 空间上限为 64 KiB");
@@ -525,7 +532,7 @@ export default function App() {
         setError("源码或产物已变化，未加载旧构建；请重新构建"); return;
       }
       if (!built) asm.cancel();
-      const nextSettings = { ...settingsRef.current, asmBinding: built?.binding };
+      const nextSettings = { ...settingsRef.current, asmBinding: built?.binding, sdccDebug };
       settingsRef.current = nextSettings; setSettingsState(nextSettings);
       setWorkspaceGeneration(current => current + 1);
       firmwareRef.current = nextFirmware;
@@ -557,6 +564,20 @@ export default function App() {
       if (action !== fileActionRef.current) return;
       setRestoring(false);
       setError(caught instanceof Error ? caught.message : "无法读取固件");
+    }
+  };
+
+  const onSdccFiles = async (files: File[]): Promise<void> => {
+    const action = ++fileActionRef.current;
+    setError(undefined); setSdccImporting(true);
+    try {
+      const verified = await importSdccFiles(files);
+      if (action !== fileActionRef.current || clearingRef.current) return;
+      setSdccImporting(false);
+      await loadFile(new File([verified.data.ihx], verified.data.manifest.files.ihx.name), undefined, verified.data);
+    } catch (caught) {
+      if (action !== fileActionRef.current) return;
+      setSdccImporting(false); setError(caught instanceof Error ? caught.message : "无法导入 SDCC 文件");
     }
   };
 
@@ -651,9 +672,10 @@ export default function App() {
 
   const importFile = async (file: File): Promise<void> => {
     const action = ++fileActionRef.current;
+    setSdccImporting(false);
     setError(undefined);
     try {
-      if (file.size > MAX_WORKSPACE_IMPORT_BYTES) throw new Error("工作区文件超过 4 MiB 上限");
+      if (file.size > MAX_WORKSPACE_IMPORT_BYTES) throw new Error("工作区文件超过 8 MiB 上限");
       const record = await importWorkspace(await file.text());
       if (action !== fileActionRef.current) return;
       asm.cancel();
@@ -746,6 +768,11 @@ export default function App() {
     if (!artifact || running || restoring) return;
     void loadFile(new File([artifact.bytes], artifact.project.name.replace(/\.asm$/i, ".bin")), artifact);
   };
+  const toggleSdccLine = (addresses: number[]): void => {
+    if (!sdcc.verified || running || restoring || sdccImporting) return;
+    try { updateDebugConfig(toggleSourceBreakpoints(settingsRef.current.debugger ?? { breakpoints: [], watchpoints: [] }, addresses)); }
+    catch (caught) { setError(caught instanceof Error ? caught.message : "无法设置源码行断点"); }
+  };
   const asmStatus = `${asm.message}。${settings.asmBinding
     ? asmBlocked ? "当前 ASM 固件未验证或源码已变更：执行已锁定，请重建；若结果不同须加载新产物。" : "当前源码与已加载 ASM 固件匹配。"
     : firmware ? "当前固件独立于 ASM 草稿；构建后须显式加载才会改变调试内容。" : "尚未加载固件，可新建 ASM 示例开始。"}`;
@@ -794,6 +821,10 @@ export default function App() {
             <WorkbenchView
               key={workspaceGeneration}
               asmBlocked={asmBlocked}
+              sdccPanel={<SdccSourcePanel verified={sdcc.verified} checking={sdcc.checking || sdccImporting} error={sdcc.error}
+                disabled={running || restoring || sdccImporting} pc={cpuState?.pc} config={settings.debugger ?? { breakpoints: [], watchpoints: [] }}
+                onCancelImport={sdccImporting ? () => { fileActionRef.current += 1; setSdccImporting(false); setNotice("已取消 SDCC 导入"); } : undefined}
+                onFiles={files => void onSdccFiles(files)} onToggleLine={toggleSdccLine} />}
               asmPanel={<AsmPanel project={settings.asmProject} artifact={asm.artifact} diagnostics={asm.diagnostics} building={asm.building}
                 disabled={running || restoring} status={asmStatus} onProject={changeAsmProject} onBuild={asm.build} onCancel={asm.cancel} onLoad={loadAsm}
                 onNew={() => changeAsmProject({ name: "main.asm", source: ASM_EXAMPLE })} />}
@@ -1082,7 +1113,7 @@ interface ControlActions {
 }
 
 function WorkbenchView({
-  asmPanel, asmBlocked,
+  asmPanel, asmBlocked, sdccPanel,
   coverageReport, coverageReportPending, requestCoverageReport,
   coverage, coverageSample, readCoverage, setCoverageEnabled, clearCoverage,
   controls,
@@ -1104,6 +1135,7 @@ function WorkbenchView({
   onFileChange,
   clearLocal,
 }: {
+  sdccPanel: ReactNode;
   asmPanel: ReactNode;
   asmBlocked: boolean;
   coverageReport?: CoverageReport;
@@ -1148,6 +1180,7 @@ function WorkbenchView({
 
   return (
     <div className="workbench-grid">
+      <TerminalPanel className="sdcc-card" title="SDCC_SOURCE" bits={["EXTERNAL BUILD", "READ ONLY"]}>{sdccPanel}</TerminalPanel>
       <TerminalPanel className="asm-card" title="ASM_WORKBENCH" bits={["LOCAL", "SINGLE FILE"]}>{asmPanel}</TerminalPanel>
       <TerminalPanel className="project-files" title="PROJECT_FILES" bits={["FS", "RO"]}>
         <div className="tree-root">⌄ SRC</div>

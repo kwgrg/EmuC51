@@ -1,3 +1,4 @@
+import { normalizeSdccDebug, type SdccDebugData } from "../core/sdcc-debug";
 import { ASSEMBLER_VERSION, normalizeAsmProject, type AsmProject, type AsmBinding } from "../core/assembler";
 import { openDB, type DBSchema } from "idb";
 import { MAX_EXPRESSION_LENGTH, MAX_WATCH_EXPRESSIONS } from "../core/expressions";
@@ -9,6 +10,7 @@ import type { CpuSnapshot, MemorySpace } from "../core/types";
 export type WorkspaceDebugConfig = DebugConfig;
 
 export interface WorkspaceSettings {
+  sdccDebug?: SdccDebugData;
   asmProject?: AsmProject;
   asmBinding?: AsmBinding;
   maxSteps: number;
@@ -162,6 +164,11 @@ export const normalizeWorkspaceSettings = (value: unknown): WorkspaceSettings | 
     typeof value.selectedMemorySpace !== "string" ||
     !["code", "iram", "sfr", "xram"].includes(value.selectedMemorySpace)
   ) return undefined;
+  let sdccDebug: SdccDebugData | undefined;
+  if (value.sdccDebug !== undefined) {
+    try { sdccDebug = normalizeSdccDebug(value.sdccDebug); } catch { return undefined; }
+  }
+  if (sdccDebug && value.asmBinding !== undefined) return undefined;
   const asmProject = value.asmProject === undefined ? undefined : normalizeAsmProject(value.asmProject);
   if (value.asmProject !== undefined && !asmProject) return undefined;
   let asmBinding: AsmBinding | undefined;
@@ -185,6 +192,7 @@ export const normalizeWorkspaceSettings = (value: unknown): WorkspaceSettings | 
   const maximum = value.selectedMemorySpace === "iram" ? 0x7f : value.selectedMemorySpace === "sfr" ? 0xff : 0xffff;
   if (value.memoryAddress !== undefined && !isInteger(value.memoryAddress, minimum, maximum)) return undefined;
   return {
+    ...(sdccDebug ? { sdccDebug } : {}),
     ...(asmProject ? { asmProject } : {}),
     ...(asmBinding ? { asmBinding } : {}),
     maxSteps: value.maxSteps,

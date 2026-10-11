@@ -1,6 +1,6 @@
 # Real SDCC counter fixture
 
-Created from `main.c` for this project on 2026-10-11. This source increments one internal RAM byte and writes P1 forever. The checked-in IHX, CDB and memory report are **actual compiler outputs**, not hand-assembled substitutes. Only trailing whitespace in the memory report was removed for repository formatting; IHX and CDB are byte-for-byte compiler output. There is no browser C compiler or CDB debugger implemented by this fixture.
+Created from `main.c` for this project on 2026-10-11. This source increments one internal RAM byte and writes P1 forever. The checked-in IHX, CDB and memory report are **actual compiler outputs**, not hand-assembled substitutes. Only trailing whitespace in the memory report was removed for repository formatting; IHX and CDB are byte-for-byte compiler output. The app now imports the four-file bundle for exact source-line debugging; this fixture does not provide a browser C compiler.
 
 Compiler: Debian trixie `sdcc` / `sdcc-libraries` **4.5.0+dfsg-1**, SDCC **4.5.0 #15242 (Linux)**. Downloaded from the Debian official package pool, package hashes verified against Debian's package pages:
 
@@ -21,7 +21,8 @@ Reproduce using the same compiler version:
 
 ```sh
 SDCC_BIN=/tmp/emuc51-sdcc/root/usr/bin/sdcc bash scripts/verify-sdcc.sh
-npm test -- tests/core/sdcc-fixture.test.ts
+SDCC_BIN=/path/to/sdcc node scripts/build-sdcc-bundle.mjs tests/fixtures/sdcc-counter/main.c /path/to/empty-output
+npm test -- tests/core/sdcc-fixture.test.ts tests/core/sdcc-debug.test.ts
 ```
 
 Expected SHA-256:

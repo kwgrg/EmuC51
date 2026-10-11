@@ -14,7 +14,7 @@ it("executes a real SDCC 4.5.0 small-model IHX through startup into its C counte
   expect([counter, (counter - 1) & 0xff]).toContain(cpu.memory.readSfrLatch(0x90));
   for (let i = 0; i < 3; i++) cpu.step();
   expect(cpu.memory.iram[8]).toBe((counter + 1) & 0xff);
-  // Evidence only: these are genuine compiler records, not a source-debugger implementation.
+  // Genuine compiler records also used by the separate source-debugger regressions.
   const cdb = readFileSync("tests/fixtures/sdcc-counter/main.cdb", "utf8");
   expect(cdb).toContain("L:C$main.c$6$3_0$4:AB");
   expect(cdb).toContain("L:C$main.c$7$3_0$4:AD");

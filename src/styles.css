@@ -1005,3 +1005,13 @@ select:focus-visible { outline: 1px solid var(--primary); outline-offset: 2px; }
 .asm-hashes { color: var(--outline); }
 .asm-stale-warning { color: var(--warning); padding: 8px; font-size: 12px; margin: 0; }
 @media (max-width: 700px) { .asm-card { grid-column: auto; grid-row: auto; } }
+
+.sdcc-card { grid-column: 1 / -1; grid-row: 7; }
+.sdcc-panel { padding: 12px; font-size: 12px; min-width: 0; }
+.sdcc-panel p { line-height: 1.6; overflow-wrap: anywhere; }
+.sdcc-source { max-height: 380px; overflow: auto; border: 1px solid var(--outline-variant); }
+.sdcc-source > div { display: grid; grid-template-columns: 30px 42px minmax(240px,1fr) 220px; gap: 8px; align-items: start; padding: 4px; min-width: 650px; }
+.sdcc-source pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/20px monospace; }
+.sdcc-source .source-current { background: #17350d; color: var(--primary); }
+.sdcc-source span { overflow-wrap: anywhere; }
+@media (max-width: 700px) { .sdcc-card { grid-column: auto; grid-row: auto; } }

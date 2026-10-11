@@ -21,7 +21,7 @@
 | Watch 与表达式 [7] | 部分实现 | 支持可添加的只读整数表达式、寄存器/SFR 与显式内存空间；没有类型变量或源码符号解析 | `expressions.test.ts`、Worker/组件及 E2E 覆盖语法、边界、空间隔离、无副作用和导航；详见 [语法说明](WATCH_EXPRESSIONS.md) |
 | DATA/IDATA/XDATA/CODE/SFR [8] | 部分实现 | 核心区分直接/间接寻址；IRAM 128B、XRAM/CODE 64KiB、经典 SFR；UI 提供 IRAM/SFR/XRAM/CODE；没有 KEIL 内存类型前缀表达式 | `tests/core/memory.test.ts`、CPU/操作码测试；后续表达式映射不得把 direct SFR 当成 indirect IRAM，不启用 8052 高 128B |
 | 内存与寄存器窗口 | 已实现 | 暂停编辑、地址确认/取消/翻页、PSW 选组、最新内存响应过滤 | `tests/components/MemoryNavigation.test.tsx` 与 E2E；CODE 保持只读 |
-| C 源码调试、局部变量、类型 [5][9] | 缺失 | BIN/HEX 不含源码映射；不伪造源码行单步或符号 | 须导入真实调试元数据；C51 绝对 OMF 与 ARM ELF/DWARF 不能默认等价；先选定格式并验证来源、范围和匹配的固件摘要 |
+| C 源码调试、局部变量、类型 [5][9] | 部分实现 | 外部 SDCC 单文件 CDB 精确行定位与多地址行断点；没有变量/类型或 C 语句步进 | [真实 SDCC 导入与限制](SDCC_SOURCE_DEBUG.md)，摘要绑定、真实多地址样本、刷新/错配/竞态回归 |
 | T0/T1、五中断源、P0–P3、UART、PCON [1][10] | 已实现 | classic 8051 机器周期模型；GPIO 引脚与锁存器分离；REN/TI/RI、UART 0–3、RX 第九位、idle/power-down | `tests/core/peripherals.test.ts` 与 E2E UART/GPIO；不宣称电气/晶振/总线波形精度 |
 | UART 终端 [10] | 部分实现 | 数字 RX 注入、TX 捕获、HEX/文本显示和有界历史；没有真实串口连接或可选快速时钟模式 | E2E 回显/第九位及刷新恢复；后续 ASCII 批量输入与定时输入须确定性、可取消 |
 | 逻辑分析、覆盖率、性能 [3][11] | 部分实现 | 有周期计数、最近 1000 条跟踪、最多 64 次快照的 GPIO 简图；已有可选指令起始地址执行次数、绑定真实固件摘要的固定报告导出及热点浏览；没有源码/分支覆盖率或带时间轴的信号记录 | 覆盖记录独立于 Trace 缓冲区；Worker/组件/E2E 验证成功指令、故障、IRQ/idle 与清除边界；[说明](INSTRUCTION_COVERAGE.md) |
@@ -51,7 +51,7 @@
 
 **P0 本地单文件 ASM 闭环已完成**：保留固件调试入口，新增项目数据与独立构建 Worker。源码修改、取消或失败撤下可加载产物；CPU 内已有固件保留，但绑定过期时锁定执行。多文件链接和宏体系仍未实现。用户已选择 SDCC，下一批按 [SDCC 集成路线](SDCC_INTEGRATION.md)推进真实工具链和源码关联，不自行编写 C 编译器。
 
-上表保留拆分依据；**单文件 ASM 子集已实现，C 编译器和源码调试尚未实现**。用户已选择 SDCC；已用可信 Debian 包在云端验证真实 4.5.0 编译、classic 8051 的 `--iram-size 128` 及生成固件的运行，详见 [SDCC 集成路线](SDCC_INTEGRATION.md)。下一批优先真实 SDCC 产物/源码/CDB 导入关联与源码定位，同时单独验证浏览器移植可行性，不因原生编译成功宣称浏览器 C 编译。依赖判断来自仓库与当前云环境检查；[SDCC 官方说明](https://sdcc.sourceforge.net/)和 [Keil OMF 说明](https://www.keil.com/support/docs/181.htm)于 2026-10-11 核验。SDCC 各组件采用不同开源许可，浏览器分发前须记录所选组件、版本及其实际许可义务，不能从“开源”直接推断任意打包方式可用。
+上表保留拆分依据；**单文件 ASM 子集已实现，浏览器 C 编译器尚未实现，外部 SDCC 精确源码行定位/断点已完成**。用户已选择 SDCC；已用可信 Debian 包在云端验证真实 4.5.0 编译、classic 8051 的 `--iram-size 128` 及生成固件的运行，详见 [SDCC 集成路线](SDCC_INTEGRATION.md)。本批已完成真实 SDCC 产物/源码/CDB 导入关联与源码定位，并完成有限的浏览器移植来源/进程/许可核验，不因原生编译成功宣称浏览器 C 编译。依赖判断来自仓库与当前云环境检查；[SDCC 官方说明](https://sdcc.sourceforge.net/)和 [Keil OMF 说明](https://www.keil.com/support/docs/181.htm)于 2026-10-11 核验。SDCC 各组件采用不同开源许可，浏览器分发前须记录所选组件、版本及其实际许可义务，不能从“开源”直接推断任意打包方式可用。
 
 ## 官方参考
 

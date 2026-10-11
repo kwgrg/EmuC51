@@ -6,19 +6,20 @@ EmuC51 是一个在浏览器中运行的经典 Intel 8051/MCS-51 模拟器。打
 
 ## 隐私模型
 
-- 固件由浏览器的 `File` API 直接读取，不经过上传接口；
+- 固件、源码和调试文件由浏览器的 `File` API 直接读取，不经过上传接口；
 - CPU、CODE、IRAM、SFR 和 XRAM 全部在 Dedicated Web Worker 中运行；
 - 最近一个工作区保存在当前浏览器的 IndexedDB，刷新后自动恢复；单文件 ASM 草稿另存本地 localStorage；
 - 应用没有 Worker 后端、API、Cookie、遥测、KV、D1、R2 或 Durable Objects；
 - 生产 CSP 使用 `connect-src 'none'` 阻止应用发起网络连接；
-- “清除本地工作区”会删除浏览器保存的固件、运行状态和 ASM 草稿。
+- “清除本地工作区”会删除浏览器保存的固件、运行状态、SDCC 源码/调试文件和 ASM 草稿。
 
-Cloudflare 只托管编译后的 HTML、CSS、JavaScript 等静态应用文件。Cloudflare 可能记录普通页面请求，但用户选择的固件、CPU 状态和内存不会包含在这些请求中。
+Cloudflare 只托管编译后的 HTML、CSS、JavaScript 等静态应用文件。Cloudflare 可能记录普通页面请求，但用户选择的固件、源码、调试文件、CPU 状态和内存不会包含在这些请求中。
 
 浏览器隐私模式、清理站点数据或存储回收可能导致本地工作区丢失。EmuC51 会尽力请求持久存储，但不能替代用户自己的固件备份。
 
 ## 已实现能力
 
+- [外部 SDCC 源码调试](docs/SDCC_SOURCE_DEBUG.md)：导入同次本地构建的源码/IHX/CDB/摘要清单，精确 PC 行定位、多地址行断点与工作区恢复；
 - [本地单文件 ASM 编辑/构建](docs/ASM_WORKBENCH.md)：经典指令、标签和有界伪指令子集，行列诊断、取消、ASM/BIN 导出，源码与调试固件关联保护；
 
 - 不超过 64 KiB 的 BIN 或 Intel HEX/IHX 固件加载和 SHA-256 标识；HEX 校验记录、校验和、地址和重叠数据，支持全部六类标准记录；
@@ -38,7 +39,7 @@ Cloudflare 只托管编译后的 HTML、CSS、JavaScript 等静态应用文件�
 - PCON 空闲与掉电状态，空闲期间外设继续推进，掉电后可复位；
 - 寄存器、CODE/IRAM/SFR/XRAM 查看和最近 1,000 条指令跟踪；内存支持严格十六进制地址校验、Enter/REFRESH 确认、Escape 取消及 256 字节翻页，寄存器组随 PSW 显示；
 - IndexedDB 完整工作区自动保存、刷新恢复和损坏快照降级恢复；
-- JSON 工作区导出和导入，保存外设及调试设置，导入前校验版本、内存和固件摘要，新导出使用工作区 v4，兼容导入 v1/v2/v3，JSON 最大 4 MiB；CPU 快照仍为 v2；
+- JSON 工作区导出和导入，保存外设及调试设置，导入前校验版本、内存和固件摘要，新导出使用工作区 v4，兼容导入 v1/v2/v3，JSON 最大 8 MiB；CPU 快照仍为 v2；
 - Cloudflare Workers Static Assets 部署配置，无服务端入口和数据绑定；
 - 核心、存储器、操作码、持久化和真实浏览器 E2E 测试。
 
@@ -125,7 +126,7 @@ tests/
 
 - 以经典 12 振荡周期架构的机器周期推进外设；不模拟精确总线时序、晶振波形、GPIO 电气特性或真实串口接线；
 - 数字输入由用户注入；不模拟键盘、显示器、步进电机等器件的物理行为；
-- 不支持 8052、厂商扩展、完整 A51/SDAS 汇编语法或源码级调试；浏览器尚不能编译 C，见 [SDCC 路线与真实验证](docs/SDCC_INTEGRATION.md)；
+- 不支持 8052、厂商扩展、完整 A51/SDAS 汇编语法、C 语句级步进或源码变量；浏览器尚不能编译 C，见 [SDCC 路线与真实验证](docs/SDCC_INTEGRATION.md)；
 - 只保存最近一个浏览器本地工作区，不提供账号、多项目、云同步或分享；
 - 不承诺离线首次打开或 PWA 安装。
 

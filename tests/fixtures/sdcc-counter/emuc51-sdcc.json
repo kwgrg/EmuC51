@@ -1,0 +1,27 @@
+{
+  "format": "emuc51-sdcc-debug",
+  "version": 1,
+  "compiler": "SDCC 4.5.0 #15242",
+  "target": "classic-8051",
+  "options": [
+    "-mmcs51",
+    "--model-small",
+    "--iram-size",
+    "128",
+    "--debug"
+  ],
+  "files": {
+    "source": {
+      "name": "main.c",
+      "sha256": "54552b46c01e6948c818b95aa8bd01f761054042f77007dadee3119a2529bf9c"
+    },
+    "ihx": {
+      "name": "main.ihx",
+      "sha256": "65976a018191173f99d4c34f4c84922bebad82e3899fb68db00e794fcd1a9ea7"
+    },
+    "cdb": {
+      "name": "main.cdb",
+      "sha256": "4fb8ee320ee2b1ab96206aa0543e39f476bce79409e5ec0b8fa37f6a631a74e0"
+    }
+  }
+}

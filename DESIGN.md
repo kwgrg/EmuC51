@@ -151,3 +151,7 @@ Instruction coverage is opt-in and session-only. The summary reports successful 
 
 
 ASM 工作台作为 BIN_INSPECTOR 下方独立面板，保留原二进制调试入口。必须展示当前草稿、构建状态及来源关联；源码过期时在执行控制附近显示锁定原因。诊断按钮定位文本选区，移动端工具栏换行，源码区内部滚动。运行中源码只读，构建中可编辑取消；不使用伪源码单步标识。
+
+### 外部 SDCC 源码关联
+
+工作区 v4 的可选 `settings.sdccDebug` 保存清单和原始源码/IHX/CDB；与 ASM 固件绑定互斥。显式导入先验证全部文件摘要、CDB 子集及实际 CODE 摘要，再替换状态。本地恢复通过 `useSdccDebug` 异步复验，按数据/固件身份屏蔽过期结果；源码面板只消费验证结果。行断点展开为已有地址断点，不增加 Worker/CPU 协议或源码步进语义。JSON 上限 8 MiB；可信本地构建与摘要的边界见 [说明](docs/SDCC_SOURCE_DEBUG.md)。

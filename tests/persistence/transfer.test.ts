@@ -175,7 +175,7 @@ describe("工作区 JSON 导入导出", () => {
   });
 
   it("读取前拒绝超限文件并按 UTF-8 字节计算限额", async () => {
-    await expect(importWorkspace(" ".repeat(MAX_WORKSPACE_IMPORT_BYTES + 1))).rejects.toThrow("4 MiB");
-    await expect(importWorkspace("中".repeat(Math.ceil(MAX_WORKSPACE_IMPORT_BYTES / 2)))).rejects.toThrow("4 MiB");
+    await expect(importWorkspace(" ".repeat(MAX_WORKSPACE_IMPORT_BYTES + 1))).rejects.toThrow("8 MiB");
+    await expect(importWorkspace("中".repeat(Math.ceil(MAX_WORKSPACE_IMPORT_BYTES / 2)))).rejects.toThrow("8 MiB");
   });
 });

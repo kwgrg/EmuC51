@@ -140,3 +140,11 @@
 - 用户已选择 SDCC。无 sudo 的云环境通过 Debian 官方包解包到 `/tmp` 成功恢复开发依赖，包 SHA-256 与官方页面一致；真实 SDCC 4.5.0 #15242 生成 IHX/CDB/MAP/RST/MEM。初始不设 IRAM 范围的固件在地址 FF 故障，使用 `--iram-size 128` 重新构建后经典 8051 启动/循环通过，未放宽核心。另验证真实错误编译的文件/行诊断；同版本异目录重建 IHX 一致。源码、真实生成文件、版权说明和 [复现脚本](../scripts/verify-sdcc.sh)已留存。
 - 浏览器尚不能编译 C，也未实现 CDB 源码调试；原生验证不能替代浏览器移植。下一最小交付为明确标注的外部 SDCC 源码/IHX/CDB 导入关联及真实行定位，同时单独验证官方源码 Emscripten 多阶段工具链、资源/CSP、取消与内存成本。当前不引入后端、源码上传或付费基础设施，详见 [SDCC 路线](SDCC_INTEGRATION.md)。Firefox/WebKit 继续未运行，未重试已被拒绝的下载。
 - 最终修正代码完整通过：**444 项单元测试、31 项 Chromium E2E**、TypeScript、ESLint、生产构建、静态部署干运行（`No bindings found`）及差异检查。最终浏览器构建为 `index-4NJcOIXN.js`、`assembler.worker-Czst_eRJ.js`，本次最后一次全量 E2E 在这些产物上通过。无未解决 ASM 实现阻塞；浏览器 C 编译/CDB 调试仍为明确的后续范围。
+
+## 外部 SDCC 源码调试（2026-10-11）
+
+已完成固定 SDCC 4.5.0 单文件真实构建脚本与四文件显式导入、严格 CDB 子集、源码/固件摘要关联、PC 精确行定位、共享/多地址行断点、工作区恢复与过期校验隔离。工作区仍为 v4，增加可选 sdccDebug；JSON 上限扩为 8 MiB。详见 [源码调试](SDCC_SOURCE_DEBUG.md)。浏览器编译未实现；[有限移植核验](SDCC_WASM_FEASIBILITY.md)给出了固定来源、原生进程边界和未运行项。
+
+- 最终通过 **472 项单元测试、35 项 Chromium E2E**、TypeScript、ESLint、生产构建、差异检查和静态部署干运行（`No bindings found`）。最终浏览器构建 `index-CssqT8av.js`；375/820/1280 px 无页面横向溢出，已检查手机与桌面截图。真实 SDCC 重建 flow 样本的 IHX、CDB、清单逐字节一致。
+- 过程曾发现 ESLint 控制字符正则/Node TextDecoder 环境声明和旧 4 MiB 测试断言，均已修正并在上述全量检查中通过；没有遗留失败。Firefox/WebKit 未运行，遵循已知官方 CDN 403 阻塞不再重试。WASM 完整交叉构建未运行，缺 emcc/flex/bison 等宿主前提；这不阻塞本批外部产物导入。
+- 明确限制：固定 4.5.0、单文件、small/classic 8051/128 字节 IRAM、精确 CDB 地址；没有浏览器 C 编译、局部变量或 C 语句级步进。构建清单是文件一致性校验而非编译器签名；本地工具链需可信。未新增后端、上传、远程桥接或付费基础设施。
