@@ -7,8 +7,9 @@ export const MAX_ASM_LINES = 8192;
 export interface AsmDiagnostic { line: number; column: number; message: string }
 export interface AsmProject { name: string; source: string }
 export interface AsmBinding { sourceSha256: string; firmwareSha256: string; assembler: typeof ASSEMBLER_VERSION }
-export interface AsmResult { bytes?: Uint8Array<ArrayBuffer>; diagnostics: AsmDiagnostic[] }
-export interface AsmArtifact { project: AsmProject; bytes: ArrayBuffer; binding: AsmBinding }
+export interface AsmLocation { line: number; column: number; address: number; length: number; kind: "instruction" | "data" }
+export interface AsmResult { bytes?: Uint8Array<ArrayBuffer>; sourceMap?: AsmLocation[]; diagnostics: AsmDiagnostic[] }
+export interface AsmArtifact { project: AsmProject; bytes: ArrayBuffer; binding: AsmBinding; sourceMap: AsmLocation[] }
 export const ASM_EXAMPLE = `; 单文件经典 8051 示例：调用子程序后循环递增 A\nORG 0\n    MOV A,#0\nLOOP:\n    LCALL INCREMENT\n    SJMP LOOP\nINCREMENT:\n    INC A\n    MOV P1,A\n    RET\nEND\n`;
 
 export function normalizeAsmProject(value: unknown): AsmProject | undefined {
@@ -155,6 +156,7 @@ export function assemble(source: string): AsmResult {
     } catch (error) { fail(i + 1, error); }
   }
   if (diagnostics.length) return { diagnostics };
+  const sourceMap: AsmLocation[] = [];
   const output = new Uint8Array(0x10000);
   const written = new Uint8Array(0x10000);
   let end = 0;
@@ -199,8 +201,9 @@ export function assemble(source: string): AsmResult {
       output.set(encoded, address);
       written.fill(1, address, address + encoded.length);
       end = Math.max(end, address + encoded.length);
+      sourceMap.push({ line: statement.line, column: statement.column, address, length: encoded.length, kind: meta ? "instruction" : "data" });
     } catch (error) { fail(statement.line, error); }
   }
   if (!end && !diagnostics.length) fail(1, new Diagnostic(1, "源码没有生成任何字节"));
-  return diagnostics.length ? { diagnostics } : { bytes: output.slice(0, end), diagnostics };
+  return diagnostics.length ? { diagnostics } : { bytes: output.slice(0, end), sourceMap, diagnostics };
 }

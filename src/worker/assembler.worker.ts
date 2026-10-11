@@ -11,7 +11,7 @@ scope.onmessage = async (event: MessageEvent<unknown>) => {
     if (!result.bytes) { scope.postMessage({ diagnostics: result.diagnostics } satisfies AsmBuildEvent); return; }
     const bytes = result.bytes.buffer;
     const [sourceSha256, firmwareSha256] = await Promise.all([sha256Hex(new TextEncoder().encode(project.source).buffer), sha256Hex(bytes)]);
-    scope.postMessage({ diagnostics: [], artifact: { project, bytes, binding: { sourceSha256, firmwareSha256, assembler: ASSEMBLER_VERSION } } } satisfies AsmBuildEvent, [bytes]);
+    scope.postMessage({ diagnostics: [], artifact: { project, bytes, sourceMap: result.sourceMap ?? [], binding: { sourceSha256, firmwareSha256, assembler: ASSEMBLER_VERSION } } } satisfies AsmBuildEvent, [bytes]);
   } catch (error) {
     scope.postMessage({ diagnostics: [{ line: 1, column: 1, message: error instanceof Error ? error.message : "构建失败" }] } satisfies AsmBuildEvent);
   }

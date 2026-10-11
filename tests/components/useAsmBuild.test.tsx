@@ -13,7 +13,7 @@ class FakeWorker {
   finish(artifact?: AsmArtifact) { this.onmessage?.({ data: { artifact, diagnostics: artifact ? [] : [{ line: 1, column: 1, message: "invalid" }] } } as MessageEvent<AsmBuildEvent>); }
 }
 const project = { name: "main.asm", source: "NOP" };
-const artifact: AsmArtifact = { project, bytes: new Uint8Array([0]).buffer, binding: { assembler: ASSEMBLER_VERSION, sourceSha256: "a".repeat(64), firmwareSha256: "b".repeat(64) } };
+const artifact: AsmArtifact = { sourceMap: [{ line: 1, column: 1, address: 0, length: 1, kind: "instruction" }], project, bytes: new Uint8Array([0]).buffer, binding: { assembler: ASSEMBLER_VERSION, sourceSha256: "a".repeat(64), firmwareSha256: "b".repeat(64) } };
 beforeEach(() => { tasks.length = 0; vi.stubGlobal("Worker", FakeWorker); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 

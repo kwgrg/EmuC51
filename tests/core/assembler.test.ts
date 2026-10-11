@@ -64,3 +64,24 @@ describe("bounded classic 8051 assembler", () => {
     expect(normalizeAsmProject({ name: "main.asm", source: "NOP", extra: true })).toEqual({ name: "main.asm", source: "NOP" });
   });
 });
+
+describe("assembler-owned source maps", () => {
+  it("maps emitted instruction/data spans exactly without mapping ORG gaps, comments, EQU or label-only lines", () => {
+    const source="; comment\r\nBASE EQU 10h\rORG BASE\nENTRY:\n  MOV A,#42h\nDB 0,1\nDW 1234h\nORG 0\nLJMP ENTRY\nEND";
+    const result=assemble(source);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.sourceMap).toEqual([
+      {line:5,column:3,address:16,length:2,kind:"instruction"},
+      {line:6,column:1,address:18,length:2,kind:"data"},
+      {line:7,column:1,address:20,length:2,kind:"data"},
+      {line:9,column:1,address:0,length:3,kind:"instruction"},
+    ]);
+  });
+  it("maps an end-of-CODE instruction without wrapping or inventing operand-byte locations", () => {
+    expect(assemble("ORG 0FFFEh\nSJMP 0").sourceMap).toEqual([{line:2,column:1,address:65534,length:2,kind:"instruction"}]);
+    expect(assemble("\uFEFFentry: NOP").sourceMap).toEqual([{line:1,column:8,address:0,length:1,kind:"instruction"}]);
+  });
+  it.each(["NOP\nMOV A,#missing", "NOP\nORG 0\nNOP", "NOP\nBAD", "ORG 1234h"])("does not publish partial mapping after failure: %s", source => {
+    const result=assemble(source); expect(result.bytes).toBeUndefined(); expect(result.sourceMap).toBeUndefined(); expect(result.diagnostics.length).toBeGreaterThan(0);
+  });
+});
