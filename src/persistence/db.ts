@@ -1,3 +1,4 @@
+import { ASSEMBLER_VERSION, normalizeAsmProject, type AsmProject, type AsmBinding } from "../core/assembler";
 import { openDB, type DBSchema } from "idb";
 import { MAX_EXPRESSION_LENGTH, MAX_WATCH_EXPRESSIONS } from "../core/expressions";
 import { Cpu8051 } from "../core/cpu";
@@ -8,6 +9,8 @@ import type { CpuSnapshot, MemorySpace } from "../core/types";
 export type WorkspaceDebugConfig = DebugConfig;
 
 export interface WorkspaceSettings {
+  asmProject?: AsmProject;
+  asmBinding?: AsmBinding;
   maxSteps: number;
   traceEnabled: boolean;
   selectedMemorySpace: MemorySpace;
@@ -159,6 +162,16 @@ export const normalizeWorkspaceSettings = (value: unknown): WorkspaceSettings | 
     typeof value.selectedMemorySpace !== "string" ||
     !["code", "iram", "sfr", "xram"].includes(value.selectedMemorySpace)
   ) return undefined;
+  const asmProject = value.asmProject === undefined ? undefined : normalizeAsmProject(value.asmProject);
+  if (value.asmProject !== undefined && !asmProject) return undefined;
+  let asmBinding: AsmBinding | undefined;
+  if (value.asmBinding !== undefined) {
+    const binding = value.asmBinding;
+    if (!asmProject || !isObject(binding) || binding.assembler !== ASSEMBLER_VERSION ||
+      typeof binding.sourceSha256 !== "string" || !/^[a-f0-9]{64}$/.test(binding.sourceSha256) ||
+      typeof binding.firmwareSha256 !== "string" || !/^[a-f0-9]{64}$/.test(binding.firmwareSha256)) return undefined;
+    asmBinding = { assembler: ASSEMBLER_VERSION, sourceSha256: binding.sourceSha256, firmwareSha256: binding.firmwareSha256 };
+  }
   const debuggerConfig = value.debugger === undefined ? undefined : normalizeWorkspaceDebugConfig(value.debugger);
   if (value.debugger !== undefined && !debuggerConfig) return undefined;
   let watchExpressions: string[] | undefined;
@@ -172,6 +185,8 @@ export const normalizeWorkspaceSettings = (value: unknown): WorkspaceSettings | 
   const maximum = value.selectedMemorySpace === "iram" ? 0x7f : value.selectedMemorySpace === "sfr" ? 0xff : 0xffff;
   if (value.memoryAddress !== undefined && !isInteger(value.memoryAddress, minimum, maximum)) return undefined;
   return {
+    ...(asmProject ? { asmProject } : {}),
+    ...(asmBinding ? { asmBinding } : {}),
     maxSteps: value.maxSteps,
     traceEnabled: value.traceEnabled,
     selectedMemorySpace: value.selectedMemorySpace as MemorySpace,
@@ -201,7 +216,7 @@ export const normalizeWorkspaceRecord = (value: unknown): WorkspaceRecord | unde
   const firmware = normalizeFirmwareRecord(value.firmware);
   const settings = normalizeWorkspaceSettings(value.settings);
   if (
-    !firmware || !settings || !isInteger(value.updatedAt, 0) ||
+    !firmware || !settings || (settings.asmBinding && settings.asmBinding.firmwareSha256 !== firmware.sha256) || !isInteger(value.updatedAt, 0) ||
     (value.schemaVersion !== 1 && value.schemaVersion !== 2 && value.schemaVersion !== 3 && value.schemaVersion !== 4) ||
     value.coreStateVersion !== (value.schemaVersion === 1 ? 1 : 2) ||
     ((value.schemaVersion === 1 || value.schemaVersion === 2) && settings.debugger?.breakpointOptions !== undefined) ||

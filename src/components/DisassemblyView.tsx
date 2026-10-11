@@ -5,7 +5,8 @@ import { disassemble } from "../core/disassembler";
 import { hex16, hex8, u16 } from "../core/numbers";
 import { parseHex } from "./DebuggerPanel";
 
-export function DisassemblyView({ program, pc, breakpoints, breakpointOptions, disabled, running, onToggleBreakpoint, onRunTo, coverage, coverageSample, onReadCoverage, browseRequest }: {
+export function DisassemblyView({ program, pc, breakpoints, breakpointOptions, disabled, running, onToggleBreakpoint, onRunTo, coverage, coverageSample, onReadCoverage, browseRequest, executionBlocked = false }: {
+  executionBlocked?: boolean;
   browseRequest?: { address: number };
   coverage?: CoverageSummary;
   coverageSample?: { summary: CoverageSummary; addresses: number[]; counts: number[] };
@@ -112,7 +113,7 @@ export function DisassemblyView({ program, pc, breakpoints, breakpointOptions, d
             <strong>{item.text}</strong>
             {visibleCoverage && <code className="instruction-hits" aria-label={`地址 ${hex16(item.address)} 执行次数`} title="最近采样的成功执行次数；仅指令起始地址">{counts.has(item.address) ? `${counts.get(item.address) === 0xffffffff ? "≥" : ""}${counts.get(item.address)}` : "…"}</code>}
             <button type="button" className="run-to-line" aria-label={`运行至指令 ${hex16(item.address)}`}
-              disabled={disabled || running} onClick={() => onRunTo(item.address)}>运行至此</button>
+              disabled={disabled || running || executionBlocked} onClick={() => onRunTo(item.address)}>运行至此</button>
           </div>;
         })}
       </div>

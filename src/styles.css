@@ -992,3 +992,16 @@ select:focus-visible { outline: 1px solid var(--primary); outline-offset: 2px; }
 .coverage-identity { overflow-wrap: anywhere; }
 .coverage-hotspots { display: flex; flex-wrap: wrap; gap: 8px 20px; list-style: none; padding: 0; margin: 8px 0; }
 .coverage-hotspots li { display: flex; align-items: center; gap: 6px; }
+
+.asm-card { grid-column: 1 / -1; grid-row: 6; scroll-margin-top: 70px; }
+.asm-panel { padding: 12px; font-size: 12px; min-width: 0; }
+.asm-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.asm-actions .secondary-command { display: inline-flex; width: auto; padding: 6px 10px; }
+.asm-panel p { line-height: 1.6; overflow-wrap: anywhere; }
+.asm-source-label { display: block; color: var(--secondary); }
+.asm-panel textarea { display: block; width: 100%; min-height: 280px; resize: vertical; margin-top: 8px; padding: 10px; border: 1px solid var(--outline-variant); background: var(--surface); color: var(--on-surface); font: 13px/20px monospace; tab-size: 4; }
+.asm-diagnostics { max-height: 220px; overflow: auto; padding-left: 22px; }
+.asm-diagnostics button { text-align: left; white-space: normal; overflow-wrap: anywhere; }
+.asm-hashes { color: var(--outline); }
+.asm-stale-warning { color: var(--warning); padding: 8px; font-size: 12px; margin: 0; }
+@media (max-width: 700px) { .asm-card { grid-column: auto; grid-row: auto; } }

@@ -317,3 +317,10 @@ M6 后续维护（2026-10-11）：内存地址草稿与读取结果分离，补�
 ## 固定覆盖报告
 
 CreateCoverageReport 在 Worker 消息边界复制摘要/PC/执行单元及非零计数，再异步求实际固件摘要；异步完成再次核对固件对象与 epoch。报告 v1 只用于导出/热点，不修改工作区 v4 或 CPU 快照 v2。App 用独立请求编号阻止重复下载和旧会话响应，DisassemblyView 接收浏览请求且保留历史，不写 PC。格式与生命周期见 [覆盖记录说明](INSTRUCTION_COVERAGE.md)，下一核心开发闭环见 [KEIL 对照重排](KEIL_PARITY.md#核心缺口重新排序覆盖报告完成后)。
+
+
+## 本地 ASM 构建闭环
+
+复用 `OPCODE_META` 生成合法操作数形式，`core/assembler.ts` 两遍编码并严格检查相对跳转、页边界、范围及重叠。独立 `assembler.worker.ts` 返回诊断或真实字节和 SHA-256 绑定；`useAsmBuild` 终止取消任务并忽略旧响应。工作区 v4 可选 ASM 源码/绑定，构建产物不持久化；恢复后重建验证，失败或不匹配禁止旧 ASM 固件继续执行。无固件草稿用本地 localStorage 保存；CLEAR_LOCAL 一并删除。详见 [ASM 工作台](ASM_WORKBENCH.md)。
+
+SDCC 4.5.0 真实原生工具链已通过 classic 8051 固件启动/循环验证，`scripts/verify-sdcc.sh` 可复现。应用尚未集成浏览器 C 编译或 CDB 解析；后续最小架构见 [SDCC 集成](SDCC_INTEGRATION.md)。

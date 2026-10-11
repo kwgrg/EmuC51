@@ -1,3 +1,7 @@
+import { AsmPanel } from "./components/AsmPanel";
+import { useAsmBuild } from "./components/useAsmBuild";
+import { ASM_EXAMPLE, type AsmArtifact, type AsmProject } from "./core/assembler";
+import { readAsmDraft, saveAsmDraft } from "./persistence/asm-draft";
 import {
   useCallback,
   useEffect,
@@ -112,6 +116,11 @@ export default function App() {
   const [firmware, setFirmware] = useState<FirmwareState>();
   const [cpuState, setCpuState] = useState<CpuViewState>();
   const [settings, setSettingsState] = useState(DEFAULT_SETTINGS);
+  const asm = useAsmBuild(settings.asmProject);
+  const asmBlocked = Boolean(settings.asmBinding && (!asm.artifact ||
+    asm.artifact.binding.sourceSha256 !== settings.asmBinding.sourceSha256 ||
+    asm.artifact.binding.firmwareSha256 !== firmware?.sha256 ||
+    asm.artifact.binding.firmwareSha256 !== settings.asmBinding.firmwareSha256));
   const [running, setRunning] = useState(false);
   const [saveState, setSaveState] = useState("idle");
   const [workspaceGeneration, setWorkspaceGeneration] = useState(0);
@@ -370,6 +379,8 @@ export default function App() {
         const loaded = await loadWorkspace();
         if (firmwareRequestRef.current !== 0) return;
         if (!loaded) {
+          const draft = readAsmDraft();
+          if (draft) { const initial = { ...DEFAULT_SETTINGS, asmProject: draft }; settingsRef.current = initial; setSettingsState(initial); }
           setRestoring(false);
           setNotice("选择一个本地固件即可开始；文件不会离开浏览器");
           return;
@@ -388,6 +399,7 @@ export default function App() {
         settingsRef.current = savedSettings;
         setFirmware(restoredFirmware);
         setSettingsState(savedSettings);
+        try { saveAsmDraft(savedSettings.asmProject); } catch { /* Workspace copy remains available. */ }
         const restoredAddress = savedSettings.memoryAddress ?? (savedSettings.selectedMemorySpace === "sfr" ? 0x80 : 0);
         memoryAddressRef.current = restoredAddress;
         setMemoryAddress(restoredAddress);
@@ -482,13 +494,17 @@ export default function App() {
   };
 
   const updateSettings = (next: WorkspaceSettings): void => {
+    if (next.asmProject !== settingsRef.current.asmProject) {
+      try { saveAsmDraft(next.asmProject); }
+      catch { setError("ASM 草稿无法写入本地存储，请导出 ASM 备份"); }
+    }
     settingsRef.current = next;
     setSettingsState(next);
     const snapshot = snapshotRef.current;
     if (snapshot) void persistSnapshot(snapshot);
   };
 
-  const loadFile = async (file: File): Promise<void> => {
+  const loadFile = async (file: File, built?: AsmArtifact): Promise<void> => {
     const action = ++fileActionRef.current;
     setError(undefined);
     if (file.size > MAX_HEX_FILE_SIZE) {
@@ -505,6 +521,12 @@ export default function App() {
         loadedAt: Date.now(),
       };
       if (action !== fileActionRef.current) return;
+      if (built && (settingsRef.current.asmProject?.source !== built.project.source || settingsRef.current.asmProject?.name !== built.project.name || nextFirmware.sha256 !== built.binding.firmwareSha256)) {
+        setError("源码或产物已变化，未加载旧构建；请重新构建"); return;
+      }
+      if (!built) asm.cancel();
+      const nextSettings = { ...settingsRef.current, asmBinding: built?.binding };
+      settingsRef.current = nextSettings; setSettingsState(nextSettings);
       setWorkspaceGeneration(current => current + 1);
       firmwareRef.current = nextFirmware;
       snapshotRef.current = undefined;
@@ -551,7 +573,12 @@ export default function App() {
     if (file) void loadFile(file);
   };
 
+  const allowExecution = (): boolean => {
+    if (asmBlocked) { setError("ASM 源码与当前固件未验证匹配；请构建当前源码并加载产物"); return false; }
+    return true;
+  };
   const run = (): void => {
+    if (!allowExecution()) return;
     setError(undefined);
     setRunning(true);
     postCommand({
@@ -566,6 +593,7 @@ export default function App() {
   };
 
   const step = (): void => {
+    if (!allowExecution()) return;
     setError(undefined);
     postCommand({ type: "Step", trace: settings.traceEnabled });
   };
@@ -590,18 +618,21 @@ export default function App() {
   };
 
   const runToAddress = (address: number): void => {
+    if (!allowExecution()) return;
     setError(undefined);
     setRunning(true);
     postCommand({ type: "RunToAddress", address, maxSteps: settings.maxSteps, trace: settings.traceEnabled });
   };
 
   const stepOver = (): void => {
+    if (!allowExecution()) return;
     setError(undefined);
     setRunning(true);
     postCommand({ type: "StepOver", maxSteps: settings.maxSteps, trace: settings.traceEnabled });
   };
 
   const stepOut = (): void => {
+    if (!allowExecution()) return;
     setError(undefined);
     setRunning(true);
     postCommand({ type: "StepOut", maxSteps: settings.maxSteps, trace: settings.traceEnabled });
@@ -625,6 +656,7 @@ export default function App() {
       if (file.size > MAX_WORKSPACE_IMPORT_BYTES) throw new Error("工作区文件超过 4 MiB 上限");
       const record = await importWorkspace(await file.text());
       if (action !== fileActionRef.current) return;
+      asm.cancel();
       // Validation finishes before changing the active CPU or persisted record.
       const nextFirmware = { ...record.firmware, bytes: copyBuffer(record.firmware.bytes) };
       setWorkspaceGeneration(current => current + 1);
@@ -638,6 +670,7 @@ export default function App() {
       settingsRef.current = record.settings;
       setFirmware(nextFirmware);
       setSettingsState(record.settings);
+      try { saveAsmDraft(record.settings.asmProject); } catch { setError("ASM 草稿备份写入失败，工作区仍保留源码"); }
       const restoredAddress = record.settings.memoryAddress ?? (record.settings.selectedMemorySpace === "sfr" ? 0x80 : 0);
       memoryAddressRef.current = restoredAddress;
       setMemoryAddress(restoredAddress);
@@ -668,12 +701,17 @@ export default function App() {
   };
 
   const clearLocal = async (): Promise<void> => {
+    // A failed draft deletion must not leave the active emulator terminated.
+    try { saveAsmDraft(undefined); }
+    catch { setError("无法清除本地 ASM 草稿；当前工作区未清除，请检查浏览器存储权限后重试"); return; }
+    setRestoring(true);
     clearingRef.current = true;
     fileActionRef.current += 1;
     firmwareRequestRef.current = Number.MAX_SAFE_INTEGER;
     firmwareRef.current = undefined;
     snapshotRef.current = undefined;
     workerRef.current?.terminate();
+    asm.cancel();
     await saveQueueRef.current.catch(() => undefined);
     await clearWorkspace();
     window.location.reload();
@@ -697,6 +735,20 @@ export default function App() {
     () => PORT_ADDRESSES.map((address, index) => cpuState?.peripherals.ports[index]?.pins ?? sfrBytes[address - 0x80] ?? 0xff),
     [sfrBytes, cpuState],
   );
+
+  const changeAsmProject = (project: AsmProject): void => {
+    if (running || restoring) return;
+    asm.cancel();
+    updateSettings({ ...settingsRef.current, asmProject: project });
+  };
+  const loadAsm = (): void => {
+    const artifact = asm.artifact;
+    if (!artifact || running || restoring) return;
+    void loadFile(new File([artifact.bytes], artifact.project.name.replace(/\.asm$/i, ".bin")), artifact);
+  };
+  const asmStatus = `${asm.message}。${settings.asmBinding
+    ? asmBlocked ? "当前 ASM 固件未验证或源码已变更：执行已锁定，请重建；若结果不同须加载新产物。" : "当前源码与已加载 ASM 固件匹配。"
+    : firmware ? "当前固件独立于 ASM 草稿；构建后须显式加载才会改变调试内容。" : "尚未加载固件，可新建 ASM 示例开始。"}`;
 
   const controls = {
     run,
@@ -741,6 +793,10 @@ export default function App() {
           {activeView === "editor" && (
             <WorkbenchView
               key={workspaceGeneration}
+              asmBlocked={asmBlocked}
+              asmPanel={<AsmPanel project={settings.asmProject} artifact={asm.artifact} diagnostics={asm.diagnostics} building={asm.building}
+                disabled={running || restoring} status={asmStatus} onProject={changeAsmProject} onBuild={asm.build} onCancel={asm.cancel} onLoad={loadAsm}
+                onNew={() => changeAsmProject({ name: "main.asm", source: ASM_EXAMPLE })} />}
               coverageReport={coverageReport} coverageReportPending={coverageReportPending} requestCoverageReport={requestCoverageReport}
               coverage={coverage} coverageSample={coverageSample} readCoverage={readCoverage}
               setCoverageEnabled={setCoverageEnabled} clearCoverage={clearCoverage}
@@ -808,8 +864,8 @@ export default function App() {
         <button
           className="clear-workspace"
           onClick={() => void clearLocal()}
-          disabled={!firmware}
-          title="删除此浏览器中的固件和 CPU 快照"
+          disabled={!firmware && !settings.asmProject}
+          title="删除此浏览器中的固件、CPU 快照和 ASM 草稿"
         >
           &gt; CLEAR_LOCAL
         </button>
@@ -1026,6 +1082,7 @@ interface ControlActions {
 }
 
 function WorkbenchView({
+  asmPanel, asmBlocked,
   coverageReport, coverageReportPending, requestCoverageReport,
   coverage, coverageSample, readCoverage, setCoverageEnabled, clearCoverage,
   controls,
@@ -1047,6 +1104,8 @@ function WorkbenchView({
   onFileChange,
   clearLocal,
 }: {
+  asmPanel: ReactNode;
+  asmBlocked: boolean;
   coverageReport?: CoverageReport;
   coverageReportPending: boolean;
   requestCoverageReport: (download: boolean) => void;
@@ -1089,6 +1148,7 @@ function WorkbenchView({
 
   return (
     <div className="workbench-grid">
+      <TerminalPanel className="asm-card" title="ASM_WORKBENCH" bits={["LOCAL", "SINGLE FILE"]}>{asmPanel}</TerminalPanel>
       <TerminalPanel className="project-files" title="PROJECT_FILES" bits={["FS", "RO"]}>
         <div className="tree-root">⌄ SRC</div>
         {firmware ? (
@@ -1115,14 +1175,17 @@ function WorkbenchView({
             <input data-testid="workspace-input" aria-label="导入工作区" type="file" accept=".json,application/json" onChange={onWorkspaceChange} disabled={restoring} />
             导入工作区
           </label>
-          <small>JSON 含固件、CPU、外设和调试设置</small>
-          <button className="clear-inline" disabled={!firmware} onClick={() => void clearLocal()}>CLEAR_LOCAL</button>
+          <small>JSON 含固件、CPU、调试设置和 ASM 源码；恢复后须重建验证关联</small>
+          <button onClick={() => document.querySelector(".asm-card")?.scrollIntoView({ block: "start" })}>编辑 ASM 源码</button>
+          <button className="clear-inline" disabled={!firmware && !settings.asmProject} onClick={() => void clearLocal()}>CLEAR_LOCAL</button>
         </div>
       </TerminalPanel>
 
       <TerminalPanel className="source-view" title="BIN_INSPECTOR" bits={["READ", running ? "LIVE" : "IDLE"]} active={running}>
+        {asmBlocked && <p className="asm-stale-warning" role="status">ASM 源码与当前固件尚未验证匹配，执行已锁定；请在 ASM 工作台重建并验证或加载新产物。</p>}
         <ControlStrip
           controls={controls}
+          blocked={asmBlocked}
           canStepOut={Boolean(cpuState?.callStack.frames.length)}
           firmware={firmware}
           restoring={restoring}
@@ -1134,7 +1197,7 @@ function WorkbenchView({
           coverage={coverage} coverageSample={coverageSample} onReadCoverage={readCoverage}
           breakpoints={settings.debugger?.breakpoints ?? []}
           breakpointOptions={settings.debugger?.breakpointOptions}
-          disabled={restoring} running={running} onRunTo={runToAddress}
+          disabled={restoring} running={running} executionBlocked={asmBlocked} onRunTo={runToAddress}
           onToggleBreakpoint={(address) => {
             const config = settings.debugger ?? { breakpoints: [], watchpoints: [] };
             updateDebugConfig(config.breakpoints.includes(address)
@@ -1247,12 +1310,14 @@ function WorkbenchView({
 }
 
 function ControlStrip({
+  blocked,
   controls,
   canStepOut,
   firmware,
   restoring,
   running,
 }: {
+  blocked: boolean;
   controls: ControlActions;
   canStepOut: boolean;
   firmware?: FirmwareState;
@@ -1263,15 +1328,15 @@ function ControlStrip({
     <div className="control-strip">
       <button
         className="primary-command"
-        disabled={!firmware || restoring || running}
+        disabled={!firmware || restoring || running || blocked}
         onClick={controls.run}
       >
         &gt; 运行
       </button>
       <button disabled={!running} onClick={controls.pause}>Ⅱ 暂停</button>
-      <button disabled={!firmware || restoring || running} onClick={controls.step}>› 单步</button>
-      <button disabled={!firmware || restoring || running} onClick={controls.stepOver}>» 步过</button>
-      <button disabled={!firmware || restoring || running || !canStepOut} onClick={controls.stepOut}>↗ 跳出</button>
+      <button disabled={!firmware || restoring || running || blocked} onClick={controls.step}>› 单步</button>
+      <button disabled={!firmware || restoring || running || blocked} onClick={controls.stepOver}>» 步过</button>
+      <button disabled={!firmware || restoring || running || blocked || !canStepOut} onClick={controls.stepOut}>↗ 跳出</button>
       <button disabled={!firmware || restoring || running} onClick={controls.reset}>↺ 复位</button>
     </div>
   );

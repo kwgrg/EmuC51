@@ -11,7 +11,7 @@ The interface is a retro-futuristic 8051 diagnostic terminal for engineers and l
 - Surfaces: layered transparent black panels; use borders, not soft card shadows, to establish hierarchy.
 - Motion: glow only for execution, selection, and live signals. Respect `prefers-reduced-motion`.
 - Motifs: 40 px circuit grid, subtle 4 px scanlines, compact status bits, monospaced data alignment.
-- Product truth wins over concept copy. The classic 8051 core now includes digital peripherals and instruction-boundary debugging; do not claim WebAssembly, precise bus timing, cloud sync, assembly editing, or source-level debugging.
+- Product truth wins over concept copy. The classic 8051 core now includes digital peripherals and instruction-boundary debugging; do not claim WebAssembly, precise bus timing, cloud sync, full A51/SDAS compatibility, browser C compilation, or source-level debugging. The local single-file ASM subset is documented separately.
 
 ## 2. Tokens
 
@@ -148,3 +148,6 @@ Instruction coverage is opt-in and session-only. The summary reports successful 
 
 
 覆盖热点面板显示固定采样的代次、执行单元、PC 和真实固件摘要，与实时计数区分。采样/导出运行中可用；待处理时禁用重复请求，清除仍可用。热点按次数降序展示最多 20 项，长摘要可换行；地址按钮只改变反汇编浏览并聚焦地址输入，保留历史及跟随 PC 入口。清除/复位/切换模式/换固件撤下旧报告。
+
+
+ASM 工作台作为 BIN_INSPECTOR 下方独立面板，保留原二进制调试入口。必须展示当前草稿、构建状态及来源关联；源码过期时在执行控制附近显示锁定原因。诊断按钮定位文本选区，移动端工具栏换行，源码区内部滚动。运行中源码只读，构建中可编辑取消；不使用伪源码单步标识。
