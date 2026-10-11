@@ -8,8 +8,9 @@ export interface AsmDiagnostic { line: number; column: number; message: string }
 export interface AsmProject { name: string; source: string }
 export interface AsmBinding { sourceSha256: string; firmwareSha256: string; assembler: typeof ASSEMBLER_VERSION }
 export interface AsmLocation { line: number; column: number; address: number; length: number; kind: "instruction" | "data" }
-export interface AsmResult { bytes?: Uint8Array<ArrayBuffer>; sourceMap?: AsmLocation[]; diagnostics: AsmDiagnostic[] }
-export interface AsmArtifact { project: AsmProject; bytes: ArrayBuffer; binding: AsmBinding; sourceMap: AsmLocation[] }
+export interface AsmLabel { name:string; line:number; column:number; address:number; kind:"instruction"|"data"|"operand"|"unmapped" }
+export interface AsmResult { labels?: AsmLabel[]; bytes?: Uint8Array<ArrayBuffer>; sourceMap?: AsmLocation[]; diagnostics: AsmDiagnostic[] }
+export interface AsmArtifact { project: AsmProject; bytes: ArrayBuffer; binding: AsmBinding; sourceMap: AsmLocation[]; labels: AsmLabel[] }
 export const ASM_EXAMPLE = `; 单文件经典 8051 示例：调用子程序后循环递增 A\nORG 0\n    MOV A,#0\nLOOP:\n    LCALL INCREMENT\n    SJMP LOOP\nINCREMENT:\n    INC A\n    MOV P1,A\n    RET\nEND\n`;
 
 export function normalizeAsmProject(value: unknown): AsmProject | undefined {
@@ -88,6 +89,7 @@ export function assemble(source: string): AsmResult {
   if (lines.length > MAX_ASM_LINES) return { diagnostics: [{ line: 1, column: 1, message: "源码最多 8192 行" }] };
   const symbols = new Map<string, number>(Object.entries(SFR));
   const statements: Statement[] = [];
+  const labels: Omit<AsmLabel,"kind">[] = [];
   let pc = 0;
   let ended = false;
   const define = (name: string, value: number, column: number) => {
@@ -110,6 +112,7 @@ export function assemble(source: string): AsmResult {
       const label = /^([A-Za-z_][\w]*):/.exec(text.slice(offset));
       if (label) {
         define(label[1]!.toUpperCase(), pc, offset + 1);
+        labels.push({name:label[1]!.toUpperCase(),line:i+1,column:offset+1,address:pc});
         offset += label[0].length;
         while (/\s/.test(text[offset] ?? "") && offset < text.length) offset++;
         if (offset === text.length) continue;
@@ -205,5 +208,10 @@ export function assemble(source: string): AsmResult {
     } catch (error) { fail(statement.line, error); }
   }
   if (!end && !diagnostics.length) fail(1, new Diagnostic(1, "源码没有生成任何字节"));
-  return diagnostics.length ? { diagnostics } : { bytes: output.slice(0, end), sourceMap, diagnostics };
+  if (diagnostics.length) return { diagnostics };
+  const starts = new Set(sourceMap.filter(item=>item.kind==="instruction").map(item=>item.address));
+  const data = new Uint8Array(0x10000);
+  for (const item of sourceMap) if (item.kind==="data") data.fill(1,item.address,item.address+item.length);
+  return { bytes: output.slice(0, end), sourceMap, diagnostics, labels:labels.map(label=>({...label,
+    kind:starts.has(label.address)?"instruction":data[label.address]?"data":written[label.address]?"operand":"unmapped"})) };
 }

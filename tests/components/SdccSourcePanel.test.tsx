@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { SdccSourcePanel } from "../../src/components/SdccSourcePanel";
 import { sdccFixture } from "../fixtures/sdcc-fixture";
-const verified = { data: sdccFixture("flow", "sdcc-flow"), firmware: new ArrayBuffer(1), firmwareSha256: "a".repeat(64), locations: [{ line: 3, address: 0xa8 }, { line: 3, address: 0xaa }, { line: 3, address: 0xb2 }] };
+const verified = { data: sdccFixture("flow", "sdcc-flow"), firmware: new ArrayBuffer(1), firmwareSha256: "a".repeat(64), symbols: [], locations: [{ line: 3, address: 0xa8 }, { line: 3, address: 0xaa }, { line: 3, address: 0xb2 }] };
 afterEach(cleanup);
 it("shows partial disabled state, expands all addresses, and blocks changes while running", () => {
   const toggle = vi.fn();

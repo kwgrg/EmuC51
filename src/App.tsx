@@ -1,3 +1,5 @@
+import { SdccSymbolsPanel, symbolBindingToken, type SymbolSample } from "./components/SdccSymbolsPanel";
+import { symbolByteExpressions } from "./core/cdb-symbols";
 import { InputScenarioPanel } from "./components/InputScenarioPanel";
 import type { InputScenario, ReplayView } from "./core/input-scenario";
 import { AsmSourcePanel } from "./components/AsmSourcePanel";
@@ -111,6 +113,8 @@ export default function App() {
   const memoryAddressRef = useRef(0);
   const memoryRequestRef = useRef(0);
   const watchRequestRef = useRef(0);
+  const symbolRequestRef = useRef<{id:number;symbolId:string;token:string;data:SdccDebugData;firmware:FirmwareState}|undefined>(undefined);
+  const [symbolSample,setSymbolSample]=useState<SymbolSample>();
   const coverageRequestRef = useRef(0);
   const coverageControlRef = useRef(0);
   const coverageEpochRef = useRef(-1);
@@ -328,9 +332,13 @@ export default function App() {
           }
           break;
         }
-        case "WatchResults":
+        case "WatchResults": {
+          const request=symbolRequestRef.current;
+          if(request&&event.requestId===request.id&&request.data===settingsRef.current.sdccDebug&&request.firmware===firmwareRef.current)
+            setSymbolSample({id:request.symbolId,token:request.token,results:event.results,pc:event.pc,steps:event.steps});
           if (event.requestId === watchRequestRef.current) setWatchSample(event);
           break;
+        }
         case "MemoryData":
           if (event.requestId === memoryRequestRef.current && event.space === settingsRef.current.selectedMemorySpace && event.address === memoryAddressRef.current) setMemoryBytes(event.bytes);
           break;
@@ -555,6 +563,7 @@ export default function App() {
       const nextSettings = { ...settingsRef.current, asmBinding: built?.binding, sdccDebug, inputScenario:undefined };
       settingsRef.current = nextSettings; setSettingsState(nextSettings);
       setWorkspaceGeneration(current => current + 1);
+      symbolRequestRef.current=undefined;setSymbolSample(undefined);
       setReplay({active:false,delivered:[]});setScenarioPending(false);scenarioRequestRef.current=0;
       firmwareRef.current = nextFirmware;
       snapshotRef.current = undefined;
@@ -707,6 +716,7 @@ export default function App() {
       // Validation finishes before changing the active CPU or persisted record.
       const nextFirmware = { ...record.firmware, bytes: copyBuffer(record.firmware.bytes) };
       setWorkspaceGeneration(current => current + 1);
+      symbolRequestRef.current=undefined;setSymbolSample(undefined);
       setReplay({active:false,delivered:[]});setScenarioPending(false);scenarioRequestRef.current=0;
       firmwareRef.current = nextFirmware;
       snapshotRef.current = undefined;
@@ -779,6 +789,11 @@ export default function App() {
     setScenarioPending(false);scenarioRequestRef.current=0;
     postCommand({type:"CancelScenario"});
   };
+  const browseSymbolMemory = (space: MemorySpace, address:number): void => {
+    memoryAddressRef.current=address;setMemoryAddress(address);
+    updateSettings({...settingsRef.current,selectedMemorySpace:space,memoryAddress:address});
+    requestMemory();navigate("memory");
+  };
   const chooseMemorySpace = (space: MemorySpace): void => {
     const nextAddress = space === "sfr" ? 0x80 : 0;
     memoryAddressRef.current = nextAddress;
@@ -817,6 +832,19 @@ export default function App() {
     if (!sdcc.verified || running || restoring || sdccImporting) return;
     try { updateDebugConfig(toggleSourceBreakpoints(settingsRef.current.debugger ?? { breakpoints: [], watchpoints: [] }, addresses)); }
     catch (caught) { setError(caught instanceof Error ? caught.message : "无法设置源码行断点"); }
+  };
+  const readSdccSymbol = (id:string):void => {
+    const verified=sdcc.verified, data=settingsRef.current.sdccDebug, current=firmwareRef.current;
+    if(!verified||!data||!current||sdcc.checking||sdccImporting||restoring||running)return;
+    const symbol=verified.symbols.find(item=>item.id===id);if(!symbol)return;
+    const expressions=symbolByteExpressions(symbol);if(!expressions.length)return;
+    setSymbolSample(undefined);
+    symbolRequestRef.current={id:postCommand({type:"EvaluateExpressions",expressions}),symbolId:id,token:symbolBindingToken(verified),data,firmware:current};
+  };
+  const browseSdccSymbol = (id:string):void => {
+    if(sdcc.checking||sdccImporting||restoring||running)return;
+    const symbol=sdcc.verified?.symbols.find(item=>item.id===id);
+    if(symbol&&!symbol.unavailable&&symbol.memorySpace&&symbol.address!==undefined)browseSymbolMemory(symbol.memorySpace,symbol.address);
   };
   const asmDebugArtifact = settings.asmBinding && !asmBlocked && !asm.building && !restoring ? asm.artifact : undefined;
   const validAsmAddress = (address: number): boolean => Boolean(asmDebugArtifact?.sourceMap.some(item => item.kind === "instruction" && item.address === address));
@@ -873,16 +901,20 @@ export default function App() {
             <WorkbenchView
               key={workspaceGeneration}
               asmBlocked={asmBlocked}
-              sdccPanel={onBrowseAddress => <SdccSourcePanel verified={sdcc.verified} checking={sdcc.checking || sdccImporting} error={sdcc.error}
+              sdccPanel={onBrowseAddress => <><SdccSourcePanel verified={sdcc.verified} checking={sdcc.checking || sdccImporting} error={sdcc.error}
                 disabled={running || restoring || sdccImporting} pc={cpuState?.pc} config={settings.debugger ?? { breakpoints: [], watchpoints: [] }}
                 onCancelImport={sdccImporting ? () => { fileActionRef.current += 1; setSdccImporting(false); setNotice("已取消 SDCC 导入"); } : undefined}
                 onFiles={files => void onSdccFiles(files)} onToggleLine={toggleSdccLine}
-                onBrowseAddress={onBrowseAddress} onRunToAddress={runToSdccAddress} />}
+                onBrowseAddress={onBrowseAddress} onRunToAddress={runToSdccAddress} />
+                {sdcc.verified&&!sdcc.checking&&!sdccImporting&&!restoring&&<SdccSymbolsPanel key={symbolBindingToken(sdcc.verified)} verified={sdcc.verified} disabled={running}
+                  sample={symbolSample} onRead={readSdccSymbol} onBrowse={browseSdccSymbol} />}
+              </>}
               asmPanel={onBrowseAddress => <><AsmPanel project={settings.asmProject} artifact={asm.artifact} diagnostics={asm.diagnostics} building={asm.building}
                 disabled={running || restoring} status={asmStatus} onProject={changeAsmProject} onBuild={asm.build} onCancel={asm.cancel} onLoad={loadAsm}
                 onNew={() => changeAsmProject({ name: "main.asm", source: ASM_EXAMPLE })} />
                 {asmDebugArtifact ? <AsmSourcePanel key={`${asmDebugArtifact.binding.sourceSha256}:${asmDebugArtifact.binding.firmwareSha256}`} artifact={asmDebugArtifact}
                   pc={cpuState?.pc} disabled={running} config={settings.debugger ?? { breakpoints: [], watchpoints: [] }} onToggle={toggleAsmAddress}
+                  onBrowseMemory={address=>{if(!running&&asmDebugArtifact.labels.some(label=>label.address===address&&label.kind!=="unmapped"))browseSymbolMemory("code",address);}}
                   onBrowse={address => { if (!running && validAsmAddress(address)) onBrowseAddress(address); }}
                   onRunTo={address => { if (!running && validAsmAddress(address)) runToAddress(address); }} />
                   : <p data-testid="asm-mapping-status">ASM 行映射须在构建并验证当前源码与已加载固件匹配后启用；修改、取消、失败或刷新后请重建。</p>}

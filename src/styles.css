@@ -1040,3 +1040,10 @@ select:focus-visible { outline: 1px solid var(--primary); outline-offset: 2px; }
 .input-scenario-panel input[type=file] { max-width:100%; }
 .input-scenario-panel .asm-actions > label { min-width:0; max-width:100%; }
 .scenario-timeline { max-height:350px; overflow:auto; font:12px/1.5 monospace; }
+
+.symbol-panel { margin:12px 0; padding:10px; border:1px solid var(--outline-variant); min-width:0; }
+.symbol-row { display:grid; gap:6px; padding:8px 0; border-bottom:1px solid var(--outline-variant); font-size:11px; overflow-wrap:anywhere; }
+.symbol-panel code, .symbol-row span, .symbol-panel output { white-space:pre-wrap; overflow-wrap:anywhere; }
+.symbol-panel input { max-width:100%; }
+.symbol-panel details pre { white-space:pre-wrap; overflow-wrap:anywhere; font-size:10px; }
+.symbol-list { max-height:420px; overflow:auto; }

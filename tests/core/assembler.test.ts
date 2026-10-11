@@ -85,3 +85,17 @@ describe("assembler-owned source maps", () => {
     const result=assemble(source); expect(result.bytes).toBeUndefined(); expect(result.sourceMap).toBeUndefined(); expect(result.diagnostics.length).toBeGreaterThan(0);
   });
 });
+
+it("exports only real CODE labels with exact definition provenance and byte classification",()=>{
+  const source="VALUE EQU 42h\nORG 0\nENTRY:\nALIAS: MOV A,#VALUE\nLOOP: SJMP LOOP\nTABLE: DB 1,2\nORG 1\nOPERAND:\nORG 100h\nHOLE:\nEND";
+  const result=assemble(source);expect(result.diagnostics).toEqual([]);
+  expect(result.labels).toEqual([
+    {name:"ENTRY",line:3,column:1,address:0,kind:"instruction"},{name:"ALIAS",line:4,column:1,address:0,kind:"instruction"},
+    {name:"LOOP",line:5,column:1,address:2,kind:"instruction"},{name:"TABLE",line:6,column:1,address:4,kind:"data"},
+    {name:"OPERAND",line:8,column:1,address:1,kind:"operand"},{name:"HOLE",line:10,column:1,address:256,kind:"unmapped"},
+  ]);
+  expect(result.bytes).toEqual(Uint8Array.of(0x74,0x42,0x80,0xfe,1,2));
+});
+it.each(["one: NOP\nONE: NOP","A: NOP","label: NOP\nBAD","ORG 0FFFFh\nlast: NOP\npast:"])("never exports labels from invalid assemblies %s",source=>{
+  const result=assemble(source);expect(result.diagnostics.length).toBeGreaterThan(0);expect(result.labels).toBeUndefined();
+});

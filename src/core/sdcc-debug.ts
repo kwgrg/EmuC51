@@ -1,3 +1,4 @@
+import { parseCdbSymbols, type CdbSymbol } from "./cdb-symbols";
 import { parseFirmware } from "./firmware";
 import { sha256Hex } from "./digest";
 import { opcodeMeta } from "./opcodes";
@@ -18,7 +19,7 @@ export interface SdccManifest {
 export interface SdccDebugData { manifest: SdccManifest; source: string; ihx: string; cdb: string }
 export interface SourceLocation { line: number; address: number }
 export interface VerifiedSdccDebug {
-  data: SdccDebugData; firmware: ArrayBuffer; firmwareSha256: string; locations: SourceLocation[];
+  data: SdccDebugData; firmware: ArrayBuffer; firmwareSha256: string; locations: SourceLocation[]; symbols: CdbSymbol[];
 }
 const invalid = (message: string): never => { throw new Error(`SDCC 导入：${message}`); };
 const object = (value: unknown): value is Record<string, unknown> => Boolean(value && typeof value === "object" && !Array.isArray(value));
@@ -76,7 +77,7 @@ export function parseCdbLines(cdb: string, filename: string, source: string, fir
       if (!match || match[1] !== module || Number(match[2]) < 1 || !Number.isSafeInteger(Number(match[2]))) return invalid("CDB 汇编链接行无效");
       asmAddresses.add(address(match[3]!));
     } else if (record.startsWith("L:") && !/^L:(?:G|F|L|XG|XF)[^:]+:[0-9a-fA-F]{1,8}$/.test(record)) return invalid("不支持或畸形的 CDB 链接记录");
-    // S/F/T records are bounded opaque metadata. No variable/type semantics are exposed.
+    // Exact C line validation is independent of the separately bounded S/L symbol subset.
   }
   if (!moduleFound || !pairs.size) return invalid("缺少模块或链接后的 C 行地址；不能使用未链接调试文件");
   for (const location of pairs.values()) {
@@ -97,7 +98,8 @@ export async function verifySdccDebug(value: unknown, currentFirmware?: ArrayBuf
   const firmwareSha256 = await sha256Hex(firmware);
   if (currentFirmware && await sha256Hex(currentFirmware) !== firmwareSha256) return invalid("调试文件与当前固件不匹配");
   const locations = parseCdbLines(data.cdb, data.manifest.files.source.name, data.source, new Uint8Array(firmware));
-  return { data, firmware, firmwareSha256, locations };
+  const symbols=parseCdbSymbols(data.cdb,data.manifest.files.source.name.replace(/\.c$/,""),firmware.byteLength);
+  return { data, firmware, firmwareSha256, locations, symbols };
 }
 
 export function toggleSourceBreakpoints(config: DebugConfig, addresses: number[]): DebugConfig {
