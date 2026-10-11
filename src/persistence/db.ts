@@ -1,3 +1,4 @@
+import { normalizeInputScenario, type InputScenario } from "../core/input-scenario";
 import { normalizeSdccDebug, type SdccDebugData } from "../core/sdcc-debug";
 import { ASSEMBLER_VERSION, normalizeAsmProject, type AsmProject, type AsmBinding } from "../core/assembler";
 import { openDB, type DBSchema } from "idb";
@@ -10,6 +11,7 @@ import type { CpuSnapshot, MemorySpace } from "../core/types";
 export type WorkspaceDebugConfig = DebugConfig;
 
 export interface WorkspaceSettings {
+  inputScenario?: InputScenario;
   sdccDebug?: SdccDebugData;
   asmProject?: AsmProject;
   asmBinding?: AsmBinding;
@@ -164,6 +166,10 @@ export const normalizeWorkspaceSettings = (value: unknown): WorkspaceSettings | 
     typeof value.selectedMemorySpace !== "string" ||
     !["code", "iram", "sfr", "xram"].includes(value.selectedMemorySpace)
   ) return undefined;
+  let inputScenario: InputScenario | undefined;
+  if (value.inputScenario !== undefined) {
+    try { inputScenario = normalizeInputScenario(value.inputScenario); } catch { return undefined; }
+  }
   let sdccDebug: SdccDebugData | undefined;
   if (value.sdccDebug !== undefined) {
     try { sdccDebug = normalizeSdccDebug(value.sdccDebug); } catch { return undefined; }
@@ -192,6 +198,7 @@ export const normalizeWorkspaceSettings = (value: unknown): WorkspaceSettings | 
   const maximum = value.selectedMemorySpace === "iram" ? 0x7f : value.selectedMemorySpace === "sfr" ? 0xff : 0xffff;
   if (value.memoryAddress !== undefined && !isInteger(value.memoryAddress, minimum, maximum)) return undefined;
   return {
+    ...(inputScenario ? { inputScenario } : {}),
     ...(sdccDebug ? { sdccDebug } : {}),
     ...(asmProject ? { asmProject } : {}),
     ...(asmBinding ? { asmBinding } : {}),
@@ -224,7 +231,7 @@ export const normalizeWorkspaceRecord = (value: unknown): WorkspaceRecord | unde
   const firmware = normalizeFirmwareRecord(value.firmware);
   const settings = normalizeWorkspaceSettings(value.settings);
   if (
-    !firmware || !settings || (settings.asmBinding && settings.asmBinding.firmwareSha256 !== firmware.sha256) || !isInteger(value.updatedAt, 0) ||
+    !firmware || !settings || (settings.inputScenario && settings.inputScenario.firmwareSha256 !== firmware.sha256) || (settings.asmBinding && settings.asmBinding.firmwareSha256 !== firmware.sha256) || !isInteger(value.updatedAt, 0) ||
     (value.schemaVersion !== 1 && value.schemaVersion !== 2 && value.schemaVersion !== 3 && value.schemaVersion !== 4) ||
     value.coreStateVersion !== (value.schemaVersion === 1 ? 1 : 2) ||
     ((value.schemaVersion === 1 || value.schemaVersion === 2) && settings.debugger?.breakpointOptions !== undefined) ||

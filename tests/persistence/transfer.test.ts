@@ -191,3 +191,21 @@ describe("工作区 JSON 导入导出", () => {
     await expect(importWorkspace("中".repeat(Math.ceil(MAX_WORKSPACE_IMPORT_BYTES / 2)))).rejects.toThrow("8 MiB");
   });
 });
+
+describe("input scenario workspace binding",()=>{
+  beforeAll(()=>vi.stubGlobal("crypto",webcrypto));afterAll(()=>vi.unstubAllGlobals());
+  it("round-trips a bounded definition without persisting scheduler execution",async()=>{
+    const record=workspaceFixture();
+    record.settings.inputScenario={format:"emuc51-input-scenario",version:1,name:"inputs",firmwareSha256:record.firmware.sha256,events:[{cycle:1,type:"gpio",port:3,value:251}]};
+    const restored=await importWorkspace(exportWorkspace(record));expect(restored.settings.inputScenario).toEqual(record.settings.inputScenario);
+    expect(restored.cpu).toEqual(record.cpu);expect(Object.keys(restored.settings.inputScenario!)).not.toContain("active");
+    await saveWorkspace(record);expect((await loadWorkspace())?.kind).toBe("complete");
+  });
+  it("rejects mismatched, executable and excessive definitions atomically",async()=>{
+    const text=JSON.parse(exportWorkspace(workspaceFixture()));
+    const input={format:"emuc51-input-scenario",version:1,name:"inputs",firmwareSha256:text.firmware.sha256,events:[{cycle:1,type:"gpio",port:3,value:251}]};
+    for(const scenario of [{...input,firmwareSha256:"f".repeat(64)},{...input,run:"alert(1)"},{...input,events:Array(1025).fill(input.events[0])}]) {
+      text.settings.inputScenario=scenario;await expect(importWorkspace(JSON.stringify(text))).rejects.toThrow("工作区文件无效");
+    }
+  });
+});

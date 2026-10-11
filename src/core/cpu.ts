@@ -38,6 +38,8 @@ export class Cpu8051 {
     this.memory.debugWrite = (space, address) => this.callStack.written(space, address);
   }
 
+  get machineCycles(): number { return this.cycleCount; }
+
   get pc(): number {
     return this.pcValue;
   }

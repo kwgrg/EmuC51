@@ -1,3 +1,4 @@
+import type { InputScenario, ReplayView } from "../core/input-scenario";
 import type { OperandAccess } from "../core/operand-access";
 import type { CoverageReport, CoverageSummary } from "../core/coverage";
 import type { WatchResult } from "../core/expressions";
@@ -111,6 +112,8 @@ export interface EvaluateExpressionsCommand extends CommandBase {
 }
 
 export type EmulatorCommand =
+  | { type: "InstallScenario"; requestId: number; scenario: InputScenario }
+  | { type: "StartScenario" | "CancelScenario" | "ClearScenario"; requestId: number }
   | { type: "CreateCoverageReport"; requestId: number }
   | { type: "SetCoverage"; requestId: number; enabled: boolean }
   | { type: "ClearCoverage"; requestId: number }
@@ -134,6 +137,7 @@ export type EmulatorCommand =
   | CreateSnapshotCommand;
 
 export type EmulatorEvent =
+  | { type: "ScenarioChanged"; requestId: number; replay: ReplayView; definitionChanged: boolean; scenario?: InputScenario }
   | { type: "CoverageReportCreated"; requestId: number; report: CoverageReport }
   | { type: "CoverageChanged"; requestId: number; summary: CoverageSummary }
   | { type: "CoverageData"; requestId: number; summary: CoverageSummary; addresses: number[]; counts: number[] }

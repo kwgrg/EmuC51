@@ -1,0 +1,12 @@
+{
+  "format": "emuc51-input-scenario",
+  "version": 1,
+  "name": "Timer 0 / INT0 / UART AB",
+  "firmwareSha256": "c0989bd7cdc4cd162326bdf73cec01d2877d01c1701decf6655cddc74f98b991",
+  "events": [
+    {"cycle": 40, "type": "gpio", "port": 3, "value": 251},
+    {"cycle": 44, "type": "gpio", "port": 3, "value": 255},
+    {"cycle": 80, "type": "uart", "value": 65, "ninthBit": true},
+    {"cycle": 900, "type": "uart", "value": 66, "ninthBit": true}
+  ]
+}

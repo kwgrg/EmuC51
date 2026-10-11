@@ -1,5 +1,6 @@
 /// <reference lib="webworker" />
 
+import { InputReplay, normalizeInputScenario } from "../core/input-scenario";
 import { evaluateExpression, evaluateWatch, MAX_WATCH_EXPRESSIONS } from "../core/expressions";
 import { sha256Hex } from "../core/digest";
 import { InstructionCoverage, type CoverageReport } from "../core/coverage";
@@ -13,6 +14,11 @@ const scope = self as unknown as DedicatedWorkerGlobalScope;
 const debugger8051 = new Debugger8051();
 const coverage = new InstructionCoverage();
 const postCoverage = (requestId: number): void => post({ type: "CoverageChanged", requestId, summary: coverage.summary() });
+
+let replay: InputReplay | undefined;
+let scenarioGeneration = 0;
+const postScenario = (requestId: number, definitionChanged = false): void => post({ type:"ScenarioChanged", requestId, replay:replay?.view() ?? {active:false,delivered:[]}, definitionChanged, ...(definitionChanged && replay ? {scenario:replay.scenario} : {}) });
+const requireManualInput = (): void => { if (replay?.active) invalid("请先取消输入重放再手工修改 CPU 或外部输入"); };
 
 let cpu: Cpu8051 | undefined;
 let firmware: { name: string; bytes: ArrayBuffer; digest?: Promise<string> } | undefined;
@@ -63,6 +69,7 @@ const finishRun = (requestId: number, stop: DebugStop): void => {
   const machine = requireCpu();
   stopCurrentRun();
   debugger8051.stopped(stop);
+  postScenario(requestId);
   if (coverage.enabled) postCoverage(requestId);
   post({ type: "Stopped", requestId, ...stop, state: machine.state(), snapshot: machine.snapshot() });
 };
@@ -80,6 +87,8 @@ const postSerialOutput = (requestId: number): void => {
 const reportFault = (requestId: number, error: unknown): void => {
   stopCurrentRun();
   debugger8051.stopped({ reason: "Paused" });
+  if (replay) replay.active = false;
+  postScenario(requestId);
   postSerialOutput(requestId);
   if (coverage.enabled) postCoverage(requestId);
   post({ type: "ExecutionFault", requestId, error: faultData(error), state: cpu?.state(), snapshot: cpu?.snapshot() });
@@ -127,6 +136,7 @@ const pump = (token: number): void => {
         stop = { reason: target.reason, address: target.address };
         break;
       }
+      if (replay?.active) replay.advance(machine);
       const watched = debugger8051.capture(machine.memory);
       const result = machine.step(() => {
         stop = debugger8051.beforeStep(machine.pc, expression => evaluateExpression(machine, expression));
@@ -168,6 +178,7 @@ const pump = (token: number): void => {
 
     const currentTime = performance.now();
     if (currentTime - lastStateAt >= 100) {
+      postScenario(activeRequestId);
       post({ type: "StateChanged", requestId: activeRequestId, state: machine.state(), running: true });
       lastStateAt = currentTime;
     }
@@ -194,6 +205,7 @@ const startRun = (
   assertInteger(maxSteps, 0, Number.MAX_SAFE_INTEGER, "执行步数");
   assertTrace(trace);
   const machine = requireCpu();
+  scenarioGeneration += 1;
   stopCurrentRun();
   debugger8051.beginRun(machine.pc, bypassCurrent);
   activeRequestId = requestId;
@@ -217,7 +229,9 @@ const startRun = (
 const stepOnce = (requestId: number, trace: boolean): void => {
   stopCurrentRun();
   const machine = requireCpu();
+  scenarioGeneration += 1;
   debugger8051.stopped({ reason: "StepComplete" });
+  if (replay?.active) replay.advance(machine);
   const watched = debugger8051.capture(machine.memory);
   const step = machine.step();
   if (coverage.enabled && step.kind === "instruction") coverage.record(step.pcBefore);
@@ -252,6 +266,47 @@ scope.onmessage = (message: MessageEvent<EmulatorCommand>): void => {
     if (!command || typeof command !== "object") invalid("模拟器命令无效");
     assertInteger(command.requestId, 0, Number.MAX_SAFE_INTEGER, "请求编号");
     switch (command.type) {
+      case "InstallScenario": {
+        requireStopped(); requireManualInput();
+        const definition = normalizeInputScenario(command.scenario);
+        const source = firmware!;
+        const generation = ++scenarioGeneration;
+        source.digest ??= sha256Hex(source.bytes).catch(error => { source.digest=undefined; throw error; });
+        void source.digest.then(digest => {
+          // A cancelled verification must not replace a newer definition or surface a late error.
+          if (generation !== scenarioGeneration || source !== firmware || running) return;
+          if (digest !== definition.firmwareSha256) throw new Error("输入场景固件 SHA-256 不匹配，当前工作区未改变");
+          replay = new InputReplay(definition);
+          postScenario(requestId,true);
+          postEditedState(requestId);
+        }).catch(error => {
+          if (generation === scenarioGeneration && source === firmware)
+            post({type:"CommandRejected",requestId,error:faultData(error),running});
+        });
+        return;
+      }
+      case "StartScenario": {
+        requireStopped(); requireManualInput();
+        if (!replay) invalid("请先导入并验证输入场景");
+        scenarioGeneration += 1;
+        stopCurrentRun();
+        cpu = new Cpu8051(new Uint8Array(firmware!.bytes));
+        cpu.captureOperandAccesses = debugger8051.observesOperands;
+        debugger8051.resetHits(); coverage.clear(); postCoverage(requestId);
+        replay!.start();
+        finishRun(requestId,{reason:"Paused"});
+        return;
+      }
+      case "CancelScenario":
+        scenarioGeneration += 1;
+        if (replay) replay.active = false;
+        postScenario(requestId);
+        return;
+      case "ClearScenario":
+        requireStopped(); requireManualInput();
+        scenarioGeneration += 1; replay = undefined;
+        postScenario(requestId,true); postEditedState(requestId);
+        return;
       case "LoadFirmware":
       case "RestoreWorkspace": {
         if (!(command.bytes instanceof ArrayBuffer) || typeof command.name !== "string") invalid("固件命令无效");
@@ -260,15 +315,18 @@ scope.onmessage = (message: MessageEvent<EmulatorCommand>): void => {
         stopCurrentRun();
         debugger8051.resetHits();
         loaded.captureOperandAccesses = debugger8051.observesOperands;
+        scenarioGeneration += 1; replay = undefined;
         cpu = loaded;
         firmware = { name: command.name, bytes: command.bytes.slice(0) };
         coverage.clear(true);
         postCoverage(requestId);
+        postScenario(requestId);
         post({ type: "Ready", requestId, name: command.name, state: cpu.state(), snapshot: cpu.snapshot() });
         return;
       }
       case "Reset": {
         requireCpu().reset();
+        scenarioGeneration += 1; replay?.reset();
         coverage.clear();
         postCoverage(requestId);
         debugger8051.resetHits();
@@ -324,6 +382,7 @@ scope.onmessage = (message: MessageEvent<EmulatorCommand>): void => {
         return;
       }
       case "WriteMemory": {
+        requireManualInput();
         assertWritableAddress(command.space, command.address);
         assertInteger(command.value, 0, 0xff, "内存值");
         requireStopped().writeMemory(command.space, command.address, command.value);
@@ -331,6 +390,7 @@ scope.onmessage = (message: MessageEvent<EmulatorCommand>): void => {
         return;
       }
       case "SetRegister": {
+        requireManualInput();
         if (typeof command.name !== "string") invalid("寄存器名称无效");
         assertInteger(command.value, 0, 0xffff, "寄存器值");
         requireStopped().setRegister(command.name, command.value);
@@ -339,12 +399,14 @@ scope.onmessage = (message: MessageEvent<EmulatorCommand>): void => {
         return;
       }
       case "SetPortInput":
+        requireManualInput();
         assertInteger(command.port, 0, 3, "GPIO 端口");
         assertInteger(command.value, 0, 0xff, "GPIO 输入值");
         requireCpu().setPortInput(command.port, command.value);
         postEditedState(requestId);
         return;
       case "ReceiveSerial":
+        requireManualInput();
         assertInteger(command.value, 0, 0xff, "串口接收值");
         if (command.ninthBit !== undefined && typeof command.ninthBit !== "boolean") invalid("串口第九位必须是布尔值");
         requireCpu().receiveSerial(command.value, command.ninthBit);

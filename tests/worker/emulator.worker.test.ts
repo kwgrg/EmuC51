@@ -900,3 +900,87 @@ describe("explicit bit operand watches", () => {
    expect(final.peripherals.serial.txOutput).toEqual([0x41]);
    expect(final.peripherals.interruptStack).toEqual([]);
  });
+
+describe("declarative input replay",()=>{
+  let definition: import("../../src/core/input-scenario").InputScenario;
+  beforeEach(async()=>{
+    const {createHash}=await import("node:crypto");
+    vi.stubGlobal("crypto",{subtle:{digest:vi.fn(async(_algorithm:string,bytes:ArrayBuffer)=>Uint8Array.from(createHash("sha256").update(new Uint8Array(bytes)).digest()).buffer)}});
+    definition={format:"emuc51-input-scenario",version:1,name:"replay",firmwareSha256:createHash("sha256").update(Uint8Array.of(0x80,0xfe)).digest("hex"),events:[{cycle:1,type:"gpio",port:1,value:0x42},{cycle:5,type:"gpio",port:1,value:0x24}]};
+  });
+  const replayState=()=>events.filter(event=>event.type==="ScenarioChanged").at(-1)!.replay;
+  const install=async()=>{send({type:"InstallScenario",scenario:definition});await Promise.resolve();await Promise.resolve();await Promise.resolve();};
+  it("prepares without mutation, starts clean, delivers once across pause/breakpoint/budget and cancels pending",async()=>{
+    load(0x80,0xfe);send({type:"WriteMemory",space:"iram",address:0x20,value:99});
+    await install();expect(replayState().active).toBe(false);
+    send({type:"StartScenario"});expect(stopped().snapshot.iram[0x20]).toBe(0);
+    send({type:"SetDebugConfig",breakpoints:[0],watchpoints:[]});
+    send({type:"Run",maxSteps:20,trace:false});vi.runAllTimers();expect(stopped().state.machineCycles).toBe(0);expect(replayState().delivered).toEqual([]);
+    send({type:"Run",maxSteps:20,trace:false});vi.runAllTimers();expect(stopped().reason).toBe("Breakpoint");expect(replayState().delivered).toEqual([2]);
+    send({type:"Pause"});expect(replayState().delivered).toEqual([2]);
+    send({type:"Step",trace:false});expect(replayState().delivered).toEqual([2]);
+    send({type:"CancelScenario"});send({type:"Run",maxSteps:20,trace:false});vi.runAllTimers();expect(replayState()).toEqual({active:false,delivered:[2]});
+    send({type:"Reset"});expect(replayState()).toEqual({active:false,delivered:[]});
+  });
+  it("rejects manual writes and repeated start while active, while cancellation leaves the CPU running",async()=>{
+    load(0x80,0xfe);await install();send({type:"StartScenario"});
+    for(const command of [{type:"SetPortInput",port:1,value:0},{type:"ReceiveSerial",value:65},{type:"SetRegister",name:"A",value:1},{type:"WriteMemory",space:"iram",address:0x20,value:1},{type:"StartScenario"},{type:"InstallScenario",scenario:definition},{type:"ClearScenario"}] as WithoutRequest<EmulatorCommand>[]) {
+      const id=send(command);expect(events.some(event=>event.type==="CommandRejected"&&event.requestId===id)).toBe(true);
+    }
+    send({type:"Run",maxSteps:10,trace:false});send({type:"CancelScenario"});vi.runAllTimers();
+    expect(stopped().reason).toBe("StepLimitReached");expect(stopped().state.steps).toBe(10);expect(replayState().delivered).toEqual([]);
+    send({type:"SetPortInput",port:1,value:0x7f});expect(events.at(-1)!.type).toBe("SnapshotCreated");
+  });
+  it("preserves StepOut and counts only successful instructions in coverage",async()=>{
+    const bytes=Uint8Array.of(0x12,0,6,0x80,0xfe,0,0,0x22);
+    const {createHash}=await import("node:crypto");definition.firmwareSha256=createHash("sha256").update(bytes).digest("hex");
+    load(...bytes);await install();send({type:"SetCoverage",enabled:true});send({type:"StartScenario"});
+    send({type:"Step",trace:false});expect(stopped().state.pc).toBe(6);
+    send({type:"StepOut",maxSteps:20,trace:true});vi.runAllTimers();
+    expect(stopped().reason).toBe("StepComplete");expect(stopped().state.pc).toBe(3);expect(replayState().delivered).toEqual([2]);
+    send({type:"ReadCoverage",addresses:[0,6,7]});expect(events.at(-1)).toMatchObject({type:"CoverageData",counts:[1,1,1]});
+    send({type:"CreateSnapshot"});expect(events.at(-1)).toMatchObject({type:"SnapshotCreated",snapshot:{machineCycles:5}});
+    send({type:"CancelScenario"});send({type:"StartScenario"});send({type:"ReadCoverage",addresses:[0,6,7]});expect(events.at(-1)).toMatchObject({counts:[0,0,0]});
+  });
+  it("restore keeps CPU inputs but disarms scheduling; replacement removes the definition",async()=>{
+    load(0x80,0xfe);await install();send({type:"StartScenario"});send({type:"Run",maxSteps:2,trace:false});vi.runAllTimers();
+    const snapshot=stopped().snapshot;
+    send({type:"RestoreWorkspace",name:"test.bin",bytes:Uint8Array.of(0x80,0xfe).buffer,snapshot});await install();
+    expect(replayState()).toEqual({active:false,delivered:[]});send({type:"Run",maxSteps:10,trace:false});vi.runAllTimers();
+    expect(stopped().snapshot.coreStateVersion).toBe(2);
+    expect((stopped().snapshot as import("../../src/core/types").CpuSnapshotV2).peripherals.portInputs[1]).toBe(0x42);
+    load(0);send({type:"StartScenario"});expect(events.at(-1)!.type).toBe("CommandRejected");
+  });
+  it("rejects malformed and mismatched definitions before replacing an installed scene",async()=>{
+    load(0x80,0xfe);await install();const changed=events.filter(event=>event.type==="ScenarioChanged"&&event.definitionChanged).length;
+    send({type:"InstallScenario",scenario:{...definition,events:Array(1025).fill(definition.events[0])}});expect(events.at(-1)!.type).toBe("CommandRejected");
+    definition={...definition,firmwareSha256:"0".repeat(64)};await install();expect(events.at(-1)!.type).toBe("CommandRejected");
+    expect(events.filter(event=>event.type==="ScenarioChanged"&&event.definitionChanged)).toHaveLength(changed);
+    send({type:"StartScenario"});expect(replayState().active).toBe(true);
+  });
+  it("automatic snapshots retain delivered CPU inputs without serializing an active scheduler",async()=>{
+    load(0x80,0xfe);await install();send({type:"StartScenario"});
+    let clock=0;vi.mocked(performance.now).mockImplementation(()=>clock+=2100);
+    send({type:"Run",maxSteps:4,trace:false});vi.runAllTimers();
+    const saved=events.filter(event=>event.type==="SnapshotCreated"&&event.automatic);
+    expect(saved.length).toBeGreaterThan(0);
+    expect(saved.at(-1)).toMatchObject({snapshot:{machineCycles:6,peripherals:{portInputs:[255,66,255,255]}}});
+    expect(stopped().state.steps).toBe(4);expect(replayState().delivered).toEqual([2,6]);
+  });
+  it("recovers from a digest failure without replacing the CPU",async()=>{
+    load(0x80,0xfe);vi.mocked(crypto.subtle.digest).mockRejectedValueOnce(new Error("digest failed"));
+    await install();await Promise.resolve();expect(events.at(-1)!.type).toBe("CommandRejected");
+    await install();await Promise.resolve();expect(replayState().active).toBe(false);
+    send({type:"StartScenario"});expect(replayState().active).toBe(true);
+  });
+  it.each(["CancelScenario","Reset","Run","LoadFirmware"] as const)("does not commit late digest after %s",async(type)=>{
+    let resolve!:(bytes:ArrayBuffer)=>void;
+    vi.stubGlobal("crypto",{subtle:{digest:()=>new Promise<ArrayBuffer>(done=>{resolve=done;})}});
+    load(0x80,0xfe);send({type:"InstallScenario",scenario:definition});
+    if(type==="Run")send({type,maxSteps:0,trace:false});else if(type==="LoadFirmware")load(0);else send({type});
+    resolve(Uint8Array.from(definition.firmwareSha256.match(/../g)!,byte=>parseInt(byte,16)).buffer);
+    for(let i=0;i<8;i++)await Promise.resolve();
+    expect(events.some(event=>event.type==="ScenarioChanged"&&event.definitionChanged)).toBe(false);
+    expect(events.some(event=>event.type==="CommandRejected")).toBe(false);
+  });
+});
