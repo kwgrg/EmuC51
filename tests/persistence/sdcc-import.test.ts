@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { webcrypto } from "node:crypto";
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import { sdccFixture } from "../fixtures/sdcc-fixture";
@@ -35,4 +36,18 @@ it("round-trips verified source debug data and rejects tampering before workspac
 });
 it("does not allow concurrent ASM and SDCC firmware bindings", () => {
   expect(normalizeWorkspaceSettings({ ...workspaceFixture().settings, sdccDebug: data, asmProject: { name: "main.asm", source: "NOP" }, asmBinding: { assembler: "emuc51-asm-1", sourceSha256: "a".repeat(64), firmwareSha256: "b".repeat(64) } })).toBeUndefined();
+});
+
+it("imports a bounded mixed package and persists every source/header atomically", async () => {
+  const text = readFileSync("tests/fixtures/sdcc-mixed/emuc51-project.build.json", "utf8");
+  const bytes = new TextEncoder().encode(text);
+  const file = { name: "emuc51-project.build.json", size: bytes.length, arrayBuffer: async () => bytes.buffer } as File;
+  const verified = await importSdccFiles([file]);
+  const record = workspaceFixture(); record.firmware = { ...record.firmware, bytes: verified.firmware, sha256: verified.firmwareSha256 };
+  record.cpu = new Cpu8051(new Uint8Array(verified.firmware)).snapshot(); record.settings.sdccDebug = verified.data;
+  const restored = await importWorkspace(exportWorkspace(record));
+  expect(restored.settings.sdccDebug).toEqual(verified.data);
+  const changed = JSON.parse(exportWorkspace(record)); changed.settings.sdccDebug.inputs[3].text += "\n";
+  await expect(importWorkspace(JSON.stringify(changed))).rejects.toThrow("SHA-256");
+  await expect(importSdccFiles([{ ...file, size: 2 * 1024 * 1024 + 1 } as File])).rejects.toThrow("2 MiB");
 });

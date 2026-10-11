@@ -19,6 +19,8 @@ Cloudflare 只托管编译后的 HTML、CSS、JavaScript 等静态应用文件�
 
 ## 已实现能力
 
+- [最小 C / SDAS8051 混合工程](docs/MIXED_SDCC_PROJECT.md)：受限相对路径清单、原生固定工具链原子构建包、跨文件 C/汇编源码定位和行断点、同名静态对象隔离；不含浏览器编译。
+
 - [可信符号浏览与只读观察](docs/VERIFIED_SYMBOLS.md)：真实 ASM CODE 标签定位/导航/断点；固定 SDCC CDB 静态全局存储的有界原始字节观察，保留完整身份和来源，附严格 C 函数历史入口命名及明确标注的有限存储整数视图，不猜原始 C 类型或局部变量。
 
 - [GPIO/UART 输入场景重放](docs/INPUT_SCENARIOS.md)：有界声明式 JSON、固件摘要绑定、干净复位、稳定周期投递、取消及目标/实际周期时间线；附 Timer/INT0/UART 回显示例，刷新不自动启用。

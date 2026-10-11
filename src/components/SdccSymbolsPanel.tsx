@@ -4,7 +4,7 @@ import type { VerifiedSdccDebug } from "../core/sdcc-debug";
 import type { WatchResult } from "../core/expressions";
 import { hex8, hex16 } from "../core/numbers";
 export interface SymbolSample { id:string; token:string; results:WatchResult[]; pc:number; steps:number }
-export const symbolBindingToken=(verified:VerifiedSdccDebug)=>`${verified.firmwareSha256}:${verified.data.manifest.files.source.sha256}:${verified.data.manifest.files.cdb.sha256}`;
+export const symbolBindingToken=(verified:VerifiedSdccDebug)=>[verified.firmwareSha256,verified.data.manifest.files.source.sha256,verified.data.manifest.files.cdb.sha256,verified.data.manifest.projectSha256??"",...(verified.data.inputs?.map(item=>`${item.path}:${item.sha256}`)??[])].join(":");
 export function SdccSymbolsPanel({verified,disabled,sample,onRead,onBrowse}:{
   verified:VerifiedSdccDebug; disabled:boolean; sample?:SymbolSample; onRead:(id:string)=>void; onBrowse:(id:string)=>void;
 }) {
@@ -17,7 +17,7 @@ export function SdccSymbolsPanel({verified,disabled,sample,onRead,onBrowse}:{
   return <section className="symbol-panel" aria-label="SDCC 静态符号">
     <h3>SDCC 静态符号</h3>
     <p>仅验证过的静态全局存储对象可查看原始字节（地址递增顺序），可按已验证 CDB 标量存储编码解释整数，不恢复原始 C 类型、不解引用指针。CDB 全身份限定名称独立于表达式 Watch，ACC 等名称不会覆盖寄存器。</p>
-    <p>构建模块 {verified.data.manifest.files.source.name}；CDB 不保证声明来自此 .c 而非头文件。无声明的启动/库链接名不生成为变量；优化后无记录的名字不猜测。局部变量、参数、函数和未验证类型不提供读取。</p>
+    <p>构建入口 {verified.data.manifest.files.source.name}；CDB 不保证声明来自此 .c 而非头文件。无声明的启动/库链接名不生成为变量；优化后无记录的名字不猜测。局部变量、参数、函数和未验证类型不提供读取。</p>
     <label>筛选 SDCC 符号<input aria-label="筛选 SDCC 符号" value={query} maxLength={128} onChange={event=>{setQuery(event.target.value);setPage(0);}} /></label>
     <div className="asm-actions"><button disabled={!page} onClick={()=>setPage(page-1)}>符号上一页</button><span>{page+1} / {Math.max(1,Math.ceil(symbols.length/50))} · {symbols.length} 个声明</span><button disabled={(page+1)*50>=symbols.length} onClick={()=>setPage(page+1)}>符号下一页</button></div>
     {target&&<div aria-label="符号只读观察">

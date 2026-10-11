@@ -28,7 +28,7 @@ export function parseCdbFunctions(cdb: string, module: string, firmware: Uint8Ar
     }
     const instruction = /^L:A\$([^$]+)\$\d+:([\da-fA-F]{1,8})$/.exec(record);
     if (instruction?.[1] === module) asm.add(parseInt(instruction[2]!, 16));
-    const declaration = /^F:(G|F[A-Za-z_][A-Za-z0-9_-]*)\$([A-Za-z_][A-Za-z0-9_]*)\$0_0\$0\(\{\d+\}DF,[^\r\n]+\),C,0,0,[01],\d+,\d+$/.exec(record);
+    const declaration = /^F:(G|F[A-Za-z_][A-Za-z0-9_-]*)\$([A-Za-z_][A-Za-z0-9_]*)\$0_0\$0\(\{\d+\}DF,[^\r\n]+\),[CZ],0,0,[01],\d+,\d+$/.exec(record);
     if (!declaration || (declaration[1] !== "G" && declaration[1] !== `F${module}`)) continue;
     const key = `${declaration[1]}$${declaration[2]}$0$0`;
     declarations.set(key, { name: declaration[2]!, count: (declarations.get(key)?.count ?? 0) + 1 });

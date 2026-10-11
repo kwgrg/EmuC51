@@ -1,3 +1,5 @@
+import { normalizeSdccProject, normalizeProjectInputs, projectPath, type SdccProject, type ProjectInput } from "./sdcc-project";
+import { parseProjectDebug } from "./sdcc-project-debug";
 import { parseCdbFunctions, type CdbFunction } from "./cdb-functions";
 import { parseCdbSymbols, type CdbSymbol } from "./cdb-symbols";
 import { parseFirmware } from "./firmware";
@@ -11,15 +13,17 @@ export const SDCC_LINE_LIMIT = 8192;
 export const SDCC_OPTIONS = ["-mmcs51", "--model-small", "--iram-size", "128", "--debug"] as const;
 interface FileIdentity { name: string; sha256: string }
 export interface SdccManifest {
-  format: "emuc51-sdcc-debug"; version: 1;
+  format: "emuc51-sdcc-debug"; version: 1 | 2; projectSha256?: string;
   compiler: "SDCC 4.5.0 #15242";
   target: "classic-8051";
   options: string[];
   files: { source: FileIdentity; ihx: FileIdentity; cdb: FileIdentity };
 }
-export interface SdccDebugData { manifest: SdccManifest; source: string; ihx: string; cdb: string }
-export interface SourceLocation { line: number; address: number }
+export interface SdccDebugData { manifest: SdccManifest; source: string; ihx: string; cdb: string; project?: SdccProject; inputs?: ProjectInput[] }
+export interface SourceLocation { line: number; address: number; file?: string }
+export interface VerifiedSourceFile { path: string; text: string; language: "c" | "sdas8051" | "header"; locations: SourceLocation[] }
 export interface VerifiedSdccDebug {
+  files?: VerifiedSourceFile[];
   data: SdccDebugData; firmware: ArrayBuffer; firmwareSha256: string; locations: SourceLocation[]; symbols: CdbSymbol[]; functions: CdbFunction[];
 }
 const invalid = (message: string): never => { throw new Error(`SDCC 导入：${message}`); };
@@ -33,15 +37,25 @@ const identity = (value: unknown, extension: string): FileIdentity => {
 export function normalizeSdccDebug(value: unknown): SdccDebugData {
   if (!object(value) || !object(value.manifest)) return invalid("缺少构建摘要清单");
   const m = value.manifest;
-  if (m.format !== "emuc51-sdcc-debug" || m.version !== 1 || m.compiler !== "SDCC 4.5.0 #15242" || m.target !== "classic-8051" ||
+  if (m.format !== "emuc51-sdcc-debug" || (m.version !== 1 && m.version !== 2) || m.compiler !== "SDCC 4.5.0 #15242" || m.target !== "classic-8051" ||
     !Array.isArray(m.options) || JSON.stringify(m.options) !== JSON.stringify(SDCC_OPTIONS) || !object(m.files)) return invalid("仅支持 SDCC 4.5.0 #15242 / classic-8051 / small / --iram-size 128 / --debug 构建清单");
-  const source = identity(m.files.source, "c");
+  const project = m.version === 2 ? normalizeSdccProject(value.project) : undefined;
+  const inputs = project ? normalizeProjectInputs(project, value.inputs) : undefined;
+  if (m.version === 1 && (value.project !== undefined || value.inputs !== undefined)) return invalid("旧版清单不能携带工程字段");
+  if (project && (typeof m.projectSha256 !== "string" || !/^[a-f0-9]{64}$/.test(m.projectSha256))) return invalid("缺少项目摘要");
+  const source = project ? (() => {
+    if (!object(m.files!.source)) return invalid("缺少入口文件");
+    const name = projectPath(m.files!.source.name);
+    const entry = inputs!.find(item => item.path === project.entry)!;
+    if (name !== project.entry || m.files!.source.sha256 !== entry.sha256 || value.source !== entry.text) return invalid("入口文件与工程不一致");
+    return { name, sha256: entry.sha256 };
+  })() : identity(m.files.source, "c");
   const ihx = identity(m.files.ihx, "ihx");
   const cdb = identity(m.files.cdb, "cdb");
-  if (ihx.name !== source.name.replace(/\.c$/, ".ihx") || cdb.name !== source.name.replace(/\.c$/, ".cdb")) return invalid("单文件产物必须与源文件同名");
+  if (!project && (ihx.name !== source.name.replace(/\.c$/, ".ihx") || cdb.name !== source.name.replace(/\.c$/, ".cdb"))) return invalid("单文件产物必须与源文件同名");
   if (typeof value.source !== "string" || value.source.length > SDCC_SOURCE_LIMIT || sourceLines(value.source).length > SDCC_LINE_LIMIT ||
     typeof value.ihx !== "string" || value.ihx.length > SDCC_TEXT_LIMIT || typeof value.cdb !== "string" || value.cdb.length > SDCC_TEXT_LIMIT) return invalid("源码或调试文件超出大小/行数限制");
-  return { manifest: { format: "emuc51-sdcc-debug", version: 1, compiler: m.compiler, target: m.target, options: [...SDCC_OPTIONS], files: { source, ihx, cdb } }, source: value.source, ihx: value.ihx, cdb: value.cdb };
+  return { manifest: { format: "emuc51-sdcc-debug", version: m.version, ...(project ? { projectSha256: m.projectSha256 as string } : {}), compiler: m.compiler, target: m.target, options: [...SDCC_OPTIONS], files: { source, ihx, cdb } }, source: value.source, ihx: value.ihx, cdb: value.cdb, ...(project ? { project, inputs } : {}) };
 }
 
 /** Only exact linked C-line addresses; never fill gaps or infer source from HEX. */
@@ -95,9 +109,14 @@ export async function verifySdccDebug(value: unknown, currentFirmware?: ArrayBuf
     const bytes = encoder.encode(data[key]);
     if (bytes.byteLength > SDCC_TEXT_LIMIT || await sha256Hex(bytes.buffer) !== data.manifest.files[key].sha256) return invalid(`${key} SHA-256 不匹配；请使用同一次构建的文件`);
   }
+  if (data.project) {
+    if (await sha256Hex(encoder.encode(JSON.stringify(data.project)).buffer) !== data.manifest.projectSha256) return invalid("项目清单 SHA-256 不匹配");
+    for (const input of data.inputs!) if (await sha256Hex(encoder.encode(input.text).buffer) !== input.sha256) return invalid(`工程文件 ${input.path} SHA-256 不匹配`);
+  }
   const firmware = new Uint8Array(parseFirmware(encoder.encode(data.ihx), data.manifest.files.ihx.name)).buffer;
   const firmwareSha256 = await sha256Hex(firmware);
   if (currentFirmware && await sha256Hex(currentFirmware) !== firmwareSha256) return invalid("调试文件与当前固件不匹配");
+  if (data.project) return { data, firmware, firmwareSha256, ...parseProjectDebug(data, new Uint8Array(firmware)) };
   const locations = parseCdbLines(data.cdb, data.manifest.files.source.name, data.source, new Uint8Array(firmware));
   const symbols=parseCdbSymbols(data.cdb,data.manifest.files.source.name.replace(/\.c$/,""),firmware.byteLength);
   const functions = parseCdbFunctions(data.cdb, data.manifest.files.source.name.replace(/\.c$/, ""), new Uint8Array(firmware));

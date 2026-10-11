@@ -1,0 +1,32 @@
+{
+  "format": "emuc51-sdcc-project",
+  "version": 1,
+  "entry": "src/main.c",
+  "sources": [
+    {
+      "path": "src/main.c",
+      "language": "c"
+    },
+    {
+      "path": "src/compute.c",
+      "language": "c"
+    },
+    {
+      "path": "asm/bridge.asm",
+      "language": "sdas8051"
+    }
+  ],
+  "headers": [
+    "include/shared.h"
+  ],
+  "includeDirs": [
+    "include"
+  ],
+  "options": [
+    "-mmcs51",
+    "--model-small",
+    "--iram-size",
+    "128",
+    "--debug"
+  ]
+}

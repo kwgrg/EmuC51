@@ -1,0 +1,87 @@
+{
+  "manifest": {
+    "format": "emuc51-sdcc-debug",
+    "version": 2,
+    "compiler": "SDCC 4.5.0 #15242",
+    "target": "classic-8051",
+    "options": [
+      "-mmcs51",
+      "--model-small",
+      "--iram-size",
+      "128",
+      "--debug"
+    ],
+    "files": {
+      "source": {
+        "name": "src/main.c",
+        "sha256": "f95a244ac68c12a409ace93b163be0ad207f8a7b65abd7d5a1cb06688df76f30"
+      },
+      "ihx": {
+        "name": "firmware.ihx",
+        "sha256": "aa8a99b9b79a51deb96a6d260bd3d02014344c0a7efd223ed2592c48ed557ec4"
+      },
+      "cdb": {
+        "name": "firmware.cdb",
+        "sha256": "4b6b67772d8f465d24188398e60f3aab8d03b76f34d8af5bce95660c430c06ca"
+      }
+    },
+    "projectSha256": "9ffa818beb1e4901b3bd76ce545e0dacfe40ea3309db2d0d5c89d022c3223599"
+  },
+  "project": {
+    "format": "emuc51-sdcc-project",
+    "version": 1,
+    "entry": "src/main.c",
+    "sources": [
+      {
+        "path": "src/main.c",
+        "language": "c"
+      },
+      {
+        "path": "src/compute.c",
+        "language": "c"
+      },
+      {
+        "path": "asm/bridge.asm",
+        "language": "sdas8051"
+      }
+    ],
+    "headers": [
+      "include/shared.h"
+    ],
+    "includeDirs": [
+      "include"
+    ],
+    "options": [
+      "-mmcs51",
+      "--model-small",
+      "--iram-size",
+      "128",
+      "--debug"
+    ]
+  },
+  "inputs": [
+    {
+      "path": "src/main.c",
+      "text": "#include \"shared.h\"\nvolatile __data unsigned char shared;\nvolatile __data unsigned int word_result;\nstatic volatile __data unsigned char shadow;\nvoid main(void) {\n shadow=7;\n shared=compute(\n   5);\n word_result=asm_word(0x12ff);\n for (;;) { shadow=shared; }\n}\n",
+      "sha256": "f95a244ac68c12a409ace93b163be0ad207f8a7b65abd7d5a1cb06688df76f30"
+    },
+    {
+      "path": "src/compute.c",
+      "text": "#include \"shared.h\"\nstatic volatile __data unsigned char shadow;\nunsigned char finish(unsigned char value) {\n shadow=3;\n return value+shadow;\n}\nunsigned char compute(unsigned char value) {\n return asm_add(value);\n}\n",
+      "sha256": "99a452a97e43822ab417712cc47e5abc17c9837b9616e634182059b329c3c123"
+    },
+    {
+      "path": "asm/bridge.asm",
+      "text": ".module bridge\n.globl _asm_add\n.globl _shared\n.globl _finish\n.globl _asm_word\n.area CSEG (CODE)\n_asm_add:\n mov a,dpl\n add a,#2\n mov _shared,a\n mov dpl,a\n lcall _finish\n ret\n\n_asm_word:\n mov a,dpl\n add a,#1\n mov dpl,a\n mov a,dph\n addc a,#0\n mov dph,a\n ret\n\n; CODE data is not a source breakpoint, even when bytes resemble opcodes.\n.db 0x00,0x22\n",
+      "sha256": "2333dc5e919edda39544c1d8afafce3a94e5812d988be923c7580ac78ded3e03"
+    },
+    {
+      "path": "include/shared.h",
+      "text": "#ifndef SHARED_H\n#define SHARED_H\nextern volatile __data unsigned char shared;\nunsigned char asm_add(unsigned char value);\nunsigned int asm_word(unsigned int value);\nunsigned char finish(unsigned char value);\nunsigned char compute(unsigned char value);\n#endif\n",
+      "sha256": "38bc8f9c9776b3b7a7b0c550011e0b0880ec200af4a49f7f7fe32c2b10bb8989"
+    }
+  ],
+  "source": "#include \"shared.h\"\nvolatile __data unsigned char shared;\nvolatile __data unsigned int word_result;\nstatic volatile __data unsigned char shadow;\nvoid main(void) {\n shadow=7;\n shared=compute(\n   5);\n word_result=asm_word(0x12ff);\n for (;;) { shadow=shared; }\n}\n",
+  "ihx": ":0300000002004CAF\n:200008000000E2FBEAF2802C0000E0FBEAF08024E6B50202EBF62200E2B50202EBF22200DE\n:20002800E0B50202EBF02230F6E0A88220F5D3EAC6F582228B822230F6E6A88220F5D980EE\n:01004800CFE8\n:0300A5000200490D\n:030049000200A80A\n:1E00A800750B077582051200D18582089012FF1200E185820985830A85080B80FB22DA\n:2000C600AF82750C03E50C2FF582221200D522E5822402F508F5821200C622E5822401F527\n:0A00E60082E5833400F58322002236\n:06007B00E4787FF6D8FDD9\n:200059007900E94400601B7A009000F4780175A000E493F2A308B8000205A0D9F4DAF27559\n:02007900A0FFE6\n:200081007800E84400600A790175A000E4F309D8FC7800E84400600C7900900001E4F0A37D\n:0400A100D8FCD9FAB4\n:0D004C0075810C1200F0E58260030200498E\n:0400F00075820022F3\n:00000001FF\n",
+  "cdb": "M:main\nF:G$main$0_0$0({2}DF,SV:S),C,0,0,0,0,0\nS:G$shared$0_0$0({1}SC:U),E,0,0\nS:G$word_result$0_0$0({2}SI:U),E,0,0\nS:Fmain$shadow$0_0$0({1}SC:U),E,0,0\nS:G$asm_add$0_0$0({2}DF,SC:U),C,0,0\nS:G$asm_word$0_0$0({2}DF,SI:U),C,0,0\nS:G$finish$0_0$0({2}DF,SC:U),C,0,0\nS:G$compute$0_0$0({2}DF,SC:U),C,0,0\nS:G$main$0_0$0({2}DF,SV:S),C,0,0\nM:compute\nF:G$finish$0_0$0({2}DF,SC:U),Z,0,0,0,0,0\nF:G$compute$0_0$0({2}DF,SC:U),Z,0,0,0,0,0\nS:G$shared$0_0$0({1}SC:U),E,0,0\nS:Fcompute$shadow$0_0$0({1}SC:U),E,0,0\nS:Lcompute.compute$value$1_0$7({1}SC:U),R,0,0,[]\nS:G$asm_add$0_0$0({2}DF,SC:U),C,0,0\nS:G$asm_word$0_0$0({2}DF,SI:U),C,0,0\nL:G$shared$0_0$0:8\nL:G$word_result$0_0$0:9\nL:Fmain$shadow$0_0$0:B\nL:Fcompute$shadow$0_0$0:C\nL:A$main$98:0\nL:A$main$102:8\nL:A$main$103:9\nL:A$main$105:A\nL:A$main$106:B\nL:A$main$107:C\nL:A$main$108:D\nL:A$main$109:E\nL:A$main$110:10\nL:A$main$111:11\nL:A$main$113:12\nL:A$main$114:13\nL:A$main$115:14\nL:A$main$116:15\nL:A$main$117:16\nL:A$main$119:18\nL:A$main$120:19\nL:A$main$121:1C\nL:A$main$122:1D\nL:A$main$123:1E\nL:A$main$124:1F\nL:A$main$126:20\nL:A$main$127:21\nL:A$main$128:24\nL:A$main$129:25\nL:A$main$130:26\nL:A$main$131:27\nL:A$main$133:28\nL:A$main$134:29\nL:A$main$135:2C\nL:A$main$136:2D\nL:A$main$137:2E\nL:A$main$141:2F\nL:A$main$142:32\nL:A$main$143:34\nL:A$main$145:37\nL:A$main$146:38\nL:A$main$147:39\nL:A$main$148:3B\nL:A$main$150:3C\nL:A$main$151:3E\nL:A$main$153:3F\nL:A$main$154:42\nL:A$main$155:44\nL:A$main$156:47\nL:A$main$178:49\nL:A$main$171:A5\nL:A$main$204:A8\nL:C$main.c$5$0_0$6:A8\nL:C$main.c$6$1_0$6:A8\nL:G$main$0$0:A8\nL:A$main$207:AB\nL:C$main.c$8$1_0$6:AB\nL:A$main$208:AE\nL:A$main$209:B1\nL:A$main$212:B4\nL:C$main.c$9$1_0$6:B4\nL:A$main$213:B7\nL:A$main$214:BA\nL:A$main$215:BD\nL:A$main$219:C0\nL:C$main.c$10$3_0$8:C0\nL:A$main$220:C3\nL:A$main$225:C5\nL:C$main.c$11$2_0$6:C5\nL:XG$main$0$0:C5\nL:A$compute$115:C6\nL:C$compute.c$3$0_0$6:C6\nL:G$finish$0$0:C6\nL:A$compute$118:C8\nL:C$compute.c$4$1_0$6:C8\nL:A$compute$121:CB\nL:C$compute.c$5$1_0$6:CB\nL:A$compute$122:CD\nL:A$compute$123:CE\nL:A$compute$128:D0\nL:C$compute.c$6$1_0$6:D0\nL:XG$finish$0$0:D0\nL:A$compute$143:D1\nL:C$compute.c$7$1_0$8:D1\nL:C$compute.c$8$1_0$8:D1\nL:G$compute$0$0:D1\nL:A$compute$148:D4\nL:C$compute.c$9$1_0$8:D4\nL:XG$compute$0$0:D4\nL:A$bridge$8:D5\nL:A$bridge$9:D7\nL:A$bridge$10:D9\nL:A$bridge$11:DB\nL:A$bridge$12:DD\nL:A$bridge$13:E0\nL:A$bridge$16:E1\nL:A$bridge$17:E3\nL:A$bridge$18:E5\nL:A$bridge$19:E7\nL:A$bridge$20:E9\nL:A$bridge$21:EB\nL:A$bridge$22:ED\n"
+}
