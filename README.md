@@ -31,7 +31,7 @@ Cloudflare 只托管编译后的 HTML、CSS、JavaScript 等静态应用文件�
 - P0–P3 数字输入，区分端口引脚读取和读改写锁存器语义；
 - 串口模式 0–3、T1/SMOD 波特率推进、REN/TI/RI、独立收发缓冲区和本地串口控制台；
 - PCON 空闲与掉电状态，空闲期间外设继续推进，掉电后可复位；
-- 寄存器、CODE/IRAM/SFR/XRAM 查看和最近 1,000 条指令跟踪；
+- 寄存器、CODE/IRAM/SFR/XRAM 查看和最近 1,000 条指令跟踪；内存支持严格十六进制地址校验、Enter/REFRESH 确认、Escape 取消及 256 字节翻页，寄存器组随 PSW 显示；
 - IndexedDB 完整工作区自动保存、刷新恢复和损坏快照降级恢复；
 - JSON 工作区导出和导入，保存外设及调试设置，导入前校验版本、内存和固件摘要，兼容 v1 工作区；
 - Cloudflare Workers Static Assets 部署配置，无服务端入口和数据绑定；

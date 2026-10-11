@@ -27,3 +27,14 @@
 - 系统 Chromium 151 用于本环境验收；Playwright 浏览器下载被环境网络策略拒绝，Firefox/WebKit 本次未运行。
 - 1440 px 桌面与 375 px 手机界面已检查；静态部署干运行通过，显示 `No bindings found`。
 - 代码按 feature 推送到 `feat/classic-8051-complete`；生产站点未在本次任务部署。
+
+## 2026-10-11：内存浏览可靠性迭代
+
+- 修复地址编辑时旧字节被重新标记为新地址的问题：草稿仅在 Enter 或 REFRESH 后生效，Escape 或离开页面放弃草稿。
+- 完整校验十六进制输入及各内存空间范围；支持可选 `0x` 前缀，非法输入禁止读取。
+- 增加 256 字节前后翻页，边界禁用；读取期间移除旧字节，只有最新请求的结果可更新面板。
+- 哈希导航进入 SYS_MEM 时刷新内存，寄存器组标题根据 PSW.RS1/RS0 显示 BANK0–BANK3。
+- 回归证据：新增 E2E 在修复前分别复现地址错标和 BANK0 固定标题；修复后 192 项单元测试、13 项 Chromium E2E、TypeScript、ESLint 和构建通过。
+- 375/820/1280 px 实际浏览器内存页无页面横向溢出；重复刷新与离页取消草稿专项用例通过。
+- 静态部署干运行通过，输出 `No bindings found`。初次因默认 `/home/agent/.config/.wrangler` 不存在失败，设置 `XDG_CONFIG_HOME=/tmp/emuc51-config` 和 `WRANGLER_LOG_PATH=/tmp/emuc51-wrangler-logs` 后恢复；未执行真实部署。
+- 本轮仅在本地分支 `fix/memory-navigation` 实施；未推送、未创建 PR、未部署。Firefox/WebKit 浏览器未安装，本轮未运行。

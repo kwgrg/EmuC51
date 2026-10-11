@@ -172,3 +172,72 @@ test("移动端调试、GPIO 和内存视图不产生页面横向溢出", async 
   await expect(page.getByRole("button", { name: "导出工作区" })).toBeVisible();
   await expect(page.getByRole("button", { name: "CLEAR_LOCAL" })).toBeVisible();
 });
+
+test("内存地址草稿不重新标记旧数据，支持取消、翻页和边界校验", async ({ page }) => {
+  const bytes = Array.from({ length: 513 }, (_, index) => index === 256 ? 0x42 : 0x11);
+  await load(page, bytes);
+  await navigate(page, "SYS_MEM");
+  const address = page.getByLabel("内存起始地址");
+  const firstRow = page.locator(".memory-row").first();
+  await expect(firstRow).toContainText("11 11");
+  await address.fill("0100");
+  await expect(firstRow.locator(".memory-address")).toHaveText("0000");
+  await address.press("Escape");
+  await expect(address).toHaveValue("0000");
+  await address.fill("0x100");
+  await address.press("Enter");
+  await expect(firstRow.locator(".memory-address")).toHaveText("0100");
+  await expect(firstRow).toContainText("42 11");
+  for (let repeat = 0; repeat < 2; repeat += 1) {
+    await page.getByRole("button", { name: "REFRESH" }).click();
+    await expect(firstRow).toContainText("42 11");
+  }
+  await address.fill("0200");
+  await navigate(page, "BIN_INSPECTOR");
+  await navigate(page, "SYS_MEM");
+  await expect(address).toHaveValue("0100");
+  await expect(firstRow).toContainText("42 11");
+  await page.getByRole("button", { name: "下一页" }).click();
+  await expect(address).toHaveValue("0200");
+  await page.getByRole("button", { name: "上一页" }).click();
+  await expect(firstRow).toContainText("42 11");
+  for (const invalid of ["", "12zz", "10000", "-1"]) {
+    await address.fill(invalid);
+    await expect(address).toHaveAttribute("aria-invalid", "true");
+    await expect(page.getByRole("button", { name: "REFRESH" })).toBeDisabled();
+    await address.press("Enter");
+    await expect(firstRow.locator(".memory-address")).toHaveText("0100");
+  }
+  await page.getByRole("button", { name: "IRAM", exact: true }).click();
+  await expect(address).toHaveValue("0000");
+  await expect(page.getByRole("button", { name: "下一页" })).toBeDisabled();
+  await address.fill("80");
+  await expect(address).toHaveAttribute("aria-invalid", "true");
+  await page.getByRole("button", { name: "SFR", exact: true }).click();
+  await expect(address).toHaveValue("0080");
+  await address.fill("7F");
+  await expect(page.getByRole("button", { name: "REFRESH" })).toBeDisabled();
+  await page.getByRole("button", { name: "XRAM", exact: true }).click();
+  await address.fill("FFFF");
+  await address.press("Enter");
+  await expect(page.locator(".memory-row")).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "下一页" })).toBeDisabled();
+});
+
+test("内存视图按 PSW 显示寄存器组，哈希导航刷新寄存器写入", async ({ page }) => {
+  await load(page, [0]);
+  await navigate(page, "SYS_MEM");
+  await page.getByRole("button", { name: "IRAM", exact: true }).click();
+  await navigate(page, "BIN_INSPECTOR");
+  await page.getByLabel("编辑寄存器").selectOption("PSW");
+  await page.getByLabel("寄存器新值").fill("18");
+  await page.getByRole("button", { name: "写入寄存器" }).click();
+  await expect(page.getByTestId("register-PSW")).toContainText("18");
+  await page.getByLabel("编辑寄存器").selectOption("R0");
+  await page.getByLabel("寄存器新值").fill("AB");
+  await page.getByRole("button", { name: "写入寄存器" }).click();
+  await expect(page.locator(".register-bank")).toContainText("AB");
+  await page.evaluate(() => { window.location.hash = "memory"; });
+  await expect(page.locator(".bank-card .panel-bar")).toContainText("BANK3");
+  await expect(page.locator(".memory-row").filter({ has: page.locator(".memory-address", { hasText: "0010" }) })).toContainText("AB");
+});

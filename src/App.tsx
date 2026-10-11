@@ -13,6 +13,7 @@ import { MAX_HEX_FILE_SIZE, parseFirmware } from "./core/firmware";
 import { disassemble } from "./core/disassembler";
 import { normalizeDebugConfig } from "./core/debugger";
 import { ByteEditor, DebuggerPanel, RegisterEditor, type DebugSettings, type WritableSpace } from "./components/DebuggerPanel";
+import { MemoryNavigation, memoryBounds } from "./components/MemoryNavigation";
 import { GpioControls, SerialControls, TimerStatus } from "./components/PeripheralControls";
 import { exportWorkspace, importWorkspace, MAX_WORKSPACE_IMPORT_BYTES } from "./persistence/transfer";
 import type {
@@ -91,6 +92,7 @@ export default function App() {
   const snapshotRef = useRef<CpuSnapshot | undefined>(undefined);
   const settingsRef = useRef<WorkspaceSettings>(DEFAULT_SETTINGS);
   const memoryAddressRef = useRef(0);
+  const memoryRequestRef = useRef(0);
   const exportRequestRef = useRef<number | undefined>(undefined);
   const firmwareRequestRef = useRef(0);
   const fileActionRef = useRef(0);
@@ -176,12 +178,12 @@ export default function App() {
   const requestMemory = useCallback(() => {
     if (!firmwareRef.current) return;
     const space = settingsRef.current.selectedMemorySpace;
-    const minimum = space === "sfr" ? 0x80 : 0;
-    const maximum = space === "iram" ? 0x7f : space === "sfr" ? 0xff : 0xffff;
+    const [minimum, maximum] = memoryBounds(space);
     const address = Math.max(minimum, Math.min(maximum, memoryAddressRef.current));
     memoryAddressRef.current = address;
     setMemoryAddress(address);
-    postCommand({
+    setMemoryBytes(new Uint8Array());
+    memoryRequestRef.current = postCommand({
       type: "ReadMemory",
       space,
       address,
@@ -194,9 +196,8 @@ export default function App() {
       setActiveView(view);
       const nextHash = view === "home" ? "" : `#${view}`;
       window.history.replaceState(null, "", `${window.location.pathname}${nextHash}`);
-      if (view === "memory") setTimeout(requestMemory, 0);
     },
-    [requestMemory],
+    [],
   );
 
   const handleWorkerEvent = useCallback(
@@ -226,7 +227,7 @@ export default function App() {
           setTrace((current) => [...current, ...event.trace].slice(-1000));
           break;
         case "MemoryData":
-          if (event.space === settingsRef.current.selectedMemorySpace && event.address === memoryAddressRef.current) setMemoryBytes(event.bytes);
+          if (event.requestId === memoryRequestRef.current && event.space === settingsRef.current.selectedMemorySpace && event.address === memoryAddressRef.current) setMemoryBytes(event.bytes);
           break;
         case "SnapshotCreated":
           void persistSnapshot(event.snapshot);
@@ -346,6 +347,10 @@ export default function App() {
     window.addEventListener("hashchange", syncView);
     return () => window.removeEventListener("hashchange", syncView);
   }, []);
+
+  useEffect(() => {
+    if (activeView === "memory") requestMemory();
+  }, [activeView, requestMemory]);
 
   useEffect(() => {
     const saveOnHide = () => {
@@ -534,16 +539,12 @@ export default function App() {
     memoryAddressRef.current = nextAddress;
     setMemoryAddress(nextAddress);
     updateSettings({ ...settingsRef.current, selectedMemorySpace: space });
-    setTimeout(requestMemory, 0);
+    requestMemory();
   };
 
-  const updateMemoryAddress = (value: string): void => {
-    const parsed = Number.parseInt(value.replace(/^0x/i, ""), 16);
-    const next = Number.isFinite(parsed)
-      ? Math.max(0, Math.min(0xffff, parsed))
-      : 0;
-    memoryAddressRef.current = next;
-    setMemoryAddress(next);
+  const updateMemoryAddress = (address: number): void => {
+    memoryAddressRef.current = address;
+    requestMemory();
   };
 
   const portValues = useMemo(
@@ -620,7 +621,6 @@ export default function App() {
               iramBytes={iramBytes}
               memoryAddress={memoryAddress}
               memoryBytes={memoryBytes}
-              requestMemory={requestMemory}
               settings={settings}
               chooseMemorySpace={chooseMemorySpace}
               updateMemoryAddress={updateMemoryAddress}
@@ -1104,7 +1104,6 @@ function MemoryView({
   iramBytes,
   memoryAddress,
   memoryBytes,
-  requestMemory,
   settings,
   updateMemoryAddress,
   running,
@@ -1117,9 +1116,8 @@ function MemoryView({
   iramBytes: Uint8Array<ArrayBufferLike>;
   memoryAddress: number;
   memoryBytes: Uint8Array<ArrayBufferLike>;
-  requestMemory: () => void;
   settings: WorkspaceSettings;
-  updateMemoryAddress: (value: string) => void;
+  updateMemoryAddress: (address: number) => void;
   running: boolean;
   restoring: boolean;
   writeMemory: (space: WritableSpace, address: number, value: number) => void;
@@ -1139,15 +1137,9 @@ function MemoryView({
               </button>
             ))}
           </div>
-          <label>
-            GOTO:
-            <input
-              aria-label="内存起始地址"
-              value={hex16(memoryAddress)}
-              onChange={(event) => updateMemoryAddress(event.target.value)}
-            />
-          </label>
-          <button onClick={requestMemory} disabled={!firmware}>REFRESH</button>
+          <MemoryNavigation key={`${settings.selectedMemorySpace}:${memoryAddress}`}
+            space={settings.selectedMemorySpace} address={memoryAddress}
+            disabled={!firmware || restoring} onNavigate={updateMemoryAddress} />
         </div>
         <ByteEditor key={settings.selectedMemorySpace} space={settings.selectedMemorySpace} disabled={!firmware || running || restoring} onWrite={writeMemory} />
         <MemoryDump start={memoryAddress} bytes={memoryBytes} />
@@ -1170,7 +1162,7 @@ function MemoryView({
         </div>
       </TerminalPanel>
 
-      <TerminalPanel className="bank-card" title="REGISTER_BANK" bits={[cpuState ? "BANK0" : "OFF"]}>
+      <TerminalPanel className="bank-card" title="REGISTER_BANK" bits={[cpuState ? `BANK${(cpuState.psw >> 3) & 3}` : "OFF"]}>
         <div className="register-bank large">
           {(cpuState?.registers ?? Array(8).fill(0)).map((value, index) => (
             <span key={index}>R{index}<strong>{hex8(value)}</strong></span>

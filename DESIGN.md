@@ -108,7 +108,7 @@ Use the workbench composition: firmware pane, disassembled instructions and trac
 
 ### SYS_MEM
 
-Give the memory dump the largest area. Keep CODE/IRAM/SFR/XRAM tabs, address navigation, byte editing while stopped, IRAM preview, watch values, and the register bank visible in adjacent terminal panes. CODE remains read-only.
+Give the memory dump the largest area. Keep CODE/IRAM/SFR/XRAM tabs, address navigation, byte editing while stopped, IRAM preview, watch values, and the register bank visible in adjacent terminal panes. CODE remains read-only. Address drafts apply on Enter/REFRESH and cancel on Escape or leaving the view; invalid or out-of-range hex input disables submission. Page controls move by 256 bytes and disable at memory boundaries. Register bank status follows PSW.RS1/RS0.
 
 ### I/O_PORTS
 

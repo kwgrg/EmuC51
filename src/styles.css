@@ -933,3 +933,6 @@ select:focus-visible { outline: 1px solid var(--primary); outline-offset: 2px; }
     transition-duration: 0.01ms !important;
   }
 }
+
+.memory-navigation { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-left: auto; }
+.memory-navigation input[aria-invalid="true"] { border-color: var(--error); }
