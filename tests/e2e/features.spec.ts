@@ -429,6 +429,11 @@ test("Watch 表达式独立报错、刷新、取消、导航和重新载入", as
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: `/tmp/emuc51-watch-${width}.png`, fullPage: true });
   }
+  // The fixed-height desktop panel must scroll its last row into view.
+  await page.getByLabel("删除观察 CODE[0]", { exact: true }).click();
+  const watchPanel = page.locator(".watch-card .panel-body");
+  expect(await watchPanel.evaluate(node => getComputedStyle(node).overflowY)).toBe("auto");
+  await expect(page.getByTestId("watch-expression-row")).toHaveCount(2);
   await page.setViewportSize({ width: 375, height: 900 });
   await page.getByLabel("删除观察 ACC", { exact: true }).click();
   await input.fill("SP");
