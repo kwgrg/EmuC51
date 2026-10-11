@@ -13,7 +13,7 @@ it("hides stale source immediately and ignores out-of-order verification complet
   const { result, rerender } = renderHook(({ data }) => useSdccDebug(data, bytes), { initialProps: { data: first } });
   expect(result.current.checking).toBe(true);
   rerender({ data: second });
-  const verified = { data: second, firmware: bytes, firmwareSha256: "hash", symbols: [], locations: [] };
+  const verified = { data: second, firmware: bytes, firmwareSha256: "hash", symbols: [], functions: [], locations: [] };
   await act(async () => pending[1]!(verified));
   expect(result.current.verified).toBe(verified);
   await act(async () => pending[0]!({ ...verified, data: first }));

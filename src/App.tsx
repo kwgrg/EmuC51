@@ -1,3 +1,4 @@
+import { nameCallEntry, type CdbFunction } from "./core/cdb-functions";
 import { SdccSymbolsPanel, symbolBindingToken, type SymbolSample } from "./components/SdccSymbolsPanel";
 import { symbolByteExpressions } from "./core/cdb-symbols";
 import { InputScenarioPanel } from "./components/InputScenarioPanel";
@@ -901,6 +902,7 @@ export default function App() {
             <WorkbenchView
               key={workspaceGeneration}
               asmBlocked={asmBlocked}
+              cdbFunctions={sdcc.verified && !sdcc.checking && !sdccImporting && !restoring ? sdcc.verified.functions : undefined}
               sdccPanel={onBrowseAddress => <><SdccSourcePanel verified={sdcc.verified} checking={sdcc.checking || sdccImporting} error={sdcc.error}
                 disabled={running || restoring || sdccImporting} pc={cpuState?.pc} config={settings.debugger ?? { breakpoints: [], watchpoints: [] }}
                 onCancelImport={sdccImporting ? () => { fileActionRef.current += 1; setSdccImporting(false); setNotice("已取消 SDCC 导入"); } : undefined}
@@ -1213,7 +1215,7 @@ interface ControlActions {
 }
 
 function WorkbenchView({
-  asmPanel, asmBlocked, sdccPanel,
+  asmPanel, asmBlocked, sdccPanel, cdbFunctions,
   coverageReport, coverageReportPending, requestCoverageReport,
   coverage, coverageSample, readCoverage, setCoverageEnabled, clearCoverage,
   controls,
@@ -1235,6 +1237,7 @@ function WorkbenchView({
   onFileChange,
   clearLocal,
 }: {
+  cdbFunctions?: CdbFunction[];
   sdccPanel: (onBrowseAddress: (address: number) => void) => ReactNode;
   asmPanel: (onBrowseAddress: (address: number) => void) => ReactNode;
   asmBlocked: boolean;
@@ -1381,11 +1384,17 @@ function WorkbenchView({
         <div className="call-stack-list" data-testid="call-stack">
           <p>{cpuState?.callStack.reason ?? (cpuState ? "从复位开始追踪；仅显示机器级调用帧" : "加载固件后开始追踪")}</p>
           {cpuState?.callStack.frames.length === 0 && <p>没有已知调用帧</p>}
-          {cpuState?.callStack.frames.slice().reverse().map((frame) => <div key={frame.id} data-testid="call-frame">
+          {cpuState?.callStack.frames.slice().reverse().map((frame) => {
+            const named = cdbFunctions ? nameCallEntry(cdbFunctions, frame.entryAddress) : undefined;
+            return <div key={frame.id} data-testid="call-frame">
             <strong>{frame.kind === "interrupt" ? `ISR ${frame.source}` : "CALL"} {hex16(frame.entryAddress)}</strong>
+            {named && <span data-testid="frame-function">历史入口：{named.label}{named.definition && <button disabled={running || restoring} aria-label={`查看函数 ${named.definition.name} 入口汇编`} onClick={() => {
+              setInstructionNavigation({ address: frame.entryAddress });
+              document.querySelector(".source-view")?.scrollIntoView({ block: "start" });
+            }}>入口汇编</button>}</span>}
             <span>来自 {hex16(frame.callAddress)} → 返回 {hex16(frame.returnAddress)} · SP {hex8(frame.stackSp)}</span>
-          </div>)}
-          <small>历史仅保留于本次运行；刷新/导入后早期帧未知。跳出遵循执行预算，可暂停。</small>
+          </div>; })}
+          <small>名称仅注释历史机器入口；尾调用不会新增帧，中断向量不猜测 ISR 名称。历史仅保留于本次运行；刷新/导入后早期帧未知。跳出遵循执行预算，可暂停。</small>
         </div>
       </TerminalPanel>
 

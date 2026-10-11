@@ -1,3 +1,4 @@
+import { parseCdbFunctions, type CdbFunction } from "./cdb-functions";
 import { parseCdbSymbols, type CdbSymbol } from "./cdb-symbols";
 import { parseFirmware } from "./firmware";
 import { sha256Hex } from "./digest";
@@ -19,7 +20,7 @@ export interface SdccManifest {
 export interface SdccDebugData { manifest: SdccManifest; source: string; ihx: string; cdb: string }
 export interface SourceLocation { line: number; address: number }
 export interface VerifiedSdccDebug {
-  data: SdccDebugData; firmware: ArrayBuffer; firmwareSha256: string; locations: SourceLocation[]; symbols: CdbSymbol[];
+  data: SdccDebugData; firmware: ArrayBuffer; firmwareSha256: string; locations: SourceLocation[]; symbols: CdbSymbol[]; functions: CdbFunction[];
 }
 const invalid = (message: string): never => { throw new Error(`SDCC 导入：${message}`); };
 const object = (value: unknown): value is Record<string, unknown> => Boolean(value && typeof value === "object" && !Array.isArray(value));
@@ -99,7 +100,8 @@ export async function verifySdccDebug(value: unknown, currentFirmware?: ArrayBuf
   if (currentFirmware && await sha256Hex(currentFirmware) !== firmwareSha256) return invalid("调试文件与当前固件不匹配");
   const locations = parseCdbLines(data.cdb, data.manifest.files.source.name, data.source, new Uint8Array(firmware));
   const symbols=parseCdbSymbols(data.cdb,data.manifest.files.source.name.replace(/\.c$/,""),firmware.byteLength);
-  return { data, firmware, firmwareSha256, locations, symbols };
+  const functions = parseCdbFunctions(data.cdb, data.manifest.files.source.name.replace(/\.c$/, ""), new Uint8Array(firmware));
+  return { data, firmware, firmwareSha256, locations, symbols, functions };
 }
 
 export function toggleSourceBreakpoints(config: DebugConfig, addresses: number[]): DebugConfig {

@@ -19,7 +19,7 @@ Cloudflare 只托管编译后的 HTML、CSS、JavaScript 等静态应用文件�
 
 ## 已实现能力
 
-- [可信符号浏览与只读观察](docs/VERIFIED_SYMBOLS.md)：真实 ASM CODE 标签定位/导航/断点；固定 SDCC CDB 静态全局存储的有界原始字节观察，保留完整身份和来源，不猜局部变量或类型值。
+- [可信符号浏览与只读观察](docs/VERIFIED_SYMBOLS.md)：真实 ASM CODE 标签定位/导航/断点；固定 SDCC CDB 静态全局存储的有界原始字节观察，保留完整身份和来源，附严格 C 函数历史入口命名，不猜局部变量或类型值。
 
 - [GPIO/UART 输入场景重放](docs/INPUT_SCENARIOS.md)：有界声明式 JSON、固件摘要绑定、干净复位、稳定周期投递、取消及目标/实际周期时间线；附 Timer/INT0/UART 回显示例，刷新不自动启用。
 

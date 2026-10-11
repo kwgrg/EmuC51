@@ -5,7 +5,7 @@ import {parseCdbSymbols} from "../../src/core/cdb-symbols";
 import {sdccFixture} from "../fixtures/sdcc-fixture";
 afterEach(cleanup);
 const data=sdccFixture("symbols","sdcc-symbols");
-const verified={data,firmware:new ArrayBuffer(256),firmwareSha256:"a".repeat(64),locations:[],symbols:parseCdbSymbols(data.cdb,"symbols",256)};
+const verified={data,firmware:new ArrayBuffer(256),firmwareSha256:"a".repeat(64),locations:[],functions:[],symbols:parseCdbSymbols(data.cdb,"symbols",256)};
 it("keeps ambiguous names qualified, unsupported rows unavailable and samples bound",()=>{
   const read=vi.fn(),browse=vi.fn();const p={verified,disabled:false,onRead:read,onBrowse:browse};
   const {rerender}=render(<SdccSymbolsPanel {...p}/>);
