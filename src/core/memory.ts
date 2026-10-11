@@ -40,6 +40,29 @@ const BIT_ADDRESSABLE_SFR = new Set<number>([
   SFR.B,
 ]);
 
+export function resolveBitAddress(address: number): [number, number, "iram" | "sfr"] {
+  const bitAddress = u8(address);
+  if (bitAddress < 0x80) {
+    return [0x20 + (bitAddress >> 3), bitAddress & 7, "iram"];
+  }
+  const sfrAddress = bitAddress & 0xf8;
+  if (!DEFINED_SFR.has(sfrAddress)) {
+    throw new EmulatorFault({
+      code: "UNDEFINED_SFR",
+      address: sfrAddress,
+      message: `位地址映射到未定义 SFR：0x${sfrAddress.toString(16)}`,
+    });
+  }
+  if (!BIT_ADDRESSABLE_SFR.has(sfrAddress)) {
+    throw new EmulatorFault({
+      code: "NON_BIT_ADDRESSABLE_SFR",
+      address: sfrAddress,
+      message: `SFR 0x${sfrAddress.toString(16)} 不支持位寻址`,
+    });
+  }
+  return [sfrAddress, bitAddress & 7, "sfr"];
+}
+
 export interface MemoryPeripheralHooks {
   readSfr(address: number): number | undefined;
   beforeWriteSfr?(address: number, value: number): void;
@@ -153,28 +176,7 @@ export class Memory8051 {
     this.debugWrite?.("iram", address);
   }
 
-  resolveBit(address: number): [number, number, "iram" | "sfr"] {
-    const bitAddress = u8(address);
-    if (bitAddress < 0x80) {
-      return [0x20 + (bitAddress >> 3), bitAddress & 7, "iram"];
-    }
-    const sfrAddress = bitAddress & 0xf8;
-    if (!DEFINED_SFR.has(sfrAddress)) {
-      throw new EmulatorFault({
-        code: "UNDEFINED_SFR",
-        address: sfrAddress,
-        message: `位地址映射到未定义 SFR：0x${sfrAddress.toString(16)}`,
-      });
-    }
-    if (!BIT_ADDRESSABLE_SFR.has(sfrAddress)) {
-      throw new EmulatorFault({
-        code: "NON_BIT_ADDRESSABLE_SFR",
-        address: sfrAddress,
-        message: `SFR 0x${sfrAddress.toString(16)} 不支持位寻址`,
-      });
-    }
-    return [sfrAddress, bitAddress & 7, "sfr"];
-  }
+  resolveBit(address: number): [number, number, "iram" | "sfr"] { return resolveBitAddress(address); }
 
   readBit(address: number, latch = false): boolean {
     const [byteAddress, bit, space] = this.resolveBit(address);

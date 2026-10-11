@@ -24,7 +24,7 @@ describe("工作区 JSON 导入导出", () => {
         rxFrame: { value: 0x5a, mode: 1, progress: 20, ninthBit: false },
       },
     };
-    record.settings.debugger!.accessWatchpoints = [{ space: "data", address: 0x20, access: "readwrite" }, { space: "idata", address: 0x20, access: "read" }, { space: "xdata", address: 0xffff, access: "write" }, { space: "sfr", address: 0x90, access: "readwrite" }];
+    record.settings.debugger!.accessWatchpoints = [{ space: "bit", address: 0x90, access: "readwrite" }, { space: "data", address: 0x20, access: "readwrite" }, { space: "idata", address: 0x20, access: "read" }, { space: "xdata", address: 0xffff, access: "write" }, { space: "sfr", address: 0x90, access: "readwrite" }];
     record.settings.debugger!.breakpointOptions = [{ address: 2, enabled: false, hitCount: 5, condition: "ACC == 0x42" }];
     record.cpu.iram[0x20] = 0x77;
     record.settings.watchExpressions = ["ACC", "XRAM[0x1234]", "1/0"];

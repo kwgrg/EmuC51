@@ -159,3 +159,5 @@ ASM 工作台作为 BIN_INSPECTOR 下方独立面板，保留原二进制调试�
 ## CPU 字节操作数访问观察点（2026-10-11）
 
 独立 OperandMemory 适配器仅用于 CPU 显式字节操作数，避免全局 Memory 钩子混入 UI、表达式、验证或外设访问。按需捕获有序事件，Worker 在指令后匹配可选 `accessWatchpoints`；旧值变化观察点保持原行为。工作区 v4 可选字段，CPU v2 不变；配置最多 128 项。实现边界和验证见 [功能说明](docs/CPU_OPERAND_WATCHPOINTS.md)。
+
+位访问扩展：共享核心位地址解析，BIT 观察点独立于字节观察点；显式位读写携带映射位置和读来源，CPL/JBC 保留锁存器读改写顺序。UI/隐式 flags/底层保留其他位的读不生成显式访问。工作区 v4 和 CPU v2 保持不变，新增核心、Worker、浏览器回归；最终执行完整聚合检查。

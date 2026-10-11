@@ -1,4 +1,4 @@
-import type { OperandAccess, OperandWatchpoint } from "./operand-access";
+import { operandBitLocation, type OperandAccess, type OperandSpace, type OperandWatchpoint } from "./operand-access";
 import { MAX_EXPRESSION_LENGTH } from "./expressions";
 import { SFR } from "./memory";
 import { EmulatorFault, type StopReason } from "./types";
@@ -94,6 +94,16 @@ export const removeBreakpoint = (config: DebugConfig, address: number): DebugCon
 });
 
 /** Validate the whole replacement before changing any active debugger state. */
+export const assertOperandAddress = (space: OperandSpace, address: number): void => {
+  if (space === "bit") {
+    assertDebugAddress(address);
+    if (address > 0xff) invalid("位地址必须在 00–FF 范围内");
+    operandBitLocation(address);
+  } else {
+    assertWritableAddress(space === "data" || space === "idata" ? "iram" : space === "xdata" ? "xram" : "sfr", address);
+  }
+};
+
 export const normalizeDebugConfig = (config: DebugConfig): DebugConfig => {
   if (
     !config ||
@@ -123,8 +133,8 @@ export const normalizeDebugConfig = (config: DebugConfig): DebugConfig => {
   if (config.accessWatchpoints !== undefined) {
     if (!Array.isArray(config.accessWatchpoints) || config.accessWatchpoints.length > 128) invalid("CPU 访问观察点最多 128 个");
     for (const point of config.accessWatchpoints) {
-      if (!point || !["data", "idata", "xdata", "sfr"].includes(point.space) || !["read", "write", "readwrite"].includes(point.access)) invalid("CPU 访问空间或读写类型无效");
-      assertWritableAddress(point.space === "data" || point.space === "idata" ? "iram" : point.space === "xdata" ? "xram" : "sfr", point.address);
+      if (!point || !["data", "idata", "xdata", "sfr", "bit"].includes(point.space) || !["read", "write", "readwrite"].includes(point.access)) invalid("CPU 访问空间或读写类型无效");
+      assertOperandAddress(point.space, point.address);
       accessWatchpoints.set(`${point.space}:${point.address}:${point.access}`, { space: point.space, address: point.address, access: point.access });
     }
   }

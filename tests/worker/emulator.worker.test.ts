@@ -850,3 +850,32 @@ describe("explicit byte operand access watches", () => {
     send({type:"Step",trace:false});expect(stopped().reason).toBe("OperandWatchpoint");
   });
 });
+
+describe("explicit bit operand watches", () => {
+  it("preserves pin/latch reads, RMW ordering, same-value writes and instruction PCs through execution controls", () => {
+    load(0xa2,0x90,0xb2,0x90,0xc2,0x90,0x10,0x90,0,0x80,0xfe);
+    send({type:"SetDebugConfig",breakpoints:[],watchpoints:[],accessWatchpoints:[{space:"bit",address:0x90,access:"readwrite"},{space:"sfr",address:0x90,access:"readwrite"}]});
+    send({type:"SetPortInput",port:1,value:0});
+    send({type:"Run",maxSteps:20,trace:false});vi.runAllTimers();
+    expect(stopped()).toMatchObject({reason:"OperandWatchpoint",state:{pc:2},accesses:[{space:"bit",address:0x90,pc:0,kind:"read",value:0,bit:{byteSpace:"sfr",byteAddress:0x90,index:0,readSource:"pins"}}]});
+    send({type:"StepOver",maxSteps:20,trace:false});vi.runAllTimers();
+    expect(stopped()).toMatchObject({reason:"OperandWatchpoint",state:{pc:4},accesses:[{pc:2,kind:"read",value:1,bit:{readSource:"latch"}},{pc:2,kind:"write",value:0}]});
+    send({type:"RunToAddress",address:9,maxSteps:20,trace:false});vi.runAllTimers();
+    expect(stopped()).toMatchObject({state:{pc:6},accesses:[{pc:4,kind:"write",value:0}]});
+    send({type:"Step",trace:false}); expect(stopped().accesses).toHaveLength(1);
+    expect(stopped()).toMatchObject({state:{pc:9},accesses:[{pc:6,kind:"read",value:0}]});
+    send({type:"Step",trace:false}); expect(stopped().reason).toBe("StepComplete");
+  });
+  it("does not treat byte writes or implicit flags as bit access and retains valid watches after invalid replacements", () => {
+    load(0x75,0x20,1,0x74,0xff,0x24,1,0xd3,0xa2,0,0x80,0xfe);
+    send({type:"SetDebugConfig",breakpoints:[],watchpoints:[],accessWatchpoints:[{space:"bit",address:0,access:"readwrite"},{space:"bit",address:0xd7,access:"write"}]});
+    send({type:"SetDebugConfig",breakpoints:[],watchpoints:[],accessWatchpoints:[{space:"bit",address:0xc0,access:"write"}]});
+    expect(events.at(-1)?.type).toBe("CommandRejected");
+    send({type:"Run",maxSteps:20,trace:false});vi.runAllTimers();
+    expect(stopped()).toMatchObject({reason:"OperandWatchpoint",state:{pc:10,steps:5},accesses:[{pc:8,space:"bit",address:0,kind:"read",value:1,bit:{byteSpace:"data",byteAddress:0x20,index:0}}]});
+    expect(stopped().accesses).toHaveLength(1);
+    const snapshot=stopped().snapshot;
+    send({type:"RestoreWorkspace",name:"bits.bin",bytes:Uint8Array.from([0xa2,0]).buffer,snapshot:{...snapshot,pc:0}});
+    send({type:"Step",trace:false}); expect(stopped()).toMatchObject({reason:"OperandWatchpoint",accesses:[{pc:0,space:"bit",address:0,kind:"read",value:1}]});
+  });
+});

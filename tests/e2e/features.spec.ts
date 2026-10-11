@@ -838,3 +838,60 @@ test("CPU 字节访问：同值写入、RMW 顺序、持久化、校验及响应
   await page.getByRole("button", { name: "暂停" }).click();
   await expect(add).toBeEnabled();
 });
+
+test("BIT 访问区分引脚与锁存器，记录分支读改写并保存配置", async ({ page }) => {
+  await load(page,[0xa2,0x90,0xb2,0x90,0xd2,0x90,0x10,0x90,0,0x10,0x90,0,0xc2,0,0x80,0xfe]);
+  await navigate(page,"I/O_PORTS");
+  await page.getByRole("button",{name:"P1.0 外部输入",exact:true}).click();
+  await navigate(page,"BIN_INSPECTOR");
+  const add=page.getByRole("button",{name:"添加 CPU 访问观察点",exact:true});
+  await page.getByLabel("CPU 访问空间").selectOption("bit");
+  const address=page.getByLabel("CPU 访问地址",{exact:true});
+  await address.fill("C0"); await expect(add).toBeDisabled();
+  await address.fill("100"); await expect(add).toBeDisabled();
+  await address.press("Escape"); await expect(address).toHaveValue("20");
+  await expect(page.getByTestId("operand-bit-location")).toHaveText("位地址 0020 → DATA 0024.0");
+  await address.fill("90");
+  await expect(page.getByTestId("operand-bit-location")).toHaveText("位地址 0090 → SFR 0090.0");
+  await add.click(); await expect(add).toBeDisabled();
+  await page.locator(".control-strip").getByRole("button",{name:"运行"}).click();
+  await expect(page.locator(".footer-status")).toContainText("PC=0000 BIT 0090 (SFR 0090.0) 读=0 [引脚]");
+  await expect(page.getByTestId("register-PC")).toContainText("0002");
+  await expect(page.getByRole("main")).toHaveAttribute("data-save-state","saved");
+  await page.reload();
+  await expect(page.getByRole("button",{name:"删除 CPU 访问观察点 BIT 0090 读写",exact:true})).toBeVisible();
+  await page.getByRole("button",{name:"单步"}).click();
+  await expect(page.locator(".footer-status")).toContainText("PC=0002 BIT 0090 (SFR 0090.0) 读=1 [锁存器] → PC=0002 BIT 0090 (SFR 0090.0) 写=0");
+  await page.getByRole("button",{name:"单步"}).click();
+  await expect(page.locator(".footer-status")).toContainText("PC=0004 BIT 0090 (SFR 0090.0) 写=1");
+  await page.getByRole("button",{name:"单步"}).click();
+  await expect(page.locator(".footer-status")).toContainText("PC=0006 BIT 0090 (SFR 0090.0) 读=1 [锁存器] → PC=0006 BIT 0090 (SFR 0090.0) 写=0");
+  await expect(page.getByTestId("register-PC")).toContainText("0009");
+  for(const width of [375,820,1280]) {
+    await page.setViewportSize({width,height:900});
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    await page.screenshot({path:`/tmp/emuc51-bit-${width}.png`,fullPage:true});
+  }
+  await page.getByRole("button",{name:"单步"}).click();
+  await expect(page.locator(".footer-status")).toHaveText("CPU 操作数访问后暂停 · PC=0009 BIT 0090 (SFR 0090.0) 读=0 [锁存器]");
+  const download=page.waitForEvent("download"); await page.getByRole("button",{name:"导出工作区"}).click();
+  const json=JSON.parse(await readFile((await (await download).path())!,"utf8"));
+  expect(json.settings.debugger.accessWatchpoints).toEqual([{space:"bit",address:0x90,access:"readwrite"}]);
+  await page.getByRole("button",{name:"删除 CPU 访问观察点 BIT 0090 读写",exact:true}).click();
+  await expect(page.getByRole("button",{name:"删除 CPU 访问观察点 BIT 0090 读写",exact:true})).toHaveCount(0);
+});
+
+test("BIT 与原字节观察点独立，同值位写入仍暂停", async ({ page }) => {
+  await load(page,[0xc2,0,0xd2,0,0x75,0x20,1,0x80,0xfe]);
+  const add=page.getByRole("button",{name:"添加 CPU 访问观察点",exact:true});
+  await add.click();
+  await page.locator(".control-strip").getByRole("button",{name:"运行"}).click();
+  await expect(page.locator(".footer-status")).toContainText("PC=0004 DATA 0020 写=01");
+  await page.getByLabel("CPU 访问空间").selectOption("bit");
+  await page.getByLabel("CPU 访问地址",{exact:true}).fill("0");
+  await page.getByLabel("CPU 访问类型").selectOption("write"); await add.click();
+  await page.getByRole("button",{name:"复位"}).click();
+  await page.locator(".control-strip").getByRole("button",{name:"运行"}).click();
+  await expect(page.locator(".footer-status")).toHaveText("CPU 操作数访问后暂停 · PC=0000 BIT 0000 (DATA 0020.0) 写=0");
+  await expect(page.getByTestId("register-PC")).toContainText("0002");
+});

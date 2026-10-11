@@ -41,8 +41,8 @@ it("keeps byte exchange and PUSH/POP operands but excludes implicit stack traffi
   machine.step(); expect(machine.operandAccesses.map(item=>[item.space,item.kind,item.value])).toEqual([["idata","read",0x23],["idata","write",0x91]]);
   machine.step(); expect(machine.operandAccesses.map(item=>[item.kind,item.value])).toEqual([["read",0x91],["write",0x93]]);
 });
-it("excludes UI/editor, expression, validation, bit operands, parity, timers and interrupt entry", () => {
-  const machine = cpu(0x00,0xd2,0,0x74,1);
+it("excludes UI/editor, expression, validation, implicit carry, parity, timers and interrupt entry", () => {
+  const machine = cpu(0x00,0xd3,0x74,1);
   machine.memory.writeDirect(SFR.TMOD,1); machine.memory.writeDirect(SFR.TCON,0x10);
   machine.readMemory("sfr",0x80,128); machine.writeMemory("iram",0x20,4); machine.state(); machine.snapshot();
   expect(evaluateExpression(machine,"IRAM[0x20] + ACC")).toBe(4);

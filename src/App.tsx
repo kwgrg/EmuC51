@@ -346,7 +346,7 @@ export default function App() {
             setNotice(event.reason === "StepLimitReached" ? "已达到本次运行步数上限"
               : event.reason === "BreakpointConditionError" ? `条件求值失败 · PC=${hex16(event.state.pc)}`
               : event.reason === "Breakpoint" ? `断点暂停 · PC=${hex16(event.state.pc)}`
-              : event.reason === "OperandWatchpoint" ? `CPU 字节操作数访问后暂停 · ${(event.accesses ?? []).map(item => `PC=${hex16(item.pc)} ${item.space.toUpperCase()} ${hex16(item.address)} ${item.kind === "read" ? "读" : "写"}=${hex8(item.value)}`).join(" → ")}`
+              : event.reason === "OperandWatchpoint" ? `CPU 操作数访问后暂停 · ${(event.accesses ?? []).map(item => `PC=${hex16(item.pc)} ${item.space.toUpperCase()} ${hex16(item.address)}${item.bit ? ` (${item.bit.byteSpace.toUpperCase()} ${hex16(item.bit.byteAddress)}.${item.bit.index})` : ""} ${item.kind === "read" ? "读" : "写"}=${item.bit ? item.value : hex8(item.value)}${item.bit?.readSource ? ` [${{ pins: "引脚", latch: "锁存器", memory: "存储位" }[item.bit.readSource]}]` : ""}`).join(" → ")}`
               : event.reason === "Watchpoint" ? `监视点暂停 · ${event.watchpoint?.space.toUpperCase()} ${hex16(event.watchpoint?.address ?? 0)}`
               : event.reason === "RunToAddress" ? `已运行至地址 ${hex16(event.state.pc)}`
               : event.reason === "PowerDown" ? "CPU 已进入掉电模式；复位后继续执行"

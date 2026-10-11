@@ -17,7 +17,7 @@
 | Run to Cursor / 指令行 [2][3] | 已实现 | 原有运行至地址；本批增加指令行“运行至此”，使用同一预算、断点及 Worker 机制 | E2E 行操作、目标为当前 PC 的重复执行、断点优先级由 Worker 测试验证 |
 | 地址断点 [4] | 已实现 | 地址增删、继续时一次跳过当前断点、配置保存；本批增加反汇编行切换与状态同步 | `tests/core/debugger.test.ts`、Worker 和 E2E：重复切换、命中、恢复、刷新后保留 |
 | 高级断点 [4] | 部分实现 | 已有启用/禁用、只读整数条件和每 N 次真条件命中（1–100,000,000）；尚无命中时命令；单类最多 1024 项 | Debugger/Worker 测试覆盖循环、暂停、步过、idle/中断；持久化测试验证 v1/v2→v3；E2E 验证启停、阈值、复位和导入导出 |
-| 访问观察点 [4] | 部分实现 | 新增 DATA/IDATA/XDATA/SFR 显式字节读写（含同值写入、RMW 顺序和指令 PC）；旧值变化观察点保留。尚无位/隐式寄存器/栈/CODE 总线访问跟踪 | [范围与语义](CPU_OPERAND_WATCHPOINTS.md)；核心、Worker、持久化和 Chromium E2E |
+| 访问观察点 [4] | 部分实现 | 新增 DATA/IDATA/XDATA/SFR 显式字节及 BIT 位读写（含同值写入、RMW 顺序和指令 PC）；旧值变化观察点保留。尚无隐式寄存器/栈/CODE 总线访问跟踪 | [范围与语义](CPU_OPERAND_WATCHPOINTS.md)；核心、Worker、持久化和 Chromium E2E |
 | Watch 与表达式 [7] | 部分实现 | 支持可添加的只读整数表达式、寄存器/SFR 与显式内存空间；没有类型变量或源码符号解析 | `expressions.test.ts`、Worker/组件及 E2E 覆盖语法、边界、空间隔离、无副作用和导航；详见 [语法说明](WATCH_EXPRESSIONS.md) |
 | DATA/IDATA/XDATA/CODE/SFR [8] | 部分实现 | 核心区分直接/间接寻址；IRAM 128B、XRAM/CODE 64KiB、经典 SFR；UI 提供 IRAM/SFR/XRAM/CODE；没有 KEIL 内存类型前缀表达式 | `tests/core/memory.test.ts`、CPU/操作码测试；后续表达式映射不得把 direct SFR 当成 indirect IRAM，不启用 8052 高 128B |
 | 内存与寄存器窗口 | 已实现 | 暂停编辑、地址确认/取消/翻页、PSW 选组、最新内存响应过滤 | `tests/components/MemoryNavigation.test.tsx` 与 E2E；CODE 保持只读 |

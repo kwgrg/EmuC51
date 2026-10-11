@@ -31,8 +31,8 @@ export class Cpu8051 {
 
   constructor(program: Uint8Array) {
     this.memory = new Memory8051(program);
-    this.operands = new OperandMemory(this.memory, (space, address, kind, value) => {
-      if (this.captureOperandAccesses) this.operandAccesses.push({ space, address, kind, value, pc: this.operandPc });
+    this.operands = new OperandMemory(this.memory, (space, address, kind, value, bit) => {
+      if (this.captureOperandAccesses) this.operandAccesses.push({ space, address, kind, value, pc: this.operandPc, ...(bit ? { bit } : {}) });
     });
     this.peripherals = new Peripherals8051(this.memory);
     this.memory.debugWrite = (space, address) => this.callStack.written(space, address);
@@ -380,8 +380,8 @@ export class Cpu8051 {
         return;
       }
       case 0x10:
-        if (this.memory.readBit(operand1, true)) {
-          this.memory.writeBit(operand1, false);
+        if (this.operands.readBit(operand1, true)) {
+          this.operands.writeBit(operand1, false);
           this.branch(postPc, operand2);
         }
         return;
@@ -409,7 +409,7 @@ export class Cpu8051 {
         return;
       }
       case 0x20:
-        if (this.memory.readBit(operand1)) this.branch(postPc, operand2);
+        if (this.operands.readBit(operand1)) this.branch(postPc, operand2);
         return;
       case 0x22:
         this.returnFromCall();
@@ -432,7 +432,7 @@ export class Cpu8051 {
         this.add(this.readAtRegister(opcode & 1), false);
         return;
       case 0x30:
-        if (!this.memory.readBit(operand1)) this.branch(postPc, operand2);
+        if (!this.operands.readBit(operand1)) this.branch(postPc, operand2);
         return;
       case 0x33: {
         const carry = this.memory.carry;
@@ -512,7 +512,7 @@ export class Cpu8051 {
         if (this.memory.acc !== 0) this.branch(postPc, operand1);
         return;
       case 0x72: {
-        const bit = this.memory.readBit(operand1);
+        const bit = this.operands.readBit(operand1);
         this.memory.carry = this.memory.carry || bit;
         return;
       }
@@ -533,7 +533,7 @@ export class Cpu8051 {
         this.branch(postPc, operand1);
         return;
       case 0x82: {
-        const bit = this.memory.readBit(operand1);
+        const bit = this.operands.readBit(operand1);
         this.memory.carry = this.memory.carry && bit;
         return;
       }
@@ -556,7 +556,7 @@ export class Cpu8051 {
         this.memory.dptr = (operand1 << 8) | operand2;
         return;
       case 0x92:
-        this.memory.writeBit(operand1, this.memory.carry);
+        this.operands.writeBit(operand1, this.memory.carry);
         return;
       case 0x93:
         this.memory.acc = this.memory.readCode(this.memory.dptr + this.memory.acc);
@@ -572,12 +572,12 @@ export class Cpu8051 {
         this.subtract(this.readAtRegister(opcode & 1));
         return;
       case 0xa0: {
-        const bit = this.memory.readBit(operand1);
+        const bit = this.operands.readBit(operand1);
         this.memory.carry = this.memory.carry || !bit;
         return;
       }
       case 0xa2:
-        this.memory.carry = this.memory.readBit(operand1);
+        this.memory.carry = this.operands.readBit(operand1);
         return;
       case 0xa3:
         this.memory.dptr += 1;
@@ -593,12 +593,12 @@ export class Cpu8051 {
         );
         return;
       case 0xb0: {
-        const bit = this.memory.readBit(operand1);
+        const bit = this.operands.readBit(operand1);
         this.memory.carry = this.memory.carry && !bit;
         return;
       }
       case 0xb2:
-        this.memory.writeBit(operand1, !this.memory.readBit(operand1, true));
+        this.operands.writeBit(operand1, !this.operands.readBit(operand1, true));
         return;
       case 0xb3:
         this.memory.carry = !this.memory.carry;
@@ -617,7 +617,7 @@ export class Cpu8051 {
         this.pushDirect(operand1);
         return;
       case 0xc2:
-        this.memory.writeBit(operand1, false);
+        this.operands.writeBit(operand1, false);
         return;
       case 0xc3:
         this.memory.carry = false;
@@ -639,7 +639,7 @@ export class Cpu8051 {
         this.popDirect(operand1);
         return;
       case 0xd2:
-        this.memory.writeBit(operand1, true);
+        this.operands.writeBit(operand1, true);
         return;
       case 0xd3:
         this.memory.carry = true;
