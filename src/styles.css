@@ -1023,3 +1023,5 @@ select:focus-visible { outline: 1px solid var(--primary); outline-offset: 2px; }
   .sdcc-source > div { grid-template-columns: 30px 30px minmax(0, 1fr); min-width: 0; }
   .sdcc-source span { grid-column: 3; }
 }
+.operand-watch-panel { margin-top: 12px; border-top: 1px solid var(--outline-variant); padding-top: 8px; }
+.operand-watch-panel h3 { color: var(--secondary); font-size: 12px; }

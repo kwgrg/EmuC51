@@ -141,7 +141,7 @@ const pump = (token: number): void => {
       }
       // Drain each step so trace states do not repeatedly copy a growing TX queue.
       serial.push(...machine.drainSerialOutput());
-      stop = debugger8051.changed(machine.memory, watched);
+      stop = debugger8051.accessed(machine.operandAccesses) ?? debugger8051.changed(machine.memory, watched);
       if (stop) break;
       stop = stepOutStop(machine);
       if (stop) break;
@@ -224,7 +224,7 @@ const stepOnce = (requestId: number, trace: boolean): void => {
   flushOutput(requestId, trace ? [traceStep(step)] : [], machine.drainSerialOutput());
   post({ type: "StateChanged", requestId, state: machine.state(), step, running: false });
   post({ type: "SnapshotCreated", requestId, snapshot: machine.snapshot(), automatic: false });
-  finishRun(requestId, debugger8051.changed(machine.memory, watched) ?? {
+  finishRun(requestId, debugger8051.accessed(machine.operandAccesses) ?? debugger8051.changed(machine.memory, watched) ?? {
     reason: step.state.peripherals.powerMode === "power-down" ? "PowerDown" : "StepComplete",
   });
 };
@@ -259,6 +259,7 @@ scope.onmessage = (message: MessageEvent<EmulatorCommand>): void => {
         if (command.type === "RestoreWorkspace") loaded.restore(command.snapshot);
         stopCurrentRun();
         debugger8051.resetHits();
+        loaded.captureOperandAccesses = debugger8051.observesOperands;
         cpu = loaded;
         firmware = { name: command.name, bytes: command.bytes.slice(0) };
         coverage.clear(true);
@@ -318,6 +319,7 @@ scope.onmessage = (message: MessageEvent<EmulatorCommand>): void => {
         return;
       case "SetDebugConfig": {
         const config = debugger8051.setConfig(command);
+        if (cpu) cpu.captureOperandAccesses = debugger8051.observesOperands;
         post({ type: "DebugConfigChanged", requestId, ...config });
         return;
       }

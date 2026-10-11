@@ -1,3 +1,4 @@
+import { OperandMemory, type OperandAccess } from "./operand-access";
 import { CallStackTracker } from "./callstack";
 import { Memory8051, SFR } from "./memory";
 import { opcodeMeta } from "./opcodes";
@@ -18,6 +19,10 @@ const now = (): number =>
 
 export class Cpu8051 {
   readonly memory: Memory8051;
+  private readonly operands: OperandMemory;
+  captureOperandAccesses = false;
+  operandAccesses: OperandAccess[] = [];
+  private operandPc = 0;
   readonly callStack = new CallStackTracker();
   readonly peripherals: Peripherals8051;
   private pcValue = 0;
@@ -26,6 +31,9 @@ export class Cpu8051 {
 
   constructor(program: Uint8Array) {
     this.memory = new Memory8051(program);
+    this.operands = new OperandMemory(this.memory, (space, address, kind, value) => {
+      if (this.captureOperandAccesses) this.operandAccesses.push({ space, address, kind, value, pc: this.operandPc });
+    });
     this.peripherals = new Peripherals8051(this.memory);
     this.memory.debugWrite = (space, address) => this.callStack.written(space, address);
   }
@@ -35,6 +43,7 @@ export class Cpu8051 {
   }
 
   reset(): void {
+    this.operandAccesses = [];
     this.pcValue = 0;
     this.stepCount = 0;
     this.cycleCount = 0;
@@ -83,6 +92,7 @@ export class Cpu8051 {
     if (snapshot.coreStateVersion === 2 && [SFR.P0, SFR.P1, SFR.P2, SFR.P3].some((address, port) => snapshot.peripherals.lastPins[port] !== ((snapshot.sfr[address - 0x80] ?? 0) & snapshot.peripherals.portInputs[port]!))) {
       throw new EmulatorFault({ code: "INVALID_SNAPSHOT", message: "CPU 快照 GPIO 引脚状态不一致" });
     }
+    this.operandAccesses = [];
     this.memory.restore(snapshot);
     if (snapshot.coreStateVersion === 2) this.peripherals.restore(snapshot.peripherals);
     else this.peripherals.reset();
@@ -132,6 +142,8 @@ export class Cpu8051 {
   step(): StepResult;
   step(beforeInstruction: () => boolean): StepResult | undefined;
   step(beforeInstruction?: () => boolean): StepResult | undefined {
+    this.operandAccesses = [];
+    this.operandPc = this.pcValue;
     this.callStack.validate(this.memory);
     const pcBefore = this.pcValue;
     const spBefore = this.memory.sp;
@@ -190,6 +202,7 @@ export class Cpu8051 {
       this.callStack.validate(this.memory);
       this.memory.updateParity();
     } catch (error) {
+      this.operandAccesses = [];
       this.pcValue = pcBefore;
       if (error instanceof EmulatorFault) {
         throw new EmulatorFault({
@@ -307,7 +320,7 @@ export class Cpu8051 {
       return;
     }
     if (opcode >= 0x88 && opcode <= 0x8f) {
-      this.memory.writeDirect(operand1, this.memory.readRegister(opcode & 7));
+      this.operands.writeDirect(operand1, this.memory.readRegister(opcode & 7));
       return;
     }
     if (opcode >= 0x98 && opcode <= 0x9f) {
@@ -315,7 +328,7 @@ export class Cpu8051 {
       return;
     }
     if (opcode >= 0xa8 && opcode <= 0xaf) {
-      this.memory.writeRegister(opcode & 7, this.memory.readDirect(operand1));
+      this.memory.writeRegister(opcode & 7, this.operands.readDirect(operand1));
       return;
     }
     if (opcode >= 0xb8 && opcode <= 0xbf) {
@@ -358,12 +371,12 @@ export class Cpu8051 {
         this.memory.acc += 1;
         return;
       case 0x05:
-        this.memory.writeDirect(operand1, this.memory.readRmwDirect(operand1) + 1);
+        this.operands.writeDirect(operand1, this.operands.readRmwDirect(operand1) + 1);
         return;
       case 0x06:
       case 0x07: {
         const address = this.memory.readRegister(opcode & 1);
-        this.memory.writeIndirect(address, this.memory.readIndirect(address) + 1);
+        this.operands.writeIndirect(address, this.operands.readIndirect(address) + 1);
         return;
       }
       case 0x10:
@@ -387,12 +400,12 @@ export class Cpu8051 {
         this.memory.acc -= 1;
         return;
       case 0x15:
-        this.memory.writeDirect(operand1, this.memory.readRmwDirect(operand1) - 1);
+        this.operands.writeDirect(operand1, this.operands.readRmwDirect(operand1) - 1);
         return;
       case 0x16:
       case 0x17: {
         const address = this.memory.readRegister(opcode & 1);
-        this.memory.writeIndirect(address, this.memory.readIndirect(address) - 1);
+        this.operands.writeIndirect(address, this.operands.readIndirect(address) - 1);
         return;
       }
       case 0x20:
@@ -412,7 +425,7 @@ export class Cpu8051 {
         this.add(operand1, false);
         return;
       case 0x25:
-        this.add(this.memory.readDirect(operand1), false);
+        this.add(this.operands.readDirect(operand1), false);
         return;
       case 0x26:
       case 0x27:
@@ -432,7 +445,7 @@ export class Cpu8051 {
         this.add(operand1, true);
         return;
       case 0x35:
-        this.add(this.memory.readDirect(operand1), true);
+        this.add(this.operands.readDirect(operand1), true);
         return;
       case 0x36:
       case 0x37:
@@ -442,16 +455,16 @@ export class Cpu8051 {
         if (this.memory.carry) this.branch(postPc, operand1);
         return;
       case 0x42:
-        this.memory.writeDirect(operand1, this.memory.readRmwDirect(operand1) | this.memory.acc);
+        this.operands.writeDirect(operand1, this.operands.readRmwDirect(operand1) | this.memory.acc);
         return;
       case 0x43:
-        this.memory.writeDirect(operand1, this.memory.readRmwDirect(operand1) | operand2);
+        this.operands.writeDirect(operand1, this.operands.readRmwDirect(operand1) | operand2);
         return;
       case 0x44:
         this.memory.acc |= operand1;
         return;
       case 0x45:
-        this.memory.acc |= this.memory.readDirect(operand1);
+        this.memory.acc |= this.operands.readDirect(operand1);
         return;
       case 0x46:
       case 0x47:
@@ -461,16 +474,16 @@ export class Cpu8051 {
         if (!this.memory.carry) this.branch(postPc, operand1);
         return;
       case 0x52:
-        this.memory.writeDirect(operand1, this.memory.readRmwDirect(operand1) & this.memory.acc);
+        this.operands.writeDirect(operand1, this.operands.readRmwDirect(operand1) & this.memory.acc);
         return;
       case 0x53:
-        this.memory.writeDirect(operand1, this.memory.readRmwDirect(operand1) & operand2);
+        this.operands.writeDirect(operand1, this.operands.readRmwDirect(operand1) & operand2);
         return;
       case 0x54:
         this.memory.acc &= operand1;
         return;
       case 0x55:
-        this.memory.acc &= this.memory.readDirect(operand1);
+        this.memory.acc &= this.operands.readDirect(operand1);
         return;
       case 0x56:
       case 0x57:
@@ -480,16 +493,16 @@ export class Cpu8051 {
         if (this.memory.acc === 0) this.branch(postPc, operand1);
         return;
       case 0x62:
-        this.memory.writeDirect(operand1, this.memory.readRmwDirect(operand1) ^ this.memory.acc);
+        this.operands.writeDirect(operand1, this.operands.readRmwDirect(operand1) ^ this.memory.acc);
         return;
       case 0x63:
-        this.memory.writeDirect(operand1, this.memory.readRmwDirect(operand1) ^ operand2);
+        this.operands.writeDirect(operand1, this.operands.readRmwDirect(operand1) ^ operand2);
         return;
       case 0x64:
         this.memory.acc ^= operand1;
         return;
       case 0x65:
-        this.memory.acc ^= this.memory.readDirect(operand1);
+        this.memory.acc ^= this.operands.readDirect(operand1);
         return;
       case 0x66:
       case 0x67:
@@ -510,11 +523,11 @@ export class Cpu8051 {
         this.memory.acc = operand1;
         return;
       case 0x75:
-        this.memory.writeDirect(operand1, operand2);
+        this.operands.writeDirect(operand1, operand2);
         return;
       case 0x76:
       case 0x77:
-        this.memory.writeIndirect(this.memory.readRegister(opcode & 1), operand1);
+        this.operands.writeIndirect(this.memory.readRegister(opcode & 1), operand1);
         return;
       case 0x80:
         this.branch(postPc, operand1);
@@ -531,13 +544,13 @@ export class Cpu8051 {
         this.divide();
         return;
       case 0x85: {
-        const value = this.memory.readDirect(operand1);
-        this.memory.writeDirect(operand2, value);
+        const value = this.operands.readDirect(operand1);
+        this.operands.writeDirect(operand2, value);
         return;
       }
       case 0x86:
       case 0x87:
-        this.memory.writeDirect(operand1, this.readAtRegister(opcode & 1));
+        this.operands.writeDirect(operand1, this.readAtRegister(opcode & 1));
         return;
       case 0x90:
         this.memory.dptr = (operand1 << 8) | operand2;
@@ -552,7 +565,7 @@ export class Cpu8051 {
         this.subtract(operand1);
         return;
       case 0x95:
-        this.subtract(this.memory.readDirect(operand1));
+        this.subtract(this.operands.readDirect(operand1));
         return;
       case 0x96:
       case 0x97:
@@ -574,9 +587,9 @@ export class Cpu8051 {
         return;
       case 0xa6:
       case 0xa7:
-        this.memory.writeIndirect(
+        this.operands.writeIndirect(
           this.memory.readRegister(opcode & 1),
-          this.memory.readDirect(operand1),
+          this.operands.readDirect(operand1),
         );
         return;
       case 0xb0: {
@@ -594,7 +607,7 @@ export class Cpu8051 {
         this.compareAndJump(this.memory.acc, operand1, operand2, postPc);
         return;
       case 0xb5:
-        this.compareAndJump(this.memory.acc, this.memory.readDirect(operand1), operand2, postPc);
+        this.compareAndJump(this.memory.acc, this.operands.readDirect(operand1), operand2, postPc);
         return;
       case 0xb6:
       case 0xb7:
@@ -613,8 +626,8 @@ export class Cpu8051 {
         this.memory.acc = (this.memory.acc << 4) | (this.memory.acc >>> 4);
         return;
       case 0xc5: {
-        const value = this.memory.readDirect(operand1);
-        this.memory.writeDirect(operand1, this.memory.acc);
+        const value = this.operands.readDirect(operand1);
+        this.operands.writeDirect(operand1, this.memory.acc);
         this.memory.acc = value;
         return;
       }
@@ -635,8 +648,8 @@ export class Cpu8051 {
         this.decimalAdjust();
         return;
       case 0xd5: {
-        const value = u8(this.memory.readRmwDirect(operand1) - 1);
-        this.memory.writeDirect(operand1, value);
+        const value = u8(this.operands.readRmwDirect(operand1) - 1);
+        this.operands.writeDirect(operand1, value);
         if (value !== 0) this.branch(postPc, operand2);
         return;
       }
@@ -645,38 +658,38 @@ export class Cpu8051 {
         this.exchangeIndirect(opcode & 1, true);
         return;
       case 0xe0:
-        this.memory.acc = this.memory.readXram(this.memory.dptr);
+        this.memory.acc = this.operands.readXram(this.memory.dptr);
         return;
       case 0xe2:
       case 0xe3:
-        this.memory.acc = this.memory.readXram(this.xramRegisterAddress(opcode & 1));
+        this.memory.acc = this.operands.readXram(this.xramRegisterAddress(opcode & 1));
         return;
       case 0xe4:
         this.memory.acc = 0;
         return;
       case 0xe5:
-        this.memory.acc = this.memory.readDirect(operand1);
+        this.memory.acc = this.operands.readDirect(operand1);
         return;
       case 0xe6:
       case 0xe7:
         this.memory.acc = this.readAtRegister(opcode & 1);
         return;
       case 0xf0:
-        this.memory.writeXram(this.memory.dptr, this.memory.acc);
+        this.operands.writeXram(this.memory.dptr, this.memory.acc);
         return;
       case 0xf2:
       case 0xf3:
-        this.memory.writeXram(this.xramRegisterAddress(opcode & 1), this.memory.acc);
+        this.operands.writeXram(this.xramRegisterAddress(opcode & 1), this.memory.acc);
         return;
       case 0xf4:
         this.memory.acc = ~this.memory.acc;
         return;
       case 0xf5:
-        this.memory.writeDirect(operand1, this.memory.acc);
+        this.operands.writeDirect(operand1, this.memory.acc);
         return;
       case 0xf6:
       case 0xf7:
-        this.memory.writeIndirect(this.memory.readRegister(opcode & 1), this.memory.acc);
+        this.operands.writeIndirect(this.memory.readRegister(opcode & 1), this.memory.acc);
         return;
       default:
         throw new EmulatorFault({
@@ -692,7 +705,7 @@ export class Cpu8051 {
   }
 
   private readAtRegister(index: number): number {
-    return this.memory.readIndirect(this.memory.readRegister(index));
+    return this.operands.readIndirect(this.memory.readRegister(index));
   }
 
   private add(value: number, includeCarry: boolean): void {
@@ -767,7 +780,7 @@ export class Cpu8051 {
     const nextSp = u8(this.memory.sp + 1);
     this.memory.assertIndirect(nextSp);
     this.memory.sp = nextSp;
-    this.memory.writeIndirect(nextSp, this.memory.readDirect(address));
+    this.memory.writeIndirect(nextSp, this.operands.readDirect(address));
   }
 
   private pushReturnAddress(address: number): void {
@@ -797,19 +810,19 @@ export class Cpu8051 {
     this.memory.assertIndirect(stackAddress);
     const value = this.memory.readIndirect(stackAddress);
     this.memory.sp = u8(this.memory.sp - 1);
-    this.memory.writeDirect(address, value);
+    this.operands.writeDirect(address, value);
   }
 
   private exchangeIndirect(register: number, lowNibbleOnly: boolean): void {
     const address = this.memory.readRegister(register);
-    const indirect = this.memory.readIndirect(address);
+    const indirect = this.operands.readIndirect(address);
     const accumulator = this.memory.acc;
     if (lowNibbleOnly) {
       this.memory.acc = (accumulator & 0xf0) | (indirect & 0x0f);
-      this.memory.writeIndirect(address, (indirect & 0xf0) | (accumulator & 0x0f));
+      this.operands.writeIndirect(address, (indirect & 0xf0) | (accumulator & 0x0f));
     } else {
       this.memory.acc = indirect;
-      this.memory.writeIndirect(address, accumulator);
+      this.operands.writeIndirect(address, accumulator);
     }
   }
 

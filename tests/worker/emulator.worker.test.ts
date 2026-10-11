@@ -797,3 +797,56 @@ describe("coverage report snapshots", () => {
     expect(stopped().state.steps).toBe(40000);
   });
 });
+
+describe("explicit byte operand access watches", () => {
+  it("stops on identical writes after the instruction and preserves all matched RMW events", () => {
+    load(0x75,0x20,0,0x05,0x20,0x80,0xfe);
+    send({ type:"SetDebugConfig",breakpoints:[],watchpoints:[{space:"iram",address:0x20}],accessWatchpoints:[{space:"data",address:0x20,access:"readwrite"}] });
+    send({type:"Run",maxSteps:10,trace:false});vi.runAllTimers();
+    expect(stopped()).toMatchObject({reason:"OperandWatchpoint",state:{pc:3,steps:1},accesses:[{space:"data",address:0x20,kind:"write",value:0,pc:0}]});
+    send({type:"Run",maxSteps:10,trace:false});vi.runAllTimers();
+    expect(stopped()).toMatchObject({reason:"OperandWatchpoint",state:{pc:5,steps:2},accesses:[{kind:"read",value:0,pc:3},{kind:"write",value:1,pc:3}]});
+  });
+  it("isolates DATA/IDATA and supports single-step without tracing", () => {
+    load(0x75,0x20,0x42,0x78,0x20,0xe6,0x00);
+    send({type:"SetDebugConfig",breakpoints:[],watchpoints:[],accessWatchpoints:[{space:"idata",address:0x20,access:"read"}]});
+    send({type:"Run",maxSteps:10,trace:false});vi.runAllTimers();
+    expect(stopped()).toMatchObject({reason:"OperandWatchpoint",state:{pc:6,steps:3,acc:0x42},accesses:[{space:"idata",pc:5,kind:"read"}]});
+    send({type:"SetRegister",name:"PC",value:5});send({type:"Step",trace:false});
+    expect(stopped()).toMatchObject({reason:"OperandWatchpoint",state:{pc:6}});
+    send({type:"Step",trace:false});expect(stopped().reason).toBe("StepComplete");
+    expect(traces()).toEqual([]);
+  });
+  it("does not stop for inspection, expression evaluation, edits, GPIO or timer-only updates", () => {
+    load(0x00,0x80,0xfd);
+    send({type:"SetDebugConfig",breakpoints:[],watchpoints:[],accessWatchpoints:[{space:"sfr",address:0x8a,access:"readwrite"},{space:"sfr",address:0x90,access:"readwrite"},{space:"data",address:0x20,access:"readwrite"}]});
+    send({type:"WriteMemory",space:"sfr",address:0x89,value:1});send({type:"WriteMemory",space:"sfr",address:0x88,value:0x10});
+    send({type:"WriteMemory",space:"iram",address:0x20,value:9});send({type:"ReadMemory",space:"sfr",address:0x80,length:128});
+    send({type:"EvaluateExpressions",expressions:["IRAM[0x20]","SFR[0x90]"]});send({type:"SetPortInput",port:1,value:0});
+    expect(events.filter(event=>event.type==="Stopped")).toEqual([]);
+    send({type:"Run",maxSteps:5,trace:false});vi.runAllTimers();
+    expect(stopped().reason).toBe("StepLimitReached"); expect(stopped().snapshot.sfr[0x8a-0x80]).toBeGreaterThan(0);
+  });
+  it("runs to a target or steps over calls while still honoring operand watches and resets stale events", () => {
+    load(0x12,0,6,0x00,0x80,0xfe,0x75,0x20,0x44,0x22);
+    send({type:"SetDebugConfig",breakpoints:[],watchpoints:[],accessWatchpoints:[{space:"data",address:0x20,access:"write"}]});
+    send({type:"StepOver",maxSteps:20,trace:false});vi.runAllTimers();
+    expect(stopped()).toMatchObject({reason:"OperandWatchpoint",state:{pc:9},accesses:[{pc:6,value:0x44}]});
+    send({type:"Reset"});expect(stopped().accesses).toBeUndefined();
+    send({type:"RunToAddress",address:3,maxSteps:20,trace:false});vi.runAllTimers();
+    expect(stopped().reason).toBe("OperandWatchpoint");
+    send({type:"SetDebugConfig",breakpoints:[],watchpoints:[],accessWatchpoints:[]});
+    send({type:"RunToAddress",address:3,maxSteps:20,trace:false});vi.runAllTimers();
+    expect(stopped()).toMatchObject({reason:"RunToAddress",state:{pc:3}});expect(stopped().accesses).toBeUndefined();
+  });
+  it("rejects invalid replacements atomically and restores configured operand capture after firmware replacement", () => {
+    send({type:"SetDebugConfig",breakpoints:[],watchpoints:[],accessWatchpoints:[{space:"xdata",address:0,access:"write"}]});
+    load(0xf0);
+    send({type:"SetDebugConfig",breakpoints:[],watchpoints:[],accessWatchpoints:[{space:"idata",address:128,access:"write"}]});
+    expect(events.at(-1)?.type).toBe("CommandRejected");
+    send({type:"Step",trace:false});expect(stopped()).toMatchObject({reason:"OperandWatchpoint",accesses:[{space:"xdata",address:0,kind:"write",pc:0}]});
+    const snapshot=stopped().snapshot;
+    send({type:"RestoreWorkspace",name:"again.bin",bytes:Uint8Array.from([0xf0]).buffer,snapshot:{...snapshot,pc:0}});
+    send({type:"Step",trace:false});expect(stopped().reason).toBe("OperandWatchpoint");
+  });
+});

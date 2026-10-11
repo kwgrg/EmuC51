@@ -794,3 +794,47 @@ test("运行中报告是固定一致采样，重复导出不暂停执行", async
   await page.getByRole("button", { name: "复位" }).click();
   await expect(page.getByLabel("覆盖报告采样")).toHaveCount(0);
 });
+
+test("CPU 字节访问：同值写入、RMW 顺序、持久化、校验及响应式布局", async ({ page }) => {
+  await load(page, [0x75,0x20,0,0x05,0x20,0x80,0xfe]);
+  const add = page.getByRole("button", { name: "添加 CPU 访问观察点", exact: true });
+  await add.click();
+  await expect(add).toBeDisabled();
+  await page.locator(".control-strip").getByRole("button", { name: "运行" }).click();
+  await expect(page.locator(".footer-status")).toContainText("PC=0000 DATA 0020 写=00");
+  await expect(page.getByTestId("register-PC")).toContainText("0003");
+  await page.getByRole("button", { name: "单步" }).click();
+  await expect(page.locator(".footer-status")).toContainText("PC=0003 DATA 0020 读=00 → PC=0003 DATA 0020 写=01");
+  await expect(page.getByTestId("register-PC")).toContainText("0005");
+  await expect(page.getByRole("main")).toHaveAttribute("data-save-state", "saved");
+  await page.reload();
+  const remove = page.getByRole("button", { name: "删除 CPU 访问观察点 DATA 0020 读写", exact: true });
+  await expect(remove).toBeVisible();
+  await page.getByLabel("CPU 访问地址", { exact: true }).fill("80");
+  await expect(add).toBeDisabled();
+  await page.getByLabel("CPU 访问地址", { exact: true }).press("Escape");
+  await expect(page.getByLabel("CPU 访问地址", { exact: true })).toHaveValue("20");
+  await page.getByLabel("CPU 访问空间").selectOption("sfr");
+  await page.getByLabel("CPU 访问地址", { exact: true }).fill("84");
+  await expect(add).toBeDisabled();
+  await page.getByLabel("CPU 访问地址", { exact: true }).press("Escape");
+  await add.click();
+  await page.getByLabel("CPU 访问空间").selectOption("xdata");
+  await page.getByLabel("CPU 访问地址", { exact: true }).fill("FFFF");
+  await add.click();
+  for (const width of [375,820,1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.getByLabel("CPU 访问空间").scrollIntoViewIfNeeded();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: `/tmp/emuc51-operand-${width}.png`, fullPage: true });
+  }
+  await remove.click();
+  await expect(remove).toHaveCount(0);
+  await page.getByLabel("CPU 访问空间").selectOption("data");
+  await expect(add).toBeEnabled();
+  await page.getByLabel("最大执行单元").fill("100000000");
+  await page.locator(".control-strip").getByRole("button", { name: "运行" }).click();
+  await expect(add).toBeDisabled();
+  await page.getByRole("button", { name: "暂停" }).click();
+  await expect(add).toBeEnabled();
+});

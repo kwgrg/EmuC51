@@ -1,3 +1,4 @@
+import { OperandWatchPanel } from "./OperandWatchPanel";
 import { MAX_EXPRESSION_LENGTH } from "../core/expressions";
 import { useState } from "react";
 import { hex16, hex8 } from "../core/numbers";
@@ -63,9 +64,10 @@ export function DebuggerPanel({ config, disabled, onChange, onRunTo }: {
         <button disabled={disabled || !validWatchAddress}>添加监视点</button>
       </form>
       <div className="debug-tags" aria-label="内存监视点">
-        {config.watchpoints.length === 0 && <span className="muted">写入后字节改变时暂停</span>}
+        {config.watchpoints.length === 0 && <span className="muted">字节值变化时暂停（含外设更新）</span>}
         {config.watchpoints.map((watch) => <button disabled={disabled} aria-label={`删除监视点 ${watch.space.toUpperCase()} ${hex16(watch.address)}`} key={`${watch.space}-${watch.address}`} onClick={() => onChange({ ...config, watchpoints: config.watchpoints.filter((value) => value !== watch) })}>{watch.space.toUpperCase()} {hex16(watch.address)} ×</button>)}
       </div>
+      <OperandWatchPanel config={config} disabled={disabled} onChange={onChange} />
     </div>
   );
 }

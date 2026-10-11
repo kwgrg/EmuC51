@@ -1,3 +1,4 @@
+import type { OperandAccess, OperandWatchpoint } from "./operand-access";
 import { MAX_EXPRESSION_LENGTH } from "./expressions";
 import { SFR } from "./memory";
 import { EmulatorFault, type StopReason } from "./types";
@@ -22,6 +23,7 @@ export interface DebugConfig {
   breakpoints: number[];
   breakpointOptions?: BreakpointOptions[];
   watchpoints: MemoryWatchpoint[];
+  accessWatchpoints?: OperandWatchpoint[];
 }
 
 export interface WatchpointChange extends MemoryWatchpoint {
@@ -33,6 +35,7 @@ export type DebugStopReason =
   | StopReason
   | "Breakpoint"
   | "BreakpointConditionError"
+  | "OperandWatchpoint"
   | "Watchpoint"
   | "StepComplete"
   | "RunToAddress"
@@ -43,6 +46,7 @@ export interface DebugStop {
   reason: DebugStopReason;
   address?: number;
   watchpoint?: WatchpointChange;
+  accesses?: OperandAccess[];
   conditionError?: { expression: string; message: string };
 }
 
@@ -115,6 +119,15 @@ export const normalizeDebugConfig = (config: DebugConfig): DebugConfig => {
       options.set(item.address, { address: item.address, enabled: item.enabled, hitCount: item.hitCount, ...(condition ? { condition } : {}) });
     }
   }
+  const accessWatchpoints = new Map<string, OperandWatchpoint>();
+  if (config.accessWatchpoints !== undefined) {
+    if (!Array.isArray(config.accessWatchpoints) || config.accessWatchpoints.length > 128) invalid("CPU 访问观察点最多 128 个");
+    for (const point of config.accessWatchpoints) {
+      if (!point || !["data", "idata", "xdata", "sfr"].includes(point.space) || !["read", "write", "readwrite"].includes(point.access)) invalid("CPU 访问空间或读写类型无效");
+      assertWritableAddress(point.space === "data" || point.space === "idata" ? "iram" : point.space === "xdata" ? "xram" : "sfr", point.address);
+      accessWatchpoints.set(`${point.space}:${point.address}:${point.access}`, { space: point.space, address: point.address, access: point.access });
+    }
+  }
   const watchpoints = new Map<string, MemoryWatchpoint>();
   for (const point of config.watchpoints) {
     if (!point || typeof point !== "object") invalid("内存观察点无效");
@@ -122,6 +135,7 @@ export const normalizeDebugConfig = (config: DebugConfig): DebugConfig => {
     watchpoints.set(`${point.space}:${point.address}`, { space: point.space, address: point.address });
   }
   return {
+    ...(config.accessWatchpoints !== undefined ? { accessWatchpoints: [...accessWatchpoints.values()] } : {}),
     breakpoints: [...new Set(config.breakpoints)].sort((a, b) => a - b),
     ...(config.breakpointOptions !== undefined ? { breakpointOptions: [...options.values()].sort((a, b) => a.address - b.address) } : {}),
     watchpoints: [...watchpoints.values()].sort(
@@ -130,7 +144,7 @@ export const normalizeDebugConfig = (config: DebugConfig): DebugConfig => {
   };
 };
 
-/** Breakpoints run before instructions; watchpoints observe changed stored bytes. */
+/** Breakpoints run before instructions; operand accesses and stored-byte changes stop after instructions. */
 export class Debugger8051 {
   private config: DebugConfig = { breakpoints: [], watchpoints: [] };
   private breakpoints = new Map<number, BreakpointOptions>();
@@ -156,6 +170,7 @@ export class Debugger8051 {
 
   getConfig(): DebugConfig {
     return {
+      ...(this.config.accessWatchpoints !== undefined ? { accessWatchpoints: this.config.accessWatchpoints.map(point => ({ ...point })) } : {}),
       breakpoints: [...this.config.breakpoints],
       ...(this.config.breakpointOptions ? { breakpointOptions: this.config.breakpointOptions.map((item) => ({ ...item })) } : {}),
       watchpoints: this.config.watchpoints.map((point) => ({ ...point })),
@@ -203,6 +218,13 @@ export class Debugger8051 {
   stopped(stop: DebugStop): void {
     this.lastBreakpoint = stop.reason === "Breakpoint" ? stop.address : undefined;
     this.skipBreakpoint = undefined;
+  }
+
+  get observesOperands(): boolean { return Boolean(this.config.accessWatchpoints?.length); }
+
+  accessed(accesses: OperandAccess[]): DebugStop | undefined {
+    const matches = accesses.filter(event => this.config.accessWatchpoints?.some(point => point.space === event.space && point.address === event.address && (point.access === "readwrite" || point.access === event.kind)));
+    return matches.length ? { reason: "OperandWatchpoint", address: matches[0]!.address, accesses: matches } : undefined;
   }
 
   capture(memory: DebugMemory): number[] {

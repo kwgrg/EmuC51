@@ -181,3 +181,22 @@ describe("optional debug session settings", () => {
     expect((await loadWorkspace())?.kind).toBe("firmware-only");
   });
 });
+
+ it("preserves operand watches and recovers firmware alone from malformed settings", async () => {
+   const record = workspaceFixture();
+   record.settings.debugger!.accessWatchpoints = [{ space: "idata", address: 32, access: "read" }];
+   await saveWorkspace(record);
+   const restored = await loadWorkspace();
+   expect(restored?.kind === "complete" && restored.record.settings.debugger?.accessWatchpoints).toEqual(record.settings.debugger!.accessWatchpoints);
+   record.settings.debugger!.accessWatchpoints[0]!.address = 128;
+   await saveWorkspace(record);
+   const retained = await loadWorkspace();
+   expect(retained?.kind).toBe("firmware-only");
+ });
+ it("rejects operand watches tagged as an older workspace schema", async () => {
+   const record = workspaceFixture();
+   record.schemaVersion = 3;
+   record.settings.debugger!.accessWatchpoints = [];
+   await saveWorkspace(record);
+   expect((await loadWorkspace())?.kind).toBe("firmware-only");
+ });

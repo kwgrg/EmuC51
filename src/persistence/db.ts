@@ -229,6 +229,7 @@ export const normalizeWorkspaceRecord = (value: unknown): WorkspaceRecord | unde
     value.coreStateVersion !== (value.schemaVersion === 1 ? 1 : 2) ||
     ((value.schemaVersion === 1 || value.schemaVersion === 2) && settings.debugger?.breakpointOptions !== undefined) ||
     (value.schemaVersion !== 4 && settings.debugger?.breakpointOptions?.some(option => option.condition !== undefined)) ||
+    (value.schemaVersion !== 4 && settings.debugger?.accessWatchpoints !== undefined) ||
     !isCpuSnapshot(value.cpu) || value.cpu.coreStateVersion !== value.coreStateVersion
   ) return undefined;
   try {

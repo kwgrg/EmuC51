@@ -24,6 +24,7 @@ describe("工作区 JSON 导入导出", () => {
         rxFrame: { value: 0x5a, mode: 1, progress: 20, ninthBit: false },
       },
     };
+    record.settings.debugger!.accessWatchpoints = [{ space: "data", address: 0x20, access: "readwrite" }, { space: "idata", address: 0x20, access: "read" }, { space: "xdata", address: 0xffff, access: "write" }, { space: "sfr", address: 0x90, access: "readwrite" }];
     record.settings.debugger!.breakpointOptions = [{ address: 2, enabled: false, hitCount: 5, condition: "ACC == 0x42" }];
     record.cpu.iram[0x20] = 0x77;
     record.settings.watchExpressions = ["ACC", "XRAM[0x1234]", "1/0"];
@@ -38,6 +39,16 @@ describe("工作区 JSON 导入导出", () => {
     expect(restored.firmware.bytes).toBeInstanceOf(ArrayBuffer);
     expect(exportWorkspace(restored)).toBe(text);
     expect(await loadWorkspace()).toBeUndefined();
+  });
+
+  it("rejects invalid operand watches without changing the saved workspace", async () => {
+    const record = workspaceFixture();
+    await saveWorkspace(record);
+    const encoded = JSON.parse(exportWorkspace(record));
+    encoded.settings.debugger.accessWatchpoints = [{ space: "idata", address: 128, access: "read" }];
+    await expect(importWorkspace(JSON.stringify(encoded))).rejects.toThrow();
+    const saved = await loadWorkspace();
+    expect(saved?.kind === "complete" && saved.record.settings.debugger?.accessWatchpoints).toBeUndefined();
   });
 
   it("最大尺寸固件、XRAM、队列及调试设置的导出仍可重新导入", async () => {

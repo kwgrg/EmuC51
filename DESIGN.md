@@ -155,3 +155,7 @@ ASM 工作台作为 BIN_INSPECTOR 下方独立面板，保留原二进制调试�
 ### 外部 SDCC 源码关联
 
 工作区 v4 的可选 `settings.sdccDebug` 保存清单和原始源码/IHX/CDB；与 ASM 固件绑定互斥。显式导入先验证全部文件摘要、CDB 子集及实际 CODE 摘要，再替换状态。本地恢复通过 `useSdccDebug` 异步复验，按数据/固件身份屏蔽过期结果；源码面板只消费验证结果。行断点展开为已有地址断点，不增加 Worker/CPU 协议或源码步进语义。JSON 上限 8 MiB；可信本地构建与摘要的边界见 [说明](docs/SDCC_SOURCE_DEBUG.md)。
+
+## CPU 字节操作数访问观察点（2026-10-11）
+
+独立 OperandMemory 适配器仅用于 CPU 显式字节操作数，避免全局 Memory 钩子混入 UI、表达式、验证或外设访问。按需捕获有序事件，Worker 在指令后匹配可选 `accessWatchpoints`；旧值变化观察点保持原行为。工作区 v4 可选字段，CPU v2 不变；配置最多 128 项。实现边界和验证见 [功能说明](docs/CPU_OPERAND_WATCHPOINTS.md)。

@@ -1,3 +1,4 @@
+import type { OperandAccess } from "../core/operand-access";
 import type { CoverageReport, CoverageSummary } from "../core/coverage";
 import type { WatchResult } from "../core/expressions";
 import type {
@@ -178,6 +179,7 @@ export type EmulatorEvent =
       reason: DebugStopReason;
       address?: number;
       watchpoint?: WatchpointChange;
+      accesses?: OperandAccess[];
       conditionError?: { expression: string; message: string };
       state: CpuViewState;
       snapshot: CpuSnapshot;
