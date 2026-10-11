@@ -177,3 +177,46 @@ test("草稿清除失败不终止当前 CPU，恢复存储后可完整清除", a
   await page.getByRole("button", { name: "CLEAR_LOCAL" }).click();
   await expect(page.getByLabel("ASM 源码", { exact: true })).toHaveCount(0);
 });
+
+test("经典 UART TI 在停止位开始唤醒 idle，确认后刷新不重复触发 ISR", async ({ page }) => {
+  const source=await readFile("tests/fixtures/peripherals/uart-ti-idle.asm","utf8");
+  await start(page); await page.getByLabel("ASM 源码",{exact:true}).fill(source);
+  await build(page); await load(page);
+  await page.getByLabel("断点地址").fill("0023");
+  await page.getByRole("button",{name:"添加断点",exact:true}).click();
+  await page.getByLabel("最大执行单元").fill("450");
+  await page.locator(".control-strip").getByRole("button",{name:"运行"}).click();
+  await expect(page.locator(".footer-status")).toHaveText("断点暂停 · PC=0023");
+  const snapshot=async () => {
+    const download=page.waitForEvent("download");
+    await page.getByRole("button",{name:"导出工作区"}).click();
+    return JSON.parse(await readFile((await (await download).path())!,"utf8"));
+  };
+  const atEntry=await snapshot();
+  expect(atEntry.cpu.peripherals.serial.txFrame).toMatchObject({mode:1,progress:290,tiRaised:true});
+  expect(atEntry.cpu.peripherals.serial.txOutput).toEqual([]);
+  expect(atEntry.cpu.sfr[0x98-0x80]&2).toBe(2);
+  expect(atEntry.cpu.sfr[0x87-0x80]&1).toBe(0);
+  await page.getByRole("button",{name:"单步"}).click(); // MOV 30h,TL0
+  await expect(page.getByTestId("register-PC")).toContainText("0026");
+  await page.getByRole("button",{name:"单步"}).click(); // CLR TI
+  await expect(page.getByTestId("register-PC")).toContainText("0028");
+  const acknowledged=await snapshot(); // wait for the latest Worker snapshot, not an earlier saved indicator
+  expect(acknowledged.cpu.pc).toBe(0x28);
+  expect(acknowledged.cpu.sfr[0x98-0x80]&2).toBe(0);
+  await expect(page.getByRole("main")).toHaveAttribute("data-save-state","saved");
+  await page.reload();
+  await expect(page.getByTestId("register-PC")).toContainText("0028");
+  const resumed=await snapshot();
+  expect(resumed.cpu.peripherals.serial.txFrame.tiRaised).toBe(true);
+  expect(resumed.cpu.sfr[0x98-0x80]&2).toBe(0);
+  await build(page); // re-validate the restored ASM binding without reloading/resetting the CPU
+  await expect(page.getByTestId("register-PC")).toContainText("0028");
+  await page.locator(".control-strip").getByRole("button",{name:"运行"}).click();
+  await expect(page.locator(".footer-status")).toHaveText("已达到本次运行步数上限");
+  const final=await snapshot();
+  expect(final.cpu.iram.slice(0x30,0x33)).toEqual([0x23,1,0x55]);
+  expect(final.cpu.peripherals.serial.txOutput).toEqual([0x41]);
+  expect(final.cpu.peripherals.interruptStack).toEqual([]);
+  expect(final.cpu.sfr[0x98-0x80]&3).toBe(0);
+});

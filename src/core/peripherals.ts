@@ -11,7 +11,7 @@ const frame = (value: unknown): value is SerialFrame | null => {
   if (value === null) return true;
   if (!value || typeof value !== "object") return false;
   const item = value as Partial<SerialFrame>;
-  return byte(item.value) && Number.isInteger(item.mode) && (item.mode ?? -1) >= 0 && (item.mode ?? 4) <= 3 && Number.isInteger(item.progress) && (item.progress ?? -1) >= 0 && (item.progress ?? 705) < ([8, 320, 704, 352][item.mode!] ?? 0) && (item.ninthBit === undefined || typeof item.ninthBit === "boolean");
+  return byte(item.value) && Number.isInteger(item.mode) && (item.mode ?? -1) >= 0 && (item.mode ?? 4) <= 3 && Number.isInteger(item.progress) && (item.progress ?? -1) >= 0 && (item.progress ?? 705) < ([8, 320, 704, 352][item.mode!] ?? 0) && (item.ninthBit === undefined || typeof item.ninthBit === "boolean") && (item.tiRaised === undefined || typeof item.tiRaised === "boolean");
 };
 
 export const validatePeripheralSnapshot = (value: unknown): value is PeripheralSnapshot => {
@@ -249,24 +249,30 @@ export class Peripherals8051 {
     }
   }
 
-  private tickFrame(frame: SerialFrame, timer1Overflows: number): boolean {
+  private tickFrame(frame: SerialFrame, timer1Overflows: number, transmit = false): boolean {
     const smod = (this.memory.readSfrLatch(SFR.PCON) & 0x80) !== 0;
     const increment = frame.mode === 0 ? 1 : frame.mode === 2 ? 12 : timer1Overflows;
-    const threshold = frame.mode === 0 ? 8 : frame.mode === 2 ? 11 * (smod ? 32 : 64) : (frame.mode === 1 ? 10 : 11) * (smod ? 16 : 32);
+    const bitPeriod = frame.mode === 0 ? 1 : frame.mode === 2 ? (smod ? 32 : 64) : (smod ? 16 : 32);
+    const bits = frame.mode === 0 ? 8 : frame.mode === 1 ? 10 : 11;
     frame.progress += increment;
-    return frame.progress >= threshold;
+    // Mode 0 signals after bit 8; asynchronous modes signal at the start of
+    // the stop bit. Completing that stop bit must not re-raise an acknowledged TI.
+    if (transmit && !frame.tiRaised && frame.progress >= (bits - (frame.mode === 0 ? 0 : 1)) * bitPeriod) {
+      frame.tiRaised = true;
+      this.memory.writeSfrHardware(SFR.SCON, this.memory.readSfrLatch(SFR.SCON) | 2);
+    }
+    return frame.progress >= bits * bitPeriod;
   }
 
   private advanceSerial(timer1Overflows: number): void {
     const serial = this.data.serial;
     this.startSerialFrames();
-    if (serial.txFrame && this.tickFrame(serial.txFrame, timer1Overflows)) {
+    if (serial.txFrame && this.tickFrame(serial.txFrame, timer1Overflows, true)) {
       if (serial.txOutput.length >= MAX_QUEUE) serial.txOutput.shift();
       serial.txOutput.push(serial.txFrame.value);
       if (this.pendingOutput.length >= MAX_QUEUE) this.pendingOutput.shift();
       this.pendingOutput.push(serial.txFrame.value);
       serial.txFrame = null;
-      this.memory.writeSfrHardware(SFR.SCON, this.memory.readSfrLatch(SFR.SCON) | 2);
     }
     if ((this.memory.readSfrLatch(SFR.SCON) & 0x10) === 0) {
       serial.rxFrame = null;

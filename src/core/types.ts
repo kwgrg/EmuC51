@@ -48,6 +48,8 @@ export interface CpuViewState {
 export type InterruptSource = "external0" | "timer0" | "external1" | "timer1" | "serial";
 
 export interface SerialFrame {
+  /** TX only: this frame already raised TI, even if software subsequently cleared it. */
+  tiRaised?: boolean;
   value: number;
   mode: 0 | 1 | 2 | 3;
   progress: number;

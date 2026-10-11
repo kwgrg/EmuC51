@@ -171,3 +171,5 @@
 独立 OperandMemory 适配器仅用于 CPU 显式字节操作数，避免全局 Memory 钩子混入 UI、表达式、验证或外设访问。按需捕获有序事件，Worker 在指令后匹配可选 `accessWatchpoints`；旧值变化观察点保持原行为。工作区 v4 可选字段，CPU v2 不变；配置最多 128 项。实现边界和验证见 [功能说明](CPU_OPERAND_WATCHPOINTS.md)。
 
 位访问扩展：共享核心位地址解析，BIT 观察点独立于字节观察点；显式位读写携带映射位置和读来源，CPL/JBC 保留锁存器读改写顺序。UI/隐式 flags/底层保留其他位的读不生成显式访问。工作区 v4 和 CPU v2 保持不变，新增核心、Worker、浏览器回归；最终执行完整聚合检查。
+
+经典 UART TI 正确性：模式 1/2/3 在停止位开始置 TI，完整输出仍等待停止位结束；可选帧标记 tiRaised 保留软件确认状态，避免恢复或结束时重复中断。CPU v2/工作区 v4 保持兼容，独立 ASM 程序验证 T0/T1、idle、ISR 和 RETI。详见 [外设核对](CLASSIC_PERIPHERAL_AUDIT.md)。

@@ -22,7 +22,7 @@
 | DATA/IDATA/XDATA/CODE/SFR [8] | 部分实现 | 核心区分直接/间接寻址；IRAM 128B、XRAM/CODE 64KiB、经典 SFR；UI 提供 IRAM/SFR/XRAM/CODE；没有 KEIL 内存类型前缀表达式 | `tests/core/memory.test.ts`、CPU/操作码测试；后续表达式映射不得把 direct SFR 当成 indirect IRAM，不启用 8052 高 128B |
 | 内存与寄存器窗口 | 已实现 | 暂停编辑、地址确认/取消/翻页、PSW 选组、最新内存响应过滤 | `tests/components/MemoryNavigation.test.tsx` 与 E2E；CODE 保持只读 |
 | C 源码调试、局部变量、类型 [5][9] | 部分实现 | 外部 SDCC 单文件 CDB 精确行定位、多地址行断点与显式地址导航/运行；没有变量/类型或 C 语句步进 | [真实 SDCC 导入与限制](SDCC_SOURCE_DEBUG.md)，摘要绑定、真实多地址样本、刷新/错配/竞态回归 |
-| T0/T1、五中断源、P0–P3、UART、PCON [1][10] | 已实现 | classic 8051 机器周期模型；GPIO 引脚与锁存器分离；REN/TI/RI、UART 0–3、RX 第九位、idle/power-down | `tests/core/peripherals.test.ts` 与 E2E UART/GPIO；不宣称电气/晶振/总线波形精度 |
+| T0/T1、五中断源、P0–P3、UART、PCON [1][10] | 已实现 | classic 8051 机器周期模型；GPIO 引脚与锁存器分离；REN/TI/RI、UART 0–3、RX 第九位、idle/power-down | `tests/core/peripherals.test.ts` 与 E2E UART/GPIO；不宣称电气/晶振/总线波形精度；[UART TI 时点修复及审查范围](CLASSIC_PERIPHERAL_AUDIT.md) |
 | UART 终端 [10] | 部分实现 | 数字 RX 注入、TX 捕获、HEX/文本显示和有界历史；没有真实串口连接或可选快速时钟模式 | E2E 回显/第九位及刷新恢复；后续 ASCII 批量输入与定时输入须确定性、可取消 |
 | 逻辑分析、覆盖率、性能 [3][11] | 部分实现 | 有周期计数、最近 1000 条跟踪、最多 64 次快照的 GPIO 简图；已有可选指令起始地址执行次数、绑定真实固件摘要的固定报告导出及热点浏览；没有源码/分支覆盖率或带时间轴的信号记录 | 覆盖记录独立于 Trace 缓冲区；Worker/组件/E2E 验证成功指令、故障、IRQ/idle 与清除边界；[说明](INSTRUCTION_COVERAGE.md) |
 | 衍生芯片及硬件调试 [1] | 暂不支持 | Timer 2、ADC、SPI、厂商扩展、ULINK/目标板；ARM ITM/SWO/ETM/CoreSight 不属于经典 8051 本轮范围 | 需独立器件配置和明确语义，不能静默扩展 classic 8051 |

@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { assemble } from "../../src/core/assembler";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { EmulatorCommand, EmulatorEvent } from "../../src/worker/protocol";
 
@@ -879,3 +881,22 @@ describe("explicit bit operand watches", () => {
     send({type:"Step",trace:false}); expect(stopped()).toMatchObject({reason:"OperandWatchpoint",accesses:[{pc:0,space:"bit",address:0,kind:"read",value:1}]});
   });
 });
+
+ it("UART TI wakes idle before output completes and a restored acknowledged frame cannot retrigger the ISR", () => {
+   const built=assemble(readFileSync("tests/fixtures/peripherals/uart-ti-idle.asm","utf8"));
+   expect(built.diagnostics).toEqual([]); load(...built.bytes!);
+   send({type:"SetDebugConfig",breakpoints:[0x23],watchpoints:[]});
+   send({type:"Run",maxSteps:450,trace:false}); vi.runAllTimers();
+   expect(stopped()).toMatchObject({reason:"Breakpoint",state:{pc:0x23},snapshot:{peripherals:{serial:{txFrame:{mode:1,progress:290,tiRaised:true},txOutput:[]}}}});
+   send({type:"Step",trace:false}); send({type:"Step",trace:false});
+   const snapshot=stopped().snapshot;
+   expect(snapshot.sfr[0x98-0x80]!&2).toBe(0);
+   send({type:"RestoreWorkspace",name:"uart-ti-idle.bin",bytes:built.bytes!.buffer,snapshot});
+   send({type:"Run",maxSteps:450,trace:false}); vi.runAllTimers();
+   expect(stopped().reason).toBe("StepLimitReached");
+   expect(stopped().snapshot.iram.slice(0x30,0x33)).toEqual(Uint8Array.from([0x23,1,0x55]));
+   const final=stopped().snapshot;
+   if(final.coreStateVersion!==2) throw new Error("expected v2 snapshot");
+   expect(final.peripherals.serial.txOutput).toEqual([0x41]);
+   expect(final.peripherals.interruptStack).toEqual([]);
+ });

@@ -19,6 +19,8 @@ Cloudflare 只托管编译后的 HTML、CSS、JavaScript 等静态应用文件�
 
 ## 已实现能力
 
+- [经典外设核对与 UART TI 修复](docs/CLASSIC_PERIPHERAL_AUDIT.md)：异步串口在停止位开始置 TI，附可构建的 Timer/UART/idle/ISR 示例。
+
 - [CPU 字节与位操作数访问观察点](docs/CPU_OPERAND_WATCHPOINTS.md)：DATA/IDATA/XDATA/SFR 字节与 BIT 位读写、同值写入、RMW 顺序及指令 PC；与原字节值变化观察点并存。
 
 - [外部 SDCC 源码调试](docs/SDCC_SOURCE_DEBUG.md)：导入同次本地构建的源码/IHX/CDB/摘要清单，精确 PC 行定位、多地址行断点、显式选址查看/运行与工作区恢复；

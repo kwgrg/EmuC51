@@ -20,7 +20,7 @@ describe("工作区 JSON 导入导出", () => {
       interruptDelay: 1,
       serial: {
         rxBuffer: 0x50, rxQueue: [0x41, 0x1ff], txQueue: [0x43], txOutput: [0x44],
-        txFrame: { value: 0x50, mode: 1, progress: 12, ninthBit: true },
+        txFrame: { value: 0x50, mode: 1, progress: 300, ninthBit: true, tiRaised: true },
         rxFrame: { value: 0x5a, mode: 1, progress: 20, ninthBit: false },
       },
     };
@@ -167,6 +167,7 @@ describe("工作区 JSON 导入导出", () => {
     ["串口九位数据越界", "cpu.peripherals.serial.rxQueue", [512]],
     ["串口帧进度越界", "cpu.peripherals.serial.txFrame", { value: 0, mode: 1, progress: 704 }],
     ["模式零帧进度越界", "cpu.peripherals.serial.txFrame", { value: 0, mode: 0, progress: 8 }],
+    ["串口 TI 标记类型错误", "cpu.peripherals.serial.txFrame", { value: 0, mode: 1, progress: 0, tiRaised: 1 }],
     ["串口第九位类型错误", "cpu.peripherals.serial.rxFrame", { value: 0, mode: 2, progress: 0, ninthBit: 1 }],
     ["无效中断优先级栈", "cpu.peripherals.interruptStack", [{ source: "timer0", priority: 1 }, { source: "timer1", priority: 0 }]],
   ];
