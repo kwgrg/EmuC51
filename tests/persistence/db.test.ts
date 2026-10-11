@@ -17,7 +17,7 @@ describe("IndexedDB 工作区", () => {
     const restored = await loadWorkspace();
     expect(restored?.kind).toBe("complete");
     if (restored?.kind !== "complete") throw new Error("expected complete workspace");
-    expect(restored.record.schemaVersion).toBe(2);
+    expect(restored.record.schemaVersion).toBe(3);
     expect(restored.record.coreStateVersion).toBe(2);
     expect(restored.record.firmware.name).toBe("demo.bin");
     expect(restored.record.cpu.pc).toBe(2);
@@ -104,5 +104,33 @@ describe("IndexedDB 工作区", () => {
     const invalid = { ...workspaceFixture(), schemaVersion: 99 } as unknown as WorkspaceRecord;
     await saveWorkspace(invalid);
     expect((await loadWorkspace())?.kind).toBe("firmware-only");
+  });
+});
+
+describe("v3 breakpoint settings", () => {
+  it("migrates v2 records without changing the CPU snapshot", async () => {
+    const legacy = { ...workspaceFixture(), schemaVersion: 2 as const };
+    await saveWorkspace(legacy);
+    const loaded = await loadWorkspace();
+    if (loaded?.kind !== "complete") throw new Error("expected complete workspace");
+    expect(loaded.record.schemaVersion).toBe(3);
+    expect(loaded.record.coreStateVersion).toBe(2);
+    expect(loaded.record.cpu).toEqual(legacy.cpu);
+    expect(loaded.record.settings.debugger).toEqual(legacy.settings.debugger);
+  });
+
+  it("persists disabled and counted breakpoints and discards malformed settings on recovery", async () => {
+    const record = workspaceFixture();
+    record.settings.debugger!.breakpointOptions = [{ address: 2, enabled: false, hitCount: 3 }];
+    await saveWorkspace(record);
+    const loaded = await loadWorkspace();
+    if (loaded?.kind !== "complete") throw new Error("expected complete workspace");
+    expect(loaded.record).toEqual(record);
+    record.settings.debugger!.breakpointOptions[0]!.hitCount = 0;
+    await saveWorkspace(record);
+    const recovery = await loadWorkspace();
+    expect(recovery?.kind).toBe("firmware-only");
+    if (recovery?.kind !== "firmware-only") throw new Error("expected firmware recovery");
+    expect(recovery.settings).toBeUndefined();
   });
 });

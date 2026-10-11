@@ -951,3 +951,9 @@ select:focus-visible { outline: 1px solid var(--primary); outline-offset: 2px; }
 .disassembly-lines .breakpoint-toggle { font-size: 16px; }
 .disassembly-lines .breakpoint-toggle[aria-pressed="true"] { color: var(--warning); }
 .disassembly-lines > div.current button { color: var(--terminal-bg); border-color: var(--terminal-bg); }
+
+.breakpoint-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px; border: 1px solid var(--outline-variant); }
+.breakpoint-row label { display: flex; align-items: center; gap: 5px; font-size: 10px; }
+.breakpoint-row input:not([type="checkbox"]) { width: 84px; }
+.breakpoint-row input[aria-invalid="true"] { border-color: var(--error); }
+.disassembly-lines .breakpoint-toggle[aria-pressed="true"][data-enabled="false"] { color: var(--outline); }

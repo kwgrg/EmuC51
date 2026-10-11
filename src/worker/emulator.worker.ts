@@ -106,11 +106,12 @@ const pump = (token: number): void => {
         stop = { reason: target.reason, address: target.address };
         break;
       }
-      stop = debugger8051.beforeStep(machine.pc);
-      if (stop) break;
-
       const watched = debugger8051.capture(machine.memory);
-      const result = machine.step();
+      const result = machine.step(() => {
+        stop = debugger8051.beforeStep(machine.pc);
+        return !stop;
+      });
+      if (!result) break;
       remainingSteps -= 1;
       if (traceEnabled) {
         trace.push(traceStep(result));
@@ -230,13 +231,14 @@ scope.onmessage = (message: MessageEvent<EmulatorCommand>): void => {
         const loaded = new Cpu8051(new Uint8Array(command.bytes));
         if (command.type === "RestoreWorkspace") loaded.restore(command.snapshot);
         stopCurrentRun();
-        debugger8051.stopped({ reason: "Paused" });
+        debugger8051.resetHits();
         cpu = loaded;
         post({ type: "Ready", requestId, name: command.name, state: cpu.state(), snapshot: cpu.snapshot() });
         return;
       }
       case "Reset": {
         requireCpu().reset();
+        debugger8051.resetHits();
         finishRun(requestId, { reason: "Paused" });
         return;
       }
@@ -288,6 +290,7 @@ scope.onmessage = (message: MessageEvent<EmulatorCommand>): void => {
         if (typeof command.name !== "string") invalid("寄存器名称无效");
         assertInteger(command.value, 0, 0xffff, "寄存器值");
         requireStopped().setRegister(command.name, command.value);
+        if (command.name.toUpperCase() === "PC") debugger8051.resetHits();
         postEditedState(requestId);
         return;
       }

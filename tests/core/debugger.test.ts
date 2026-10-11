@@ -79,3 +79,84 @@ describe("Debugger8051", () => {
     expect(debugger8051.changed(ram, before)?.watchpoint).toEqual({ space: "xram", address: 1, previous: 0, value: 6 });
   });
 });
+
+describe("breakpoint enablement and encounter counts", () => {
+  const config = (hitCount = 3, enabled = true) => ({
+    breakpoints: [0], watchpoints: [], breakpointOptions: [{ address: 0, enabled, hitCount }],
+  });
+
+  it("stops every N encounters and bypasses only the resumed instruction", () => {
+    const debug = new Debugger8051();
+    debug.setConfig(config());
+    debug.beginRun(0);
+    expect(debug.beforeStep(0)).toBeUndefined();
+    expect(debug.beforeStep(0)).toBeUndefined();
+    const stop = debug.beforeStep(0)!;
+    expect(stop).toEqual({ reason: "Breakpoint", address: 0 });
+    debug.stopped(stop);
+    debug.beginRun(0);
+    expect(debug.beforeStep(0)).toBeUndefined(); // Resume is not a new encounter.
+    expect(debug.beforeStep(0)).toBeUndefined();
+    expect(debug.beforeStep(0)).toBeUndefined();
+    expect(debug.beforeStep(0)?.reason).toBe("Breakpoint");
+  });
+
+  it("preserves progress across pauses and unchanged or unrelated config", () => {
+    const debug = new Debugger8051();
+    debug.setConfig(config());
+    debug.beginRun(0);
+    expect(debug.beforeStep(0)).toBeUndefined();
+    debug.stopped({ reason: "Paused" });
+    debug.setConfig({ ...config(), watchpoints: [{ space: "iram", address: 0 }] });
+    debug.beginRun(0);
+    expect(debug.beforeStep(0)).toBeUndefined();
+    expect(debug.beforeStep(0)?.reason).toBe("Breakpoint");
+  });
+
+  it("disabled breakpoints never count, and enablement/count edits reset that address", () => {
+    const debug = new Debugger8051();
+    debug.setConfig(config(2));
+    expect(debug.beforeStep(0)).toBeUndefined();
+    debug.setConfig(config(2, false));
+    for (let i = 0; i < 10; i += 1) expect(debug.beforeStep(0)).toBeUndefined();
+    debug.setConfig(config(2));
+    expect(debug.beforeStep(0)).toBeUndefined();
+    debug.setConfig(config(3));
+    expect(debug.beforeStep(0)).toBeUndefined();
+    expect(debug.beforeStep(0)).toBeUndefined();
+    expect(debug.beforeStep(0)?.reason).toBe("Breakpoint");
+  });
+
+  it("resetting clears partial counts and resume bypass state", () => {
+    const debug = new Debugger8051();
+    debug.setConfig(config(2));
+    debug.beforeStep(0);
+    debug.resetHits();
+    expect(debug.beforeStep(0)).toBeUndefined();
+    const stop = debug.beforeStep(0)!;
+    debug.stopped(stop);
+    debug.resetHits();
+    debug.beginRun(0);
+    expect(debug.beforeStep(0)).toBeUndefined();
+    expect(debug.beforeStep(0)?.reason).toBe("Breakpoint");
+  });
+
+  it.each([0, -1, 1.5, NaN, Infinity, 100_000_001])("rejects invalid count %s without changing progress", (count) => {
+    const debug = new Debugger8051();
+    debug.setConfig(config(2));
+    debug.beforeStep(0);
+    expect(() => debug.setConfig(config(count))).toThrow();
+    expect(debug.beforeStep(0)?.reason).toBe("Breakpoint");
+  });
+
+  it("rejects orphan, duplicate and malformed options and returns defensive copies", () => {
+    const debug = new Debugger8051();
+    expect(() => debug.setConfig({ ...config(), breakpoints: [] })).toThrow();
+    expect(() => debug.setConfig({ ...config(), breakpointOptions: [...config().breakpointOptions, ...config().breakpointOptions] })).toThrow();
+    expect(() => debug.setConfig({ ...config(), breakpointOptions: null } as unknown as Parameters<typeof debug.setConfig>[0])).toThrow();
+    expect(() => debug.setConfig(config(2, "false" as unknown as boolean))).toThrow();
+    const result = debug.setConfig(config(2));
+    result.breakpointOptions![0]!.enabled = false;
+    expect(debug.getConfig().breakpointOptions![0]!.enabled).toBe(true);
+  });
+});

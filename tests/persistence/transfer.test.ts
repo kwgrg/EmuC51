@@ -24,6 +24,7 @@ describe("工作区 JSON 导入导出", () => {
         rxFrame: { value: 0x5a, mode: 1, progress: 20, ninthBit: false },
       },
     };
+    record.settings.debugger!.breakpointOptions = [{ address: 2, enabled: false, hitCount: 5 }];
     record.cpu.iram[0x20] = 0x77;
     const text = exportWorkspace(record);
     const encoded = JSON.parse(text);
@@ -50,6 +51,7 @@ describe("工作区 JSON 导入导出", () => {
     record.cpu.peripherals.serial.txOutput = Array(4096).fill(255);
     record.settings.debugger = {
       breakpoints: Array.from({ length: 1024 }, (_, index) => 0xffff - index),
+      breakpointOptions: Array.from({ length: 1024 }, (_, index) => ({ address: 0xffff - index, enabled: false, hitCount: 100_000_000 })),
       watchpoints: Array.from({ length: 1024 }, (_, index) => ({ space: "xram", address: 0xffff - index })),
     };
     const text = exportWorkspace(record);
@@ -65,9 +67,19 @@ describe("工作区 JSON 导入导出", () => {
       cpu: { ...legacy.cpu, iram: Array.from(legacy.cpu.iram), sfr: Array.from(legacy.cpu.sfr), xram: Array.from(legacy.cpu.xram) },
     });
     const restored = await importWorkspace(text);
-    expect(restored.schemaVersion).toBe(2);
+    expect(restored.schemaVersion).toBe(3);
     expect(restored.cpu.coreStateVersion).toBe(2);
     expect(restored.cpu.pc).toBe(legacy.cpu.pc);
+  });
+
+  it("imports v2 records with default breakpoint behavior and rejects v3 fields under v2", async () => {
+    const legacy = JSON.parse(exportWorkspace(workspaceFixture()));
+    legacy.schemaVersion = 2;
+    const restored = await importWorkspace(JSON.stringify(legacy));
+    expect(restored.schemaVersion).toBe(3);
+    expect(restored.settings.debugger?.breakpointOptions).toBeUndefined();
+    legacy.settings.debugger.breakpointOptions = [{ address: 2, enabled: false, hitCount: 5 }];
+    await expect(importWorkspace(JSON.stringify(legacy))).rejects.toThrow();
   });
 
   it("校验和失败时不替换已有工作区", async () => {
@@ -100,6 +112,13 @@ describe("工作区 JSON 导入导出", () => {
     ["最大步数越界", "settings.maxSteps", 100_000_001],
     ["trace 不是布尔值", "settings.traceEnabled", "true"],
     ["未知内存空间", "settings.selectedMemorySpace", "other"],
+    ["断点选项非数组", "settings.debugger.breakpointOptions", null],
+    ["断点启停非布尔值", "settings.debugger.breakpointOptions", [{ address: 2, enabled: 1, hitCount: 1 }]],
+    ["断点计数零", "settings.debugger.breakpointOptions", [{ address: 2, enabled: true, hitCount: 0 }]],
+    ["断点计数小数", "settings.debugger.breakpointOptions", [{ address: 2, enabled: true, hitCount: 1.5 }]],
+    ["断点计数超限", "settings.debugger.breakpointOptions", [{ address: 2, enabled: true, hitCount: 100_000_001 }]],
+    ["孤立断点选项", "settings.debugger.breakpointOptions", [{ address: 3, enabled: true, hitCount: 1 }]],
+    ["重复断点选项", "settings.debugger.breakpointOptions", [{ address: 2, enabled: true, hitCount: 1 }, { address: 2, enabled: false, hitCount: 2 }]],
     ["断点越界", "settings.debugger.breakpoints", [65536]],
     ["断点数量超限", "settings.debugger.breakpoints", Array(1025).fill(0)],
     ["IRAM 观察点越界", "settings.debugger.watchpoints", [{ space: "iram", address: 128 }]],

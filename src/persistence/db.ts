@@ -1,13 +1,10 @@
 import { openDB, type DBSchema } from "idb";
 import { Cpu8051 } from "../core/cpu";
-import { SFR } from "../core/memory";
+import { normalizeDebugConfig, type DebugConfig } from "../core/debugger";
 import { validatePeripheralSnapshot } from "../core/peripherals";
 import type { CpuSnapshot, MemorySpace } from "../core/types";
 
-export interface WorkspaceDebugConfig {
-  breakpoints: number[];
-  watchpoints: { space: Exclude<MemorySpace, "code">; address: number }[];
-}
+export type WorkspaceDebugConfig = DebugConfig;
 
 export interface WorkspaceSettings {
   maxSteps: number;
@@ -17,8 +14,8 @@ export interface WorkspaceSettings {
 }
 
 export interface WorkspaceRecord {
-  // Version 1 remains readable; new records and exports use version 2.
-  schemaVersion: 1 | 2;
+  // Record versions 1/2 remain readable; v3 adds breakpoint options, CPU stays v2.
+  schemaVersion: 1 | 2 | 3;
   coreStateVersion: 1 | 2;
   firmware: {
     name: string;
@@ -148,24 +145,12 @@ const normalizeFirmwareRecord = (value: unknown): WorkspaceRecord["firmware"] | 
   };
 };
 
-const normalizeDebugConfig = (value: unknown): WorkspaceDebugConfig | undefined => {
-  if (!isObject(value) || !Array.isArray(value.breakpoints) || !Array.isArray(value.watchpoints)) return undefined;
-  if (value.breakpoints.length > 1024 || value.watchpoints.length > 1024) return undefined;
-  const breakpoints = Array.from(value.breakpoints);
-  if (!breakpoints.every((address) => isInteger(address, 0, 0xffff))) return undefined;
-  const sfrAddresses = new Set<number>(Object.values(SFR));
-  const watchpoints: WorkspaceDebugConfig["watchpoints"] = [];
-  for (const item of value.watchpoints) {
-    if (!isObject(item) || !isInteger(item.address, 0, 0xffff)) return undefined;
-    if (
-      (item.space === "iram" && item.address <= 0x7f) ||
-      (item.space === "sfr" && sfrAddresses.has(item.address)) ||
-      item.space === "xram"
-    ) {
-      watchpoints.push({ space: item.space, address: item.address });
-    } else return undefined;
+const normalizeWorkspaceDebugConfig = (value: unknown): WorkspaceDebugConfig | undefined => {
+  try {
+    return normalizeDebugConfig(value as DebugConfig);
+  } catch {
+    return undefined;
   }
-  return { breakpoints: breakpoints as number[], watchpoints };
 };
 
 export const normalizeWorkspaceSettings = (value: unknown): WorkspaceSettings | undefined => {
@@ -176,7 +161,7 @@ export const normalizeWorkspaceSettings = (value: unknown): WorkspaceSettings | 
     typeof value.selectedMemorySpace !== "string" ||
     !["code", "iram", "sfr", "xram"].includes(value.selectedMemorySpace)
   ) return undefined;
-  const debuggerConfig = value.debugger === undefined ? undefined : normalizeDebugConfig(value.debugger);
+  const debuggerConfig = value.debugger === undefined ? undefined : normalizeWorkspaceDebugConfig(value.debugger);
   if (value.debugger !== undefined && !debuggerConfig) return undefined;
   return {
     maxSteps: value.maxSteps,
@@ -207,8 +192,9 @@ export const normalizeWorkspaceRecord = (value: unknown): WorkspaceRecord | unde
   const settings = normalizeWorkspaceSettings(value.settings);
   if (
     !firmware || !settings || !isInteger(value.updatedAt, 0) ||
-    (value.schemaVersion !== 1 && value.schemaVersion !== 2) ||
-    value.coreStateVersion !== value.schemaVersion ||
+    (value.schemaVersion !== 1 && value.schemaVersion !== 2 && value.schemaVersion !== 3) ||
+    value.coreStateVersion !== (value.schemaVersion === 1 ? 1 : 2) ||
+    (value.schemaVersion !== 3 && settings.debugger?.breakpointOptions !== undefined) ||
     !isCpuSnapshot(value.cpu) || value.cpu.coreStateVersion !== value.coreStateVersion
   ) return undefined;
   try {
@@ -220,7 +206,7 @@ export const normalizeWorkspaceRecord = (value: unknown): WorkspaceRecord | unde
       xram: new Uint8Array(value.cpu.xram),
     });
     return {
-      schemaVersion: 2,
+      schemaVersion: 3,
       coreStateVersion: 2,
       firmware,
       cpu: cpu.snapshot(),

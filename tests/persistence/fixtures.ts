@@ -9,7 +9,7 @@ export const workspaceFixture = (): WorkspaceRecord => {
   cpu.step();
   cpu.memory.writeXram(0x1234, 0x88);
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     coreStateVersion: 2,
     firmware: {
       name: "demo.bin",

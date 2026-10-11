@@ -11,7 +11,7 @@ import {
 import { hex16, hex8 } from "./core/numbers";
 import { MAX_HEX_FILE_SIZE, parseFirmware } from "./core/firmware";
 import { DisassemblyView } from "./components/DisassemblyView";
-import { normalizeDebugConfig } from "./core/debugger";
+import { normalizeDebugConfig, removeBreakpoint } from "./core/debugger";
 import { ByteEditor, DebuggerPanel, RegisterEditor, type DebugSettings, type WritableSpace } from "./components/DebuggerPanel";
 import { MemoryNavigation, memoryBounds } from "./components/MemoryNavigation";
 import { GpioControls, SerialControls, TimerStatus } from "./components/PeripheralControls";
@@ -148,7 +148,7 @@ export default function App() {
     const currentFirmware = firmwareRef.current;
     if (!currentFirmware) return undefined;
     return {
-      schemaVersion: 2,
+      schemaVersion: 3,
       coreStateVersion: snapshot.coreStateVersion,
       firmware: { ...currentFirmware, bytes: copyBuffer(currentFirmware.bytes) },
       cpu: snapshot,
@@ -963,12 +963,13 @@ function WorkbenchView({
         {firmware ? <DisassemblyView key={`${firmware.sha256}:${firmware.loadedAt}`}
           program={firmware.bytes} pc={cpuState?.pc ?? 0}
           breakpoints={settings.debugger?.breakpoints ?? []}
+          breakpointOptions={settings.debugger?.breakpointOptions}
           disabled={restoring} running={running} onRunTo={runToAddress}
           onToggleBreakpoint={(address) => {
             const config = settings.debugger ?? { breakpoints: [], watchpoints: [] };
-            updateDebugConfig({ ...config, breakpoints: config.breakpoints.includes(address)
-              ? config.breakpoints.filter((value) => value !== address)
-              : [...config.breakpoints, address] });
+            updateDebugConfig(config.breakpoints.includes(address)
+              ? removeBreakpoint(config, address)
+              : { ...config, breakpoints: [...config.breakpoints, address] });
           }} /> : <EmptyState>NO BINARY IMAGE LOADED</EmptyState>}
       </TerminalPanel>
 

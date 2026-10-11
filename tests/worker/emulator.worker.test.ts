@@ -256,3 +256,112 @@ describe("emulator worker debugger", () => {
     expect(stopped()).toMatchObject({ reason: "StepLimitReached", state: { steps: 0 } });
   });
 });
+
+describe("counted breakpoint execution", () => {
+  const configure = (hitCount = 3, enabled = true, address = 0) => send({
+    type: "SetDebugConfig", breakpoints: [address], watchpoints: [],
+    breakpointOptions: [{ address, enabled, hitCount }],
+  });
+  const run = (maxSteps = 50) => { send({ type: "Run", maxSteps, trace: true }); vi.runAllTimers(); };
+
+  it("counts loop visits before execution, survives budgets/pause, and resumes once", () => {
+    load(0x04, 0x80, 0xfd); // INC A; SJMP 0.
+    configure();
+    run(2);
+    expect(stopped()).toMatchObject({ reason: "StepLimitReached", state: { acc: 1 } });
+    send({ type: "Pause" });
+    configure(); // Applying identical settings preserves progress.
+    run();
+    expect(stopped()).toMatchObject({ reason: "Breakpoint", state: { pc: 0, acc: 2, steps: 4 } });
+    run();
+    expect(stopped()).toMatchObject({ reason: "Breakpoint", state: { pc: 0, acc: 5, steps: 10 } });
+    send({ type: "Reset" });
+    run();
+    expect(stopped()).toMatchObject({ reason: "Breakpoint", state: { acc: 2, steps: 4 } });
+  });
+
+  it("disabled breakpoints run through and re-enabling starts a fresh count", () => {
+    load(0x04, 0x80, 0xfd);
+    configure(3, false);
+    run(10);
+    expect(stopped()).toMatchObject({ reason: "StepLimitReached", state: { acc: 5 } });
+    configure(3);
+    run();
+    expect(stopped()).toMatchObject({ reason: "Breakpoint", state: { acc: 7 } });
+  });
+
+  it("idle ticks are not encounters of the suspended PC", () => {
+    load(0x75, 0x87, 0x01, 0x04, 0x80, 0xfd);
+    configure(2, true, 3);
+    run(10);
+    expect(stopped()).toMatchObject({ reason: "StepLimitReached", state: { pc: 3, steps: 1, acc: 0 } });
+    send({ type: "WriteMemory", space: "sfr", address: 0x87, value: 0 });
+    run();
+    expect(stopped()).toMatchObject({ reason: "Breakpoint", state: { pc: 3, acc: 1, steps: 3 } });
+  });
+
+  it("interrupt entry does not count as a visit to the interrupted instruction", () => {
+    const program = new Uint8Array(12);
+    program.set([0x04, 0x80, 0xfd]);
+    program[0x0b] = 0x32; // RETI.
+    load(...program);
+    const snapshot = events.find((event) => event.type === "Ready")!.snapshot;
+    snapshot.sfr[0x08] = 0x20; // TF0 pending.
+    snapshot.sfr[0x28] = 0x82; // EA + ET0.
+    send({ type: "RestoreWorkspace", name: "irq.bin", bytes: program.buffer, snapshot });
+    configure(2);
+    run();
+    expect(traces()[0]!.kind).toBe("interrupt");
+    expect(stopped()).toMatchObject({ reason: "Breakpoint", state: { pc: 0, acc: 1, steps: 3, sp: 7 } });
+  });
+
+  it("single-step does not count; restoring and PC edits clear partial progress", () => {
+    const program = Uint8Array.of(0x04, 0x80, 0xfd);
+    load(...program);
+    configure(2);
+    send({ type: "Step", trace: true });
+    send({ type: "Step", trace: true });
+    run(2);
+    expect(stopped()).toMatchObject({ reason: "StepLimitReached", state: { acc: 2 } });
+    const snapshot = stopped().snapshot;
+    send({ type: "RestoreWorkspace", name: "loop.bin", bytes: program.buffer, snapshot });
+    run(2);
+    expect(stopped()).toMatchObject({ reason: "StepLimitReached", state: { acc: 3 } });
+    send({ type: "SetRegister", name: "PC", value: 0 });
+    run();
+    expect(stopped()).toMatchObject({ reason: "Breakpoint", state: { acc: 4 } });
+  });
+});
+
+describe("breakpoint resume around interrupts", () => {
+  it("preserves the one-time bypass until the interrupted instruction really executes", () => {
+    const program = new Uint8Array(12);
+    program.set([0x04, 0x80, 0xfd]);
+    program[0x0b] = 0x32;
+    load(...program);
+    const snapshot = events.find((event) => event.type === "Ready")!.snapshot;
+    snapshot.sfr[0x28] = 0x82;
+    send({ type: "RestoreWorkspace", name: "irq.bin", bytes: program.buffer, snapshot });
+    send({ type: "SetDebugConfig", breakpoints: [0], watchpoints: [] });
+    send({ type: "Run", maxSteps: 50, trace: true });
+    vi.runAllTimers();
+    expect(stopped()).toMatchObject({ reason: "Breakpoint", state: { acc: 0, steps: 0 } });
+    send({ type: "WriteMemory", space: "sfr", address: 0x88, value: 0x20 });
+    send({ type: "Run", maxSteps: 50, trace: true });
+    vi.runAllTimers();
+    expect(traces()[0]!.kind).toBe("interrupt");
+    expect(stopped()).toMatchObject({ reason: "Breakpoint", state: { pc: 0, acc: 1, steps: 3, sp: 7 } });
+  });
+
+  it("counts subroutine visits across separate step-over operations", () => {
+    load(0x12, 0, 6, 0x80, 0xfb, 0, 0x04, 0x22);
+    send({ type: "SetDebugConfig", breakpoints: [6], watchpoints: [], breakpointOptions: [{ address: 6, enabled: true, hitCount: 2 }] });
+    send({ type: "StepOver", maxSteps: 50, trace: true });
+    vi.runAllTimers();
+    expect(stopped()).toMatchObject({ reason: "StepComplete", state: { pc: 3, acc: 1 } });
+    send({ type: "Step", trace: true });
+    send({ type: "StepOver", maxSteps: 50, trace: true });
+    vi.runAllTimers();
+    expect(stopped()).toMatchObject({ reason: "Breakpoint", state: { pc: 6, acc: 1, steps: 5, sp: 9 } });
+  });
+});

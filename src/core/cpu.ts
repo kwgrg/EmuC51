@@ -120,7 +120,9 @@ export class Cpu8051 {
   receiveSerial(value: number, ninthBit = true): void { this.peripherals.receiveSerial(value, ninthBit); }
   drainSerialOutput(): number[] { return this.peripherals.drainSerialOutput(); }
 
-  step(): StepResult {
+  step(): StepResult;
+  step(beforeInstruction: () => boolean): StepResult | undefined;
+  step(beforeInstruction?: () => boolean): StepResult | undefined {
     const pcBefore = this.pcValue;
     const interrupt = this.peripherals.nextInterrupt();
     if (interrupt) {
@@ -139,6 +141,9 @@ export class Cpu8051 {
       this.cycleCount += cycles;
       return { kind: powerMode, pcBefore, pcAfter: pcBefore, bytes: [0, 0, 0], length: 1, mnemonic: powerMode === "idle" ? "IDLE" : "POWER DOWN", machineCycles: cycles, state: this.state(false) };
     }
+    // Debugger stops happen after interrupt/power arbitration, before fetching
+    // the instruction. Idle ticks and interrupt entries never count as visits.
+    if (beforeInstruction && !beforeInstruction()) return undefined;
     const opcode = this.memory.readCode(pcBefore);
     const meta = opcodeMeta(opcode);
     if (!meta.legal) {

@@ -8,8 +8,17 @@ export interface MemoryWatchpoint {
   address: number;
 }
 
+export interface BreakpointOptions {
+  address: number;
+  enabled: boolean;
+  hitCount: number;
+}
+
+export const MAX_BREAKPOINT_HIT_COUNT = 100_000_000;
+
 export interface DebugConfig {
   breakpoints: number[];
+  breakpointOptions?: BreakpointOptions[];
   watchpoints: MemoryWatchpoint[];
 }
 
@@ -65,6 +74,16 @@ export const assertWritableAddress = (
   }
 };
 
+/** Missing options preserve legacy always-enabled, every-visit breakpoints. */
+export const breakpointOptions = (config: DebugConfig, address: number): BreakpointOptions =>
+  config.breakpointOptions?.find((item) => item.address === address) ?? { address, enabled: true, hitCount: 1 };
+
+export const removeBreakpoint = (config: DebugConfig, address: number): DebugConfig => ({
+  ...config,
+  breakpoints: config.breakpoints.filter((value) => value !== address),
+  ...(config.breakpointOptions ? { breakpointOptions: config.breakpointOptions.filter((item) => item.address !== address) } : {}),
+});
+
 /** Validate the whole replacement before changing any active debugger state. */
 export const normalizeDebugConfig = (config: DebugConfig): DebugConfig => {
   if (
@@ -77,6 +96,18 @@ export const normalizeDebugConfig = (config: DebugConfig): DebugConfig => {
     invalid("断点和观察点必须是数组，每类最多 1024 个");
   }
   for (const address of config.breakpoints) assertDebugAddress(address);
+  const options = new Map<number, BreakpointOptions>();
+  if (config.breakpointOptions !== undefined) {
+    if (!Array.isArray(config.breakpointOptions) || config.breakpointOptions.length > 1024) invalid("断点选项必须是最多 1024 项的数组");
+    for (const item of config.breakpointOptions) {
+      if (!item || typeof item !== "object") invalid("断点选项无效");
+      assertDebugAddress(item.address);
+      if (!config.breakpoints.includes(item.address) || options.has(item.address) ||
+          typeof item.enabled !== "boolean" || !Number.isSafeInteger(item.hitCount) ||
+          item.hitCount < 1 || item.hitCount > MAX_BREAKPOINT_HIT_COUNT) invalid("断点选项需对应唯一地址，命中次数须为 1 到 100000000 的整数");
+      options.set(item.address, { address: item.address, enabled: item.enabled, hitCount: item.hitCount });
+    }
+  }
   const watchpoints = new Map<string, MemoryWatchpoint>();
   for (const point of config.watchpoints) {
     if (!point || typeof point !== "object") invalid("内存观察点无效");
@@ -85,6 +116,7 @@ export const normalizeDebugConfig = (config: DebugConfig): DebugConfig => {
   }
   return {
     breakpoints: [...new Set(config.breakpoints)].sort((a, b) => a - b),
+    ...(config.breakpointOptions !== undefined ? { breakpointOptions: [...options.values()].sort((a, b) => a.address - b.address) } : {}),
     watchpoints: [...watchpoints.values()].sort(
       (a, b) => spaces.indexOf(a.space) - spaces.indexOf(b.space) || a.address - b.address,
     ),
@@ -94,23 +126,31 @@ export const normalizeDebugConfig = (config: DebugConfig): DebugConfig => {
 /** Breakpoints run before instructions; watchpoints observe changed stored bytes. */
 export class Debugger8051 {
   private config: DebugConfig = { breakpoints: [], watchpoints: [] };
-  private breakpoints = new Set<number>();
+  private breakpoints = new Map<number, BreakpointOptions>();
+  private hits = new Map<number, number>();
   private lastBreakpoint: number | undefined;
   private skipBreakpoint: number | undefined;
 
   setConfig(config: DebugConfig): DebugConfig {
     const validated = normalizeDebugConfig(config);
-    this.config = validated;
-    this.breakpoints = new Set(validated.breakpoints);
-    if (this.lastBreakpoint !== undefined && !this.breakpoints.has(this.lastBreakpoint)) {
-      this.lastBreakpoint = undefined;
+    const next = new Map(validated.breakpoints.map((address) => [address, breakpointOptions(validated, address)]));
+    for (const [address, old] of this.breakpoints) {
+      const option = next.get(address);
+      if (!option || option.enabled !== old.enabled || option.hitCount !== old.hitCount) {
+        this.hits.delete(address);
+        if (this.lastBreakpoint === address) this.lastBreakpoint = undefined;
+        if (this.skipBreakpoint === address) this.skipBreakpoint = undefined;
+      }
     }
+    this.config = validated;
+    this.breakpoints = next;
     return this.getConfig();
   }
 
   getConfig(): DebugConfig {
     return {
       breakpoints: [...this.config.breakpoints],
+      ...(this.config.breakpointOptions ? { breakpointOptions: this.config.breakpointOptions.map((item) => ({ ...item })) } : {}),
       watchpoints: this.config.watchpoints.map((point) => ({ ...point })),
     };
   }
@@ -124,11 +164,21 @@ export class Debugger8051 {
   }
 
   beforeStep(pc: number): DebugStop | undefined {
-    const skip = this.skipBreakpoint === pc;
+    if (this.skipBreakpoint === pc) {
+      this.skipBreakpoint = undefined;
+      return undefined;
+    }
+    const option = this.breakpoints.get(pc);
+    if (!option?.enabled) return undefined;
+    const hits = (this.hits.get(pc) ?? 0) + 1;
+    this.hits.set(pc, hits === option.hitCount ? 0 : hits);
+    return hits === option.hitCount ? { reason: "Breakpoint", address: pc } : undefined;
+  }
+
+  resetHits(): void {
+    this.hits.clear();
+    this.lastBreakpoint = undefined;
     this.skipBreakpoint = undefined;
-    return !skip && this.breakpoints.has(pc)
-      ? { reason: "Breakpoint", address: pc }
-      : undefined;
   }
 
   stopped(stop: DebugStop): void {

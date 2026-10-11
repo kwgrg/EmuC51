@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { BreakpointOptions } from "../core/debugger";
 import { disassemble } from "../core/disassembler";
 import { hex16, hex8, u16 } from "../core/numbers";
 import { parseHex } from "./DebuggerPanel";
 
-export function DisassemblyView({ program, pc, breakpoints, disabled, running, onToggleBreakpoint, onRunTo }: {
+export function DisassemblyView({ program, pc, breakpoints, breakpointOptions, disabled, running, onToggleBreakpoint, onRunTo }: {
   program: ArrayBuffer;
   pc: number;
   breakpoints: number[];
+  breakpointOptions?: BreakpointOptions[];
   disabled: boolean;
   running: boolean;
   onToggleBreakpoint: (address: number) => void;
@@ -64,13 +66,14 @@ export function DisassemblyView({ program, pc, breakpoints, disabled, running, o
       <div className="source-lines disassembly-lines" data-testid="disassembly-list">
         {rows.map((item) => {
           const breakpoint = breakpoints.includes(item.address);
+          const enabled = breakpointOptions?.find((option) => option.address === item.address)?.enabled ?? true;
           return <div className={item.address === pc ? "current" : ""}
             data-testid={item.address === pc ? "current-instruction" : undefined}
             data-address={hex16(item.address)} key={item.address}>
             <button type="button" className="breakpoint-toggle" aria-label={`切换断点 ${hex16(item.address)}`}
-              aria-pressed={breakpoint} title={breakpoint ? "移除断点" : "添加断点"}
+              aria-pressed={breakpoint} data-enabled={breakpoint && enabled} title={breakpoint ? (enabled ? "移除断点" : "移除已禁用断点") : "添加断点"}
               disabled={disabled || running || (!breakpoint && breakpoints.length >= 1024)}
-              onClick={() => onToggleBreakpoint(item.address)}>{breakpoint ? "●" : "○"}</button>
+              onClick={() => onToggleBreakpoint(item.address)}>{breakpoint ? (enabled ? "●" : "◌") : "○"}</button>
             <code>{hex16(item.address)}</code>
             <code>{item.bytes.map(hex8).join(" ")}</code>
             <strong>{item.text}</strong>
