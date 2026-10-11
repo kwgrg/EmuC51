@@ -1,3 +1,4 @@
+import { cdbIntegerEncoding, decodeCdbInteger } from "../core/cdb-integers";
 import { useMemo, useState } from "react";
 import type { VerifiedSdccDebug } from "../core/sdcc-debug";
 import type { WatchResult } from "../core/expressions";
@@ -11,9 +12,11 @@ export function SdccSymbolsPanel({verified,disabled,sample,onRead,onBrowse}:{
   const symbols=useMemo(()=>verified.symbols.filter(symbol=>symbol.id.toLowerCase().includes(query.trim().toLowerCase())),[verified,query]);
   const target=verified.symbols.find(symbol=>symbol.id===selected&&!symbol.unavailable);
   const current=target&&sample?.id===target.id&&sample.token===symbolBindingToken(verified)?sample:undefined;
+  const encoding = target ? cdbIntegerEncoding(target) : undefined;
+  const integer = target && current ? decodeCdbInteger(target, current.results) : undefined;
   return <section className="symbol-panel" aria-label="SDCC 静态符号">
     <h3>SDCC 静态符号</h3>
-    <p>仅验证过的静态全局存储对象可查看原始字节（地址递增顺序），不解释 C 值、不解引用指针。CDB 全身份限定名称独立于表达式 Watch，ACC 等名称不会覆盖寄存器。</p>
+    <p>仅验证过的静态全局存储对象可查看原始字节（地址递增顺序），可按已验证 CDB 标量存储编码解释整数，不恢复原始 C 类型、不解引用指针。CDB 全身份限定名称独立于表达式 Watch，ACC 等名称不会覆盖寄存器。</p>
     <p>构建模块 {verified.data.manifest.files.source.name}；CDB 不保证声明来自此 .c 而非头文件。无声明的启动/库链接名不生成为变量；优化后无记录的名字不猜测。局部变量、参数、函数和未验证类型不提供读取。</p>
     <label>筛选 SDCC 符号<input aria-label="筛选 SDCC 符号" value={query} maxLength={128} onChange={event=>{setQuery(event.target.value);setPage(0);}} /></label>
     <div className="asm-actions"><button disabled={!page} onClick={()=>setPage(page-1)}>符号上一页</button><span>{page+1} / {Math.max(1,Math.ceil(symbols.length/50))} · {symbols.length} 个声明</span><button disabled={(page+1)*50>=symbols.length} onClick={()=>setPage(page+1)}>符号下一页</button></div>
@@ -21,6 +24,11 @@ export function SdccSymbolsPanel({verified,disabled,sample,onRead,onBrowse}:{
       <code>{target.id}</code>
       <p data-testid="symbol-sample">{current?`固定采样 PC ${hex16(current.pc)} · ${current.steps} 条指令（不是实时值）`:"等待本次读取"}</p>
       <output data-testid="symbol-bytes">{current?current.results.some(result=>result.error)?current.results.map(result=>result.error??"").filter(Boolean).join("；"):current.results.map(result=>hex8(result.value!)).join(" "):"…"}</output>
+      {encoding ? <div aria-label="CDB 存储整数视图">
+        <p>按 CDB 存储编码解释：{target.type} · {encoding.bits} 位{encoding.signed ? "有符号" : "无符号"} · 小端</p>
+        <output data-testid="symbol-integer">{integer === undefined ? "暂无完整有效采样" : String(integer)}</output>
+        <p>可能是普通整数或相同存储编码的枚举；不能恢复原始 C 声明类型、枚举名或枚举成员。数值与上方原始字节来自同一次固定采样。</p>
+      </div> : <p>此对象仅显示原始字节，不作标量整数解释。</p>}
       <div className="asm-actions"><button disabled={disabled} onClick={()=>onRead(target.id)}>刷新符号观察</button><button onClick={()=>setSelected(undefined)}>取消符号观察</button></div>
     </div>}
     <div className="symbol-list">{symbols.slice(page*50,(page+1)*50).map(symbol=><div key={symbol.id} className="symbol-row" data-testid="sdcc-symbol" data-symbol-id={symbol.id}>

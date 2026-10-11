@@ -4,6 +4,6 @@ Real SDCC 4.5.0 #15242 / mcs51 / small / 128-byte IRAM / debug output, generated
 
 Important format limitation: `enum_value` and an ordinary signed char both emit `{1}SC:S`. SDCC's `cdbTypeInfo` does not serialize `SPEC_ENUM`; the source frontend retains that flag, but the CDB writer discards it. Long long emits `{8}SI:S`, demonstrating why the size check must remain mandatory. Bool emits `{1}:S` (no recognized scalar type code).
 
-The fixture does not authorize converting every SC/SI/SL declaration into a claimed C integer value. Its regression test preserves raw bytes and demonstrates the missing enum distinction. Any future C-type display needs additional trustworthy type evidence, or an explicitly different product contract describing storage reinterpretation rather than recovered C types.
+The fixture does not authorize converting every SC/SI/SL declaration into a claimed C integer value. Its regression test preserves raw bytes and demonstrates the missing enum distinction. The delivered integer view explicitly interprets storage encoding rather than claiming recovered C types, and warns about this enum ambiguity. Precise original C types would require additional trustworthy evidence.
 
 The source is project test code. Linked runtime licensing: [SDCC-LIBRARIES-COPYRIGHT](../sdcc-counter/SDCC-LIBRARIES-COPYRIGHT).

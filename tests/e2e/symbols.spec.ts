@@ -61,8 +61,8 @@ test("可信符号：晚到观察结果不能覆盖新选择或替换后的固�
   });
   await page.goto("/#editor");await importSymbols(page);
   await page.evaluate(()=>window.dispatchEvent(new Event("hold-symbol")));await page.getByRole("button",{name:`观察 ${globalId("ACC")}`,exact:true}).click();await expect(page.getByTestId("symbol-bytes")).toHaveText("…");
-  await readSymbol(page,"wide","00 00 00 00");await page.evaluate(()=>window.dispatchEvent(new Event("release-symbol")));await expect(page.getByTestId("symbol-bytes")).toHaveText("00 00 00 00");
+  await readSymbol(page,"wide","00 00 00 00");await page.evaluate(()=>window.dispatchEvent(new Event("release-symbol")));await expect(page.getByTestId("symbol-bytes")).toHaveText("00 00 00 00");await expect(page.getByTestId("symbol-integer")).toHaveText("0");
   await page.evaluate(()=>window.dispatchEvent(new Event("hold-symbol")));await page.getByRole("button",{name:`观察 ${globalId("ACC")}`,exact:true}).click();await expect(page.getByTestId("symbol-bytes")).toHaveText("…");
   await page.getByTestId("workbench-firmware-input").setInputFiles({name:"new.bin",mimeType:"application/octet-stream",buffer:Buffer.from([0x80,0xfe])});
-  await expect(page.getByRole("region",{name:"SDCC 静态符号"})).toHaveCount(0);await page.evaluate(()=>window.dispatchEvent(new Event("release-symbol")));await expect(page.getByTestId("symbol-bytes")).toHaveCount(0);
+  await expect(page.getByRole("region",{name:"SDCC 静态符号"})).toHaveCount(0);await page.evaluate(()=>window.dispatchEvent(new Event("release-symbol")));await expect(page.getByTestId("symbol-bytes")).toHaveCount(0);await expect(page.getByTestId("symbol-integer")).toHaveCount(0);
 });

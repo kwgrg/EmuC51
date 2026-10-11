@@ -28,3 +28,26 @@ it("bounds rendered declarations to 50 and filters case-insensitively without me
   fireEvent.click(screen.getByRole("button",{name:"符号下一页"}));expect(screen.getAllByTestId("sdcc-symbol")[0]).toHaveTextContent("name50");
   fireEvent.change(screen.getByLabelText("筛选 SDCC 符号"),{target:{value:"NAME2047"}});expect(screen.getAllByTestId("sdcc-symbol")).toHaveLength(1);
 });
+it("derives a storage integer from the same bound sample and hides stale source/firmware values",()=>{
+  const symbol=verified.symbols.find(item=>item.name==="count16")!;
+  const p={verified,disabled:false,onRead:vi.fn(),onBrowse:vi.fn()};
+  const {rerender}=render(<SdccSymbolsPanel {...p}/>);
+  fireEvent.click(screen.getByRole("button",{name:`观察 ${symbol.id}`}));
+  expect(screen.getByTestId("symbol-integer")).toHaveTextContent("暂无完整有效采样");
+  const sample={id:symbol.id,token:symbolBindingToken(verified),results:[
+    {expression:`IRAM[${symbol.address}]`,value:255},{expression:`IRAM[${symbol.address!+1}]`,value:255},
+  ],pc:0,steps:10};
+  rerender(<SdccSymbolsPanel {...p} sample={sample}/>);
+  expect(screen.getByTestId("symbol-integer")).toHaveTextContent("65535");
+  expect(screen.getByTestId("symbol-bytes")).toHaveTextContent("FF FF");
+  expect(screen.getByLabelText("CDB 存储整数视图")).toHaveTextContent("相同存储编码的枚举");
+  const changed={...verified,data:{...verified.data,manifest:{...verified.data.manifest,files:{...verified.data.manifest.files,source:{...verified.data.manifest.files.source,sha256:"b".repeat(64)}}}}};
+  rerender(<SdccSymbolsPanel {...p} verified={changed} sample={sample}/>);
+  expect(screen.getByTestId("symbol-integer")).toHaveTextContent("暂无完整有效采样");
+  rerender(<SdccSymbolsPanel {...p} verified={{...verified,firmwareSha256:"c".repeat(64)}} sample={sample}/>);
+  expect(screen.getByTestId("symbol-integer")).toHaveTextContent("暂无完整有效采样");
+  rerender(<SdccSymbolsPanel {...p} sample={{...sample,results:[{...sample.results[0]!,error:"采样失败"},sample.results[1]!]}}/>);
+  expect(screen.getByTestId("symbol-integer")).toHaveTextContent("暂无完整有效采样");
+  fireEvent.click(screen.getByRole("button",{name:"取消符号观察"}));
+  expect(screen.queryByTestId("symbol-integer")).not.toBeInTheDocument();
+});
