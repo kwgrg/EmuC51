@@ -1025,3 +1025,11 @@ select:focus-visible { outline: 1px solid var(--primary); outline-offset: 2px; }
 }
 .operand-watch-panel { margin-top: 12px; border-top: 1px solid var(--outline-variant); padding-top: 8px; }
 .operand-watch-panel h3 { color: var(--secondary); font-size: 12px; }
+.asm-source-debug { margin-top: 16px; border-top: 1px solid var(--outline-variant); padding-top: 12px; }
+.asm-source-debug h3 { color: var(--secondary); font-size: 12px; }
+.asm-source-list { max-height: 440px; overflow: auto; margin-top: 10px; }
+.asm-source-row { display: grid; grid-template-columns: 28px 38px minmax(0, 1fr) auto; align-items: start; gap: 6px; padding: 4px; border-bottom: 1px solid var(--outline-variant); font-size: 11px; }
+.asm-source-row pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; }
+.asm-source-row > .asm-actions { grid-column: 3 / -1; }
+.asm-source-row button { padding: 3px 5px; min-height: 25px; font-size: 10px; }
+.asm-source-row.source-current { background: color-mix(in srgb, var(--primary) 18%, transparent); }

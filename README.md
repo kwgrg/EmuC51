@@ -24,7 +24,7 @@ Cloudflare 只托管编译后的 HTML、CSS、JavaScript 等静态应用文件�
 - [CPU 字节与位操作数访问观察点](docs/CPU_OPERAND_WATCHPOINTS.md)：DATA/IDATA/XDATA/SFR 字节与 BIT 位读写、同值写入、RMW 顺序及指令 PC；与原字节值变化观察点并存。
 
 - [外部 SDCC 源码调试](docs/SDCC_SOURCE_DEBUG.md)：导入同次本地构建的源码/IHX/CDB/摘要清单，精确 PC 行定位、多地址行断点、显式选址查看/运行与工作区恢复；
-- [本地单文件 ASM 编辑/构建](docs/ASM_WORKBENCH.md)：经典指令、标签和有界伪指令子集，行列诊断、取消、ASM/BIN 导出，源码与调试固件关联保护；
+- [本地单文件 ASM 编辑/构建](docs/ASM_WORKBENCH.md)：经典指令、标签和有界伪指令子集，行列诊断、取消、ASM/BIN 导出；精确 PC 行定位、行断点和导航/运行，源码与固件关联保护；
 
 - 不超过 64 KiB 的 BIN 或 Intel HEX/IHX 固件加载和 SHA-256 标识；HEX 校验记录、校验和、地址和重叠数据，支持全部六类标准记录；
 - 64 KiB CODE、128 字节 IRAM、经典 8051 SFR 和 64 KiB XRAM；

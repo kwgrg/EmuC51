@@ -1,3 +1,4 @@
+import { AsmSourcePanel } from "./components/AsmSourcePanel";
 import { SdccSourcePanel } from "./components/SdccSourcePanel";
 import { useSdccDebug } from "./components/useSdccDebug";
 import { toggleSourceBreakpoints, type SdccDebugData } from "./core/sdcc-debug";
@@ -779,6 +780,13 @@ export default function App() {
     try { updateDebugConfig(toggleSourceBreakpoints(settingsRef.current.debugger ?? { breakpoints: [], watchpoints: [] }, addresses)); }
     catch (caught) { setError(caught instanceof Error ? caught.message : "无法设置源码行断点"); }
   };
+  const asmDebugArtifact = settings.asmBinding && !asmBlocked && !asm.building && !restoring ? asm.artifact : undefined;
+  const validAsmAddress = (address: number): boolean => Boolean(asmDebugArtifact?.sourceMap.some(item => item.kind === "instruction" && item.address === address));
+  const toggleAsmAddress = (address: number): void => {
+    if (running || !validAsmAddress(address)) return;
+    try { updateDebugConfig(toggleSourceBreakpoints(settingsRef.current.debugger ?? { breakpoints: [], watchpoints: [] }, [address])); }
+    catch (caught) { setError(caught instanceof Error ? caught.message : "无法设置 ASM 行断点"); }
+  };
   const asmStatus = `${asm.message}。${settings.asmBinding
     ? asmBlocked ? "当前 ASM 固件未验证或源码已变更：执行已锁定，请重建；若结果不同须加载新产物。" : "当前源码与已加载 ASM 固件匹配。"
     : firmware ? "当前固件独立于 ASM 草稿；构建后须显式加载才会改变调试内容。" : "尚未加载固件，可新建 ASM 示例开始。"}`;
@@ -832,9 +840,15 @@ export default function App() {
                 onCancelImport={sdccImporting ? () => { fileActionRef.current += 1; setSdccImporting(false); setNotice("已取消 SDCC 导入"); } : undefined}
                 onFiles={files => void onSdccFiles(files)} onToggleLine={toggleSdccLine}
                 onBrowseAddress={onBrowseAddress} onRunToAddress={runToSdccAddress} />}
-              asmPanel={<AsmPanel project={settings.asmProject} artifact={asm.artifact} diagnostics={asm.diagnostics} building={asm.building}
+              asmPanel={onBrowseAddress => <><AsmPanel project={settings.asmProject} artifact={asm.artifact} diagnostics={asm.diagnostics} building={asm.building}
                 disabled={running || restoring} status={asmStatus} onProject={changeAsmProject} onBuild={asm.build} onCancel={asm.cancel} onLoad={loadAsm}
-                onNew={() => changeAsmProject({ name: "main.asm", source: ASM_EXAMPLE })} />}
+                onNew={() => changeAsmProject({ name: "main.asm", source: ASM_EXAMPLE })} />
+                {asmDebugArtifact ? <AsmSourcePanel key={`${asmDebugArtifact.binding.sourceSha256}:${asmDebugArtifact.binding.firmwareSha256}`} artifact={asmDebugArtifact}
+                  pc={cpuState?.pc} disabled={running} config={settings.debugger ?? { breakpoints: [], watchpoints: [] }} onToggle={toggleAsmAddress}
+                  onBrowse={address => { if (!running && validAsmAddress(address)) onBrowseAddress(address); }}
+                  onRunTo={address => { if (!running && validAsmAddress(address)) runToAddress(address); }} />
+                  : <p data-testid="asm-mapping-status">ASM 行映射须在构建并验证当前源码与已加载固件匹配后启用；修改、取消、失败或刷新后请重建。</p>}
+              </>}
               coverageReport={coverageReport} coverageReportPending={coverageReportPending} requestCoverageReport={requestCoverageReport}
               coverage={coverage} coverageSample={coverageSample} readCoverage={readCoverage}
               setCoverageEnabled={setCoverageEnabled} clearCoverage={clearCoverage}
@@ -1143,7 +1157,7 @@ function WorkbenchView({
   clearLocal,
 }: {
   sdccPanel: (onBrowseAddress: (address: number) => void) => ReactNode;
-  asmPanel: ReactNode;
+  asmPanel: (onBrowseAddress: (address: number) => void) => ReactNode;
   asmBlocked: boolean;
   coverageReport?: CoverageReport;
   coverageReportPending: boolean;
@@ -1191,7 +1205,10 @@ function WorkbenchView({
         setInstructionNavigation({ address });
         document.querySelector(".source-view")?.scrollIntoView({ block: "start" });
       })}</TerminalPanel>
-      <TerminalPanel className="asm-card" title="ASM_WORKBENCH" bits={["LOCAL", "SINGLE FILE"]}>{asmPanel}</TerminalPanel>
+      <TerminalPanel className="asm-card" title="ASM_WORKBENCH" bits={["LOCAL", "SINGLE FILE"]}>{asmPanel(address => {
+        setInstructionNavigation({ address });
+        document.querySelector(".source-view")?.scrollIntoView({ block: "start" });
+      })}</TerminalPanel>
       <TerminalPanel className="project-files" title="PROJECT_FILES" bits={["FS", "RO"]}>
         <div className="tree-root">⌄ SRC</div>
         {firmware ? (

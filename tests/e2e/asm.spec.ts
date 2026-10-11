@@ -220,3 +220,84 @@ test("经典 UART TI 在停止位开始唤醒 idle，确认后刷新不重复触
   expect(final.cpu.peripherals.interruptStack).toEqual([]);
   expect(final.cpu.sfr[0x98-0x80]&3).toBe(0);
 });
+
+test("ASM 精确源码行断点、PC、反汇编导航及运行至行", async ({page}) => {
+  await start(page);
+  await page.getByLabel("ASM 源码",{exact:true}).fill("; source map\nORG 0\nMOV A,#1\nLOOP: INC A\nSJMP LOOP\nORG 10h\nDB 0,0\nEND");
+  await build(page); await expect(page.getByTestId("asm-location")).toHaveCount(0);
+  await load(page);
+  await expect(page.getByTestId("asm-location")).toContainText("第 3 行");
+  await expect(page.getByRole("button",{name:"切换 ASM 第 1 行断点",exact:true})).toBeDisabled();
+  await expect(page.getByRole("button",{name:"运行至 ASM 第 7 行",exact:true})).toBeDisabled();
+  const breakpoint=page.getByRole("button",{name:"切换 ASM 第 4 行断点",exact:true});
+  await breakpoint.click(); await expect(page.getByRole("button",{name:"删除断点 0002",exact:true})).toBeVisible();
+  await breakpoint.click(); await expect(breakpoint).toHaveAttribute("aria-pressed","false"); await breakpoint.click();
+  await page.locator(".control-strip").getByRole("button",{name:"运行"}).click();
+  await expect(page.locator(".footer-status")).toHaveText("断点暂停 · PC=0002");
+  await expect(page.locator('[data-asm-line="4"]')).toHaveClass(/source-current/);
+  await page.getByRole("button",{name:"查看 ASM 第 5 行汇编",exact:true}).click();
+  await expect(page.getByLabel("反汇编起始地址")).toHaveValue("0003");
+  await expect(page.getByTestId("register-PC")).toContainText("0002");
+  await page.getByRole("button",{name:"查看 ASM 第 5 行汇编",exact:true}).click();
+  await page.getByRole("button",{name:"运行至 ASM 第 5 行",exact:true}).click();
+  await expect(page.locator(".footer-status")).toHaveText("已运行至地址 0003");
+  await expect(page.getByTestId("register-A")).toContainText("02");
+  await expect(page.getByRole("button",{name:"删除断点 0003",exact:true})).toHaveCount(0);
+  await expect(page.getByTestId("asm-location")).toContainText("第 5 行");
+  for(const width of [375,820,1280]) {
+    await page.setViewportSize({width,height:900});
+    await page.getByTestId("asm-location").scrollIntoViewIfNeeded();
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    expect(await page.locator(".asm-source-list").evaluate(element=>element.scrollWidth<=element.clientWidth)).toBe(true);
+    await page.screenshot({path:`/tmp/emuc51-asm-map-${width}.png`,fullPage:true});
+  }
+  await page.getByLabel("编辑寄存器").selectOption("PC");
+  await page.getByLabel("寄存器新值").fill("0001"); await page.getByRole("button",{name:"写入寄存器"}).click();
+  await expect(page.getByTestId("asm-location")).toContainText("无精确指令行映射");
+});
+
+test("ASM 映射只信任当前匹配构建，编辑失败、刷新、替换固件不保留旧行入口", async ({page}) => {
+  await start(page); const editor=page.getByLabel("ASM 源码",{exact:true});
+  const source="MOV A,#42h\nSJMP $";
+  await editor.fill(source); await build(page); await load(page);
+  await page.getByRole("button",{name:"单步"}).click(); await expect(page.getByTestId("register-PC")).toContainText("0002");
+  const download=page.waitForEvent("download");
+  await page.getByRole("button",{name:"导出工作区"}).click();
+  expect(JSON.parse(await readFile((await (await download).path())!,"utf8")).cpu.pc).toBe(2);
+  await expect(page.getByRole("main")).toHaveAttribute("data-save-state","saved"); await page.reload();
+  await expect(page.getByTestId("asm-location")).toHaveCount(0); await build(page);
+  await expect(page.getByTestId("asm-location")).toContainText("第 2 行");
+  await expect(page.getByTestId("register-PC")).toContainText("0002");
+  await editor.fill("MOV A,#missing"); await expect(page.getByTestId("asm-location")).toHaveCount(0);
+  await page.getByRole("button",{name:"构建 ASM",exact:true}).click();
+  await expect(page.getByTestId("asm-status")).toContainText("构建失败");
+  await expect(page.getByRole("button",{name:/切换 ASM 第/})).toHaveCount(0);
+  await editor.fill(source+"\n; changed source, same bytes"); await build(page);
+  await expect(page.getByTestId("asm-location")).toHaveCount(0); await load(page);
+  await expect(page.getByTestId("asm-location")).toContainText("第 1 行");
+  await page.getByTestId("workbench-firmware-input").setInputFiles({name:"other.bin",mimeType:"application/octet-stream",buffer:Buffer.from([0x80,0xfe])});
+  await expect(page.getByTestId("asm-location")).toHaveCount(0);
+});
+
+test("ASM 分页定位、运行预算、暂停锁定与离页行为", async ({page}) => {
+  await start(page);
+  await page.getByLabel("ASM 源码",{exact:true}).fill("SJMP $\n"+Array(104).fill("NOP").join("\n"));
+  await build(page); await load(page);
+  await page.getByRole("button",{name:"ASM 下一页",exact:true}).click();
+  await expect(page.getByTestId("asm-source-page")).toHaveText("2 / 2");
+  await page.getByLabel("最大执行单元").fill("5");
+  await page.getByRole("button",{name:"运行至 ASM 第 105 行",exact:true}).click();
+  await expect(page.locator(".footer-status")).toHaveText("已达到本次运行步数上限");
+  await expect(page.getByTestId("register-PC")).toContainText("0000");
+  await page.getByLabel("最大执行单元").fill("100000000");
+  await page.getByRole("button",{name:"运行至 ASM 第 105 行",exact:true}).click();
+  await expect(page.getByRole("button",{name:"运行至 ASM 第 105 行",exact:true})).toBeDisabled();
+  await expect(page.getByRole("button",{name:"切换 ASM 第 105 行断点",exact:true})).toBeDisabled();
+  await page.getByRole("button",{name:"暂停"}).click();
+  await expect(page.getByRole("button",{name:"运行至 ASM 第 105 行",exact:true})).toBeEnabled();
+  await page.getByRole("button",{name:"定位当前 ASM 行",exact:true}).click();
+  await expect(page.getByTestId("asm-source-page")).toHaveText("1 / 2");
+  await page.getByRole("button",{name:"ASM 下一页",exact:true}).click();
+  await page.goto("/#memory"); await page.goto("/#editor");
+  await expect(page.getByTestId("asm-source-page")).toHaveText("1 / 2");
+});
