@@ -1,5 +1,6 @@
 /// <reference lib="webworker" />
 
+import { evaluateWatch, MAX_WATCH_EXPRESSIONS } from "../core/expressions";
 import { Cpu8051 } from "../core/cpu";
 import { Debugger8051, assertDebugAddress, assertWritableAddress, type DebugStop } from "../core/debugger";
 import { opcodeMeta } from "../core/opcodes";
@@ -333,6 +334,14 @@ scope.onmessage = (message: MessageEvent<EmulatorCommand>): void => {
         requireCpu().receiveSerial(command.value, command.ninthBit);
         postEditedState(requestId);
         return;
+      case "EvaluateExpressions": {
+        if (!Array.isArray(command.expressions) || command.expressions.length > MAX_WATCH_EXPRESSIONS ||
+            Array.from(command.expressions).some((expression) => typeof expression !== "string")) invalid("观察列表须为最多 32 项的字符串数组");
+        const machine = requireCpu();
+        const results = evaluateWatch(machine, command.expressions);
+        post({ type: "WatchResults", requestId, results, pc: machine.pc, steps: machine.state().steps });
+        return;
+      }
       case "ReadMemory": {
         assertReadMemory(command.space, command.address, command.length);
         const bytes = requireCpu().readMemory(command.space, command.address, command.length);

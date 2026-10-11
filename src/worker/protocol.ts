@@ -1,3 +1,4 @@
+import type { WatchResult } from "../core/expressions";
 import type {
   CpuSnapshot,
   CpuViewState,
@@ -102,7 +103,13 @@ export interface CreateSnapshotCommand extends CommandBase {
   type: "CreateSnapshot";
 }
 
+export interface EvaluateExpressionsCommand extends CommandBase {
+  type: "EvaluateExpressions";
+  expressions: string[];
+}
+
 export type EmulatorCommand =
+  | EvaluateExpressionsCommand
   | LoadFirmwareCommand
   | RestoreWorkspaceCommand
   | ResetCommand
@@ -121,6 +128,7 @@ export type EmulatorCommand =
   | CreateSnapshotCommand;
 
 export type EmulatorEvent =
+  | { type: "WatchResults"; requestId: number; results: WatchResult[]; pc: number; steps: number }
   | ({ type: "DebugConfigChanged"; requestId: number } & DebugConfig)
   | { type: "SerialOutput"; requestId: number; bytes: number[] }
   | { type: "CommandRejected"; requestId: number; error: EmulatorFaultData; running: boolean }

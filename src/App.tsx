@@ -10,6 +10,7 @@ import {
 } from "react";
 import { hex16, hex8 } from "./core/numbers";
 import { MAX_HEX_FILE_SIZE, parseFirmware } from "./core/firmware";
+import { WatchPanel } from "./components/WatchPanel";
 import { DisassemblyView } from "./components/DisassemblyView";
 import { normalizeDebugConfig, removeBreakpoint } from "./core/debugger";
 import { ByteEditor, DebuggerPanel, RegisterEditor, type DebugSettings, type WritableSpace } from "./components/DebuggerPanel";
@@ -93,6 +94,7 @@ export default function App() {
   const settingsRef = useRef<WorkspaceSettings>(DEFAULT_SETTINGS);
   const memoryAddressRef = useRef(0);
   const memoryRequestRef = useRef(0);
+  const watchRequestRef = useRef(0);
   const exportRequestRef = useRef<number | undefined>(undefined);
   const firmwareRequestRef = useRef(0);
   const fileActionRef = useRef(0);
@@ -104,6 +106,8 @@ export default function App() {
   const [cpuState, setCpuState] = useState<CpuViewState>();
   const [settings, setSettingsState] = useState(DEFAULT_SETTINGS);
   const [running, setRunning] = useState(false);
+  const [watchExpressions, setWatchExpressions] = useState<string[]>([]);
+  const [watchSample, setWatchSample] = useState<Extract<EmulatorEvent, { type: "WatchResults" }>>();
   const [restoring, setRestoring] = useState(true);
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string>();
@@ -225,6 +229,9 @@ export default function App() {
           break;
         case "TraceBatch":
           setTrace((current) => [...current, ...event.trace].slice(-1000));
+          break;
+        case "WatchResults":
+          if (event.requestId === watchRequestRef.current) setWatchSample(event);
           break;
         case "MemoryData":
           if (event.requestId === memoryRequestRef.current && event.space === settingsRef.current.selectedMemorySpace && event.address === memoryAddressRef.current) setMemoryBytes(event.bytes);
@@ -362,6 +369,23 @@ export default function App() {
     window.addEventListener("pagehide", saveOnHide);
     return () => window.removeEventListener("pagehide", saveOnHide);
   }, [persistSnapshot]);
+
+  const refreshWatch = useCallback(() => {
+    if (!firmware || restoring || watchExpressions.length === 0) return;
+    watchRequestRef.current = postCommand({ type: "EvaluateExpressions", expressions: watchExpressions });
+  }, [firmware, restoring, watchExpressions, postCommand]);
+
+  useEffect(() => {
+    watchRequestRef.current = -1;
+    setWatchSample(undefined);
+    if (activeView === "memory") refreshWatch();
+  }, [activeView, cpuState, refreshWatch]);
+
+  const updateWatch = (expressions: string[]): void => {
+    watchRequestRef.current = -1;
+    setWatchSample(undefined);
+    setWatchExpressions(expressions);
+  };
 
   const updateSettings = (next: WorkspaceSettings): void => {
     settingsRef.current = next;
@@ -631,6 +655,10 @@ export default function App() {
               memoryAddress={memoryAddress}
               memoryBytes={memoryBytes}
               settings={settings}
+              watchExpressions={watchExpressions}
+              watchSample={watchSample}
+              updateWatch={updateWatch}
+              refreshWatch={refreshWatch}
               chooseMemorySpace={chooseMemorySpace}
               updateMemoryAddress={updateMemoryAddress}
               running={running}
@@ -1113,6 +1141,7 @@ function ControlStrip({
 }
 
 function MemoryView({
+  watchExpressions, watchSample, updateWatch, refreshWatch,
   chooseMemorySpace,
   cpuState,
   firmware,
@@ -1125,6 +1154,10 @@ function MemoryView({
   writeMemory,
   restoring,
 }: {
+  watchExpressions: string[];
+  watchSample?: Extract<EmulatorEvent, { type: "WatchResults" }>;
+  updateWatch: (expressions: string[]) => void;
+  refreshWatch: () => void;
   chooseMemorySpace: (space: MemorySpace) => void;
   cpuState?: CpuViewState;
   firmware?: FirmwareState;
@@ -1168,13 +1201,9 @@ function MemoryView({
         </div>
       </TerminalPanel>
 
-      <TerminalPanel className="watch-card" title="WATCH" bits={["+"]}>
-        <div className="watch-list">
-          <span><b>PC</b><code>0x{hex16(cpuState?.pc ?? 0)}</code></span>
-          <span><b>SP</b><code>0x{hex8(cpuState?.sp ?? 0)}</code></span>
-          <span><b>DPTR</b><code>0x{hex16(cpuState?.dptr ?? 0)}</code></span>
-          <span><b>ACC</b><code>0x{hex8(cpuState?.acc ?? 0)}</code></span>
-        </div>
+      <TerminalPanel className="watch-card" title="WATCH" bits={[`${watchExpressions.length}/32`, "READ ONLY"]}>
+        <WatchPanel expressions={watchExpressions} sample={watchSample} disabled={!firmware || restoring}
+          onChange={updateWatch} onRefresh={refreshWatch} />
       </TerminalPanel>
 
       <TerminalPanel className="bank-card" title="REGISTER_BANK" bits={[cpuState ? `BANK${(cpuState.psw >> 3) & 3}` : "OFF"]}>

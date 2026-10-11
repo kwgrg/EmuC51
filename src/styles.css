@@ -965,3 +965,14 @@ select:focus-visible { outline: 1px solid var(--primary); outline-offset: 2px; }
 .call-stack-list strong { color: var(--secondary); }
 .call-stack-list small { color: var(--outline); }
 @media (max-width: 1100px) { .call-stack-panel { grid-column: 1 / -1; } }
+
+.expression-watch { display: grid; gap: 8px; font-size: 10px; }
+.expression-watch form { display: flex; flex-wrap: wrap; gap: 6px; }
+.expression-watch label { display: grid; gap: 4px; width: 100%; }
+.expression-watch input { width: 100%; min-width: 0; }
+.expression-watch button { padding: 4px 6px; }
+.expression-watch p, .expression-watch small { margin: 0; color: var(--outline); overflow-wrap: anywhere; }
+.expression-row { display: grid; grid-template-columns: minmax(0, 1fr) 26px; gap: 5px; border-top: 1px solid var(--outline-variant); padding-top: 6px; }
+.expression-row code, .expression-row output { overflow-wrap: anywhere; }
+.expression-row output { grid-column: 1; color: var(--secondary); }
+.expression-row button { grid-column: 2; grid-row: 1 / 3; }

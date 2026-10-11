@@ -135,3 +135,7 @@ Provide local workspace download and a labeled JSON file input. Validate importe
 - Use semantic landmarks and labeled navigation. Keep focus order consistent with visual order.
 - Production remains self-contained under the existing CSP: no analytics, remote fonts, remote images, or runtime API calls.
 - Firmware names, bytes, hashes, CPU state, memory, and traces stay in the browser and are never included in outbound requests.
+
+## Watch panel
+
+The SYS_MEM Watch panel accepts session-only read-only expressions. Each row shows its expression and either a decimal/hex value or a local error. Show sampling PC and instruction count; discard superseded replies when the list or firmware changes. Enter adds a trimmed expression, Escape cancels the draft, duplicate entries and lists over 32 rows are blocked. Narrow layouts wrap expressions without page overflow. See [expression semantics](docs/WATCH_EXPRESSIONS.md).

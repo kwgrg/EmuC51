@@ -397,3 +397,44 @@ test("跳出支持预算和暂停，手动改写返回槽后停止提供跳出",
   await page.getByRole("button", { name: "复位" }).click();
   await expect(page.getByTestId("call-stack")).toContainText("从复位开始追踪");
 });
+
+test("Watch 表达式独立报错、刷新、取消、导航和重新载入", async ({ page }) => {
+  await load(page, [0x74, 0x12, 0x80, 0xfe]);
+  await navigate(page, "SYS_MEM");
+  const input = page.getByLabel("观察表达式");
+  const row = (expression: string) => page.getByTestId("watch-expression-row").filter({ has: page.locator("code", { hasText: new RegExp(`^${expression}$`) }) });
+  for (const expression of ["ACC", "PC", "1/0", "CODE[0]"]) {
+    await input.fill(expression);
+    await input.press("Enter");
+  }
+  await expect(row("ACC")).toContainText("0 (0x0)");
+  await expect(row("1/0")).toContainText("不能除以零");
+  await expect(page.getByTestId("watch-expression-row").last()).toContainText("116 (0x74)");
+  await input.fill("ACC");
+  await expect(page.getByRole("button", { name: "添加观察" })).toBeDisabled();
+  await input.press("Escape");
+  await expect(input).toHaveValue("");
+  await navigate(page, "BIN_INSPECTOR");
+  await page.getByRole("button", { name: "单步" }).click();
+  await navigate(page, "SYS_MEM");
+  await expect(row("ACC")).toContainText("18 (0x12)");
+  await expect(row("PC")).toContainText("2 (0x2)");
+  for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "刷新观察" }).click();
+  await expect(row("ACC")).toContainText("18 (0x12)");
+  await page.getByLabel("删除观察 1/0", { exact: true }).click();
+  await expect(page.getByTestId("watch-expression-row")).toHaveCount(3);
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  for (const width of [375, 820, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: `/tmp/emuc51-watch-${width}.png`, fullPage: true });
+  }
+  await page.setViewportSize({ width: 375, height: 900 });
+  await page.getByLabel("删除观察 ACC", { exact: true }).click();
+  await input.fill("SP");
+  await input.press("Enter");
+  await expect(row("SP")).toContainText("7 (0x7)");
+  await page.reload();
+  await expect(page.getByLabel("观察表达式")).toBeVisible();
+  await expect(page.getByTestId("watch-expression-row")).toHaveCount(0);
+});

@@ -493,3 +493,27 @@ describe("Step Out stop boundaries", () => {
     expect(stopped()).toMatchObject({ reason: "StepLimitReached", state: { pc: 10, steps: 3, peripherals: { powerMode: "idle" } } });
   });
 });
+
+describe("watch expression sampling", () => {
+  it("returns a coherent batch, isolates errors and leaves execution untouched", () => {
+    load(0x04, 0x80, 0xfd);
+    send({ type: "SetDebugConfig", breakpoints: [], watchpoints: [{ space: "iram", address: 0 }] });
+    send({ type: "Run", maxSteps: 20, trace: false });
+    const id = send({ type: "EvaluateExpressions", expressions: ["PC", "ACC", "IRAM[0]", "1/0"] });
+    expect(events.find(e => e.type === "WatchResults" && e.requestId === id)).toMatchObject({
+      pc: 0, steps: 0, results: [{ value: 0 }, { value: 0 }, { value: 0 }, { error: "不能除以零" }],
+    });
+    vi.runAllTimers();
+    expect(stopped()).toMatchObject({ reason: "StepLimitReached", state: { steps: 20, acc: 10 } });
+  });
+
+  it("rejects malformed or oversized batches without losing the machine", () => {
+    load(0);
+    for (const expressions of [Array(33).fill("PC"), Array(2), [42], null]) {
+      const id = send({ type: "EvaluateExpressions", expressions: expressions as string[] });
+      expect(events.find(e => e.requestId === id)).toMatchObject({ type: "CommandRejected" });
+    }
+    const id = send({ type: "EvaluateExpressions", expressions: ["SP"] });
+    expect(events.find(e => e.requestId === id)).toMatchObject({ type: "WatchResults", results: [{ value: 7 }] });
+  });
+});
