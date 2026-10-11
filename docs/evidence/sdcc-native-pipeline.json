@@ -1,0 +1,65 @@
+{
+  "compiler": "SDCC 4.5.0 #15242 (Linux)",
+  "nativeOnly": true,
+  "options": [
+    "-mmcs51",
+    "--model-small",
+    "--iram-size",
+    "128",
+    "--debug"
+  ],
+  "results": [
+    {
+      "fixture": "sdcc-counter",
+      "ihxSha256": "65976a018191173f99d4c34f4c84922bebad82e3899fb68db00e794fcd1a9ea7",
+      "ihxMatches": true,
+      "sourceDebugAvailable": false
+    },
+    {
+      "fixture": "sdcc-flow",
+      "ihxSha256": "cf48dd65ee5caf954f39200d3b58b51ce7a8dc826d738b2fab1b2e214494690a",
+      "ihxMatches": true,
+      "sourceDebugAvailable": false
+    }
+  ],
+  "editedSourceChangesFirmware": true,
+  "syntaxDiagnostic": "broken.c:2: syntax error: token -> ';' ; column 25",
+  "validBuildAfterErrorMatches": true,
+  "assets": [
+    {
+      "path": "lib/small/mcs51.lib",
+      "bytes": 12824,
+      "sha256": "a557b568454266f971e7f35ab6475350c954a8a2ab72c4d092e7f848fa35ef35"
+    },
+    {
+      "path": "lib/small/libsdcc.lib",
+      "bytes": 604346,
+      "sha256": "13c7111c6f6e81c1d21a8a345bb3f15658c1dc5ac47e1be9f37509bb8b623f16"
+    },
+    {
+      "path": "lib/small/libint.lib",
+      "bytes": 9168,
+      "sha256": "bbd501a000714980dc7e24ecf1ba33d28980589fdfb49b1b953183df803aa5e4"
+    },
+    {
+      "path": "lib/small/liblong.lib",
+      "bytes": 11502,
+      "sha256": "9c6913411d24165d6bbd8010079988c0d6bc45fc6aba058e67f5dafd75b6f8a7"
+    },
+    {
+      "path": "lib/small/libfloat.lib",
+      "bytes": 181800,
+      "sha256": "2a93a9fc158681034c0a5173dc65ee51cbba0edfa1a2f30bcb489536fcb38855"
+    },
+    {
+      "path": "include/mcs51/8051.h",
+      "bytes": 4938,
+      "sha256": "5353257fc6dabaa6b0ea45e10a262c951b2f848ecb8149061b6ca7d566168bf1"
+    }
+  ],
+  "assetBytes": 824578,
+  "wasmBuild": "not attempted by this native-only probe",
+  "browserWorker": "not run",
+  "browserCancellation": "not run",
+  "wasmSizeAndPeakMemory": "not measured"
+}
