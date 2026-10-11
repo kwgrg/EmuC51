@@ -6,6 +6,24 @@ export interface CoverageSummary {
   saturated: boolean;
 }
 
+export interface CoverageEntry { address: number; count: number }
+
+export interface CoverageReport {
+  format: "emuc51-instruction-coverage";
+  version: 1;
+  scope: "successful-instruction-starts";
+  firmware: { name: string; sha256: string; byteLength: number };
+  capturedAt: string;
+  pc: number;
+  steps: number;
+  summary: CoverageSummary;
+  entries: CoverageEntry[];
+}
+
+export function coverageHotspots(report: CoverageReport, limit = 20): CoverageEntry[] {
+  return [...report.entries].sort((a, b) => b.count - a.count || a.address - b.address).slice(0, limit);
+}
+
 /** Session-only instruction-start counters. Allocate storage only after opt-in. */
 export class InstructionCoverage {
   enabled = false;
@@ -44,6 +62,18 @@ export class InstructionCoverage {
 
   summary(): CoverageSummary {
     return { enabled: this.enabled, epoch: this.epoch, uniqueAddresses: this.uniqueAddresses, instructions: this.instructions, saturated: this.saturated };
+  }
+
+  /** Explicit snapshot only; sorted by address, detached from the live counters. */
+  entries(): CoverageEntry[] {
+    const entries: CoverageEntry[] = [];
+    if (this.counts) {
+      for (let address = 0; address < this.counts.length; address += 1) {
+        const count = this.counts[address]!;
+        if (count > 0) entries.push({ address, count });
+      }
+    }
+    return entries;
   }
 
   read(addresses: number[]): number[] {

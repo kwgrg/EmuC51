@@ -707,3 +707,93 @@ describe("instruction coverage transport and execution boundaries", () => {
     expect(events.filter(event => event.type === "CoverageChanged" && event.requestId === id)).toHaveLength(1);
   });
 });
+
+describe("coverage report snapshots", () => {
+  const reports = () => events.filter(event => event.type === "CoverageReportCreated");
+  const deferDigest = () => {
+    let resolve!: (value: ArrayBuffer) => void;
+    let reject!: (reason: Error) => void;
+    const promise = new Promise<ArrayBuffer>((yes, no) => { resolve = yes; reject = no; });
+    const digest = vi.fn(() => promise);
+    vi.stubGlobal("crypto", { subtle: { digest } });
+    return { resolve, reject, digest };
+  };
+  const flush = async () => { for (let i = 0; i < 8; i += 1) await Promise.resolve(); };
+
+  it("hashes the actual loaded bytes and exports exact counts, PC and execution steps", async () => {
+    const { webcrypto, createHash } = await import("node:crypto");
+    vi.stubGlobal("crypto", webcrypto);
+    load(0x74, 0x42, 0x80, 0xfc);
+    send({ type: "SetCoverage", enabled: true });
+    send({ type: "Run", maxSteps: 7, trace: false });
+    vi.runAllTimers();
+    const id = send({ type: "CreateCoverageReport" });
+    await vi.waitFor(() => expect(reports()).toHaveLength(1));
+    expect(reports()[0]).toMatchObject({ requestId: id, report: {
+      format: "emuc51-instruction-coverage", version: 1, scope: "successful-instruction-starts",
+      firmware: { name: "test.bin", byteLength: 4, sha256: createHash("sha256").update(Buffer.from([0x74, 0x42, 0x80, 0xfc])).digest("hex") },
+      pc: 2, steps: 7, summary: { instructions: 7, uniqueAddresses: 2 },
+      entries: [{ address: 0, count: 4 }, { address: 2, count: 3 }],
+    } });
+  });
+
+  it("captures all mutable data before asynchronous hashing while execution keeps running", async () => {
+    const digest = deferDigest();
+    load(0x80, 0xfe);
+    send({ type: "SetCoverage", enabled: true });
+    send({ type: "Run", maxSteps: 40000, trace: false });
+    vi.advanceTimersToNextTimer();
+    send({ type: "CreateCoverageReport" });
+    vi.advanceTimersToNextTimer();
+    digest.resolve(new ArrayBuffer(32));
+    await flush();
+    expect(reports()[0]?.report).toMatchObject({ steps: 10000, summary: { instructions: 10000 }, entries: [{ address: 0, count: 10000 }] });
+    expect(events.filter(event => event.type === "Stopped")).toHaveLength(0);
+    vi.runAllTimers();
+    expect(stopped().state.steps).toBe(40000);
+    expect(reports()[0]?.report.summary.instructions).toBe(10000);
+    send({ type: "CreateCoverageReport" });
+    await flush();
+    expect(reports()[1]?.report.summary.instructions).toBe(40000);
+    expect(digest.digest).toHaveBeenCalledOnce();
+  });
+
+  it.each(["clear", "reset", "disable", "replace", "restore"])("discards delayed reports after %s", async action => {
+    const digest = deferDigest();
+    load(0x80, 0xfe);
+    send({ type: "SetCoverage", enabled: true });
+    send({ type: "Step", trace: false });
+    send({ type: "CreateCoverageReport" });
+    if (action === "clear") send({ type: "ClearCoverage" });
+    else if (action === "reset") send({ type: "Reset" });
+    else if (action === "disable") send({ type: "SetCoverage", enabled: false });
+    else if (action === "replace") load(0);
+    else send({ type: "RestoreWorkspace", name: "same.bin", bytes: Uint8Array.from([0x80, 0xfe]).buffer, snapshot: stopped().snapshot });
+    digest.resolve(new ArrayBuffer(32));
+    await flush();
+    expect(reports()).toEqual([]);
+    send({ type: "CreateCoverageReport" });
+    await flush();
+    expect(reports()).toHaveLength(1);
+    expect(reports()[0]?.report.summary.instructions).toBe(action === "disable" ? 1 : 0);
+  });
+
+  it("rejects without firmware and recovers from a digest failure without cancelling a run", async () => {
+    const noFirmware = send({ type: "CreateCoverageReport" });
+    expect(events.at(-1)).toMatchObject({ type: "CommandRejected", requestId: noFirmware });
+    const digest = deferDigest();
+    load(0x80, 0xfe);
+    send({ type: "Run", maxSteps: 40000, trace: false });
+    const id = send({ type: "CreateCoverageReport" });
+    digest.reject(new Error("digest unavailable"));
+    await flush();
+    expect(events.at(-1)).toMatchObject({ type: "CommandRejected", requestId: id, running: true });
+    const retry = deferDigest();
+    send({ type: "CreateCoverageReport" });
+    retry.resolve(new ArrayBuffer(32));
+    await flush();
+    expect(reports()).toHaveLength(1);
+    vi.runAllTimers();
+    expect(stopped().state.steps).toBe(40000);
+  });
+});

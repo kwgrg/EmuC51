@@ -40,3 +40,16 @@ describe("instruction coverage", () => {
     expect(coverage.summary()).toMatchObject({ instructions: Number.MAX_SAFE_INTEGER, saturated: true });
   });
 });
+
+it("exports detached sparse address-ordered records, including the last CODE address", () => {
+  const coverage = new InstructionCoverage();
+  expect(coverage.entries()).toEqual([]);
+  coverage.setEnabled(true);
+  for (const address of [65535, 3, 65535, 0]) coverage.record(address);
+  const entries = coverage.entries();
+  expect(entries).toEqual([{ address: 0, count: 1 }, { address: 3, count: 1 }, { address: 65535, count: 2 }]);
+  coverage.record(3);
+  coverage.clear();
+  expect(entries[1]?.count).toBe(1);
+  expect(coverage.entries()).toEqual([]);
+});

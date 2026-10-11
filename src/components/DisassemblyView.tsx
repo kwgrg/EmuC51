@@ -5,7 +5,8 @@ import { disassemble } from "../core/disassembler";
 import { hex16, hex8, u16 } from "../core/numbers";
 import { parseHex } from "./DebuggerPanel";
 
-export function DisassemblyView({ program, pc, breakpoints, breakpointOptions, disabled, running, onToggleBreakpoint, onRunTo, coverage, coverageSample, onReadCoverage }: {
+export function DisassemblyView({ program, pc, breakpoints, breakpointOptions, disabled, running, onToggleBreakpoint, onRunTo, coverage, coverageSample, onReadCoverage, browseRequest }: {
+  browseRequest?: { address: number };
   coverage?: CoverageSummary;
   coverageSample?: { summary: CoverageSummary; addresses: number[]; counts: number[] };
   onReadCoverage?: (addresses: number[]) => void;
@@ -21,8 +22,18 @@ export function DisassemblyView({ program, pc, breakpoints, breakpointOptions, d
   const [pinnedAddress, setPinnedAddress] = useState<number>();
   const [draft, setDraft] = useState<string>();
   const [history, setHistory] = useState<number[]>([]);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const previousBrowseRequest = useRef(browseRequest);
   const scrollRef = useRef<HTMLDivElement>(null);
   const address = pinnedAddress ?? pc;
+  useEffect(() => {
+    if (!browseRequest || browseRequest === previousBrowseRequest.current) return;
+    previousBrowseRequest.current = browseRequest;
+    if (browseRequest.address !== address) setHistory(current => [...current, address].slice(-64));
+    setPinnedAddress(browseRequest.address);
+    setDraft(undefined);
+    inputRef.current?.focus();
+  }, [browseRequest, address]);
   const input = draft ?? hex16(address);
   const parsed = parseHex(input, 0xffff);
   const rows = useMemo(() => disassemble(new Uint8Array(program), address, 80), [program, address]);
@@ -66,7 +77,7 @@ export function DisassemblyView({ program, pc, breakpoints, breakpointOptions, d
       if (!disabled && parsed !== undefined) navigate(parsed);
     }}>
       <label>CODE (HEX)
-        <input aria-label="反汇编起始地址" aria-invalid={parsed === undefined}
+        <input ref={inputRef} aria-label="反汇编起始地址" aria-invalid={parsed === undefined}
           disabled={disabled} value={input} onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Escape") { event.preventDefault(); setDraft(undefined); }

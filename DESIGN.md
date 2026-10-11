@@ -145,3 +145,6 @@ Debug sessions persist accepted Watch rows and confirmed memory positions only. 
 Conditional breakpoint rows provide a bounded condition draft alongside the hit threshold. Enter applies both fields, Escape cancels the current draft, and disabled breakpoints retain their condition. Runtime condition errors stop execution and show the address, expression and diagnostic in the alert area; they never render as a successful ordinary breakpoint or silently resume.
 
 Instruction coverage is opt-in and session-only. The summary reports successful instruction count and unique instruction-start addresses, never a source/byte/branch coverage percentage. Disassembly shows sampled counts only while recording or when retained data exists. Keep polling bounded to the visible rows; loading a new firmware removes old labels immediately.
+
+
+覆盖热点面板显示固定采样的代次、执行单元、PC 和真实固件摘要，与实时计数区分。采样/导出运行中可用；待处理时禁用重复请求，清除仍可用。热点按次数降序展示最多 20 项，长摘要可换行；地址按钮只改变反汇编浏览并聚焦地址输入，保留历史及跟随 PC 入口。清除/复位/切换模式/换固件撤下旧报告。

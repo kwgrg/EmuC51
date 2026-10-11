@@ -1,7 +1,8 @@
 /// <reference lib="webworker" />
 
 import { evaluateExpression, evaluateWatch, MAX_WATCH_EXPRESSIONS } from "../core/expressions";
-import { InstructionCoverage } from "../core/coverage";
+import { sha256Hex } from "../core/digest";
+import { InstructionCoverage, type CoverageReport } from "../core/coverage";
 import { Cpu8051 } from "../core/cpu";
 import { Debugger8051, assertDebugAddress, assertWritableAddress, type DebugStop } from "../core/debugger";
 import { opcodeMeta } from "../core/opcodes";
@@ -14,6 +15,7 @@ const coverage = new InstructionCoverage();
 const postCoverage = (requestId: number): void => post({ type: "CoverageChanged", requestId, summary: coverage.summary() });
 
 let cpu: Cpu8051 | undefined;
+let firmware: { name: string; bytes: ArrayBuffer; digest?: Promise<string> } | undefined;
 let running = false;
 let runToken = 0;
 let activeRequestId = 0;
@@ -258,6 +260,7 @@ scope.onmessage = (message: MessageEvent<EmulatorCommand>): void => {
         stopCurrentRun();
         debugger8051.resetHits();
         cpu = loaded;
+        firmware = { name: command.name, bytes: command.bytes.slice(0) };
         coverage.clear(true);
         postCoverage(requestId);
         post({ type: "Ready", requestId, name: command.name, state: cpu.state(), snapshot: cpu.snapshot() });
@@ -356,6 +359,29 @@ scope.onmessage = (message: MessageEvent<EmulatorCommand>): void => {
         coverage.clear();
         postCoverage(requestId);
         return;
+      case "CreateCoverageReport": {
+        const machine = requireCpu();
+        const source = firmware!;
+        // Copy every mutable field synchronously between execution chunks, before hashing.
+        const sample: Omit<CoverageReport, "firmware"> = {
+          format: "emuc51-instruction-coverage", version: 1, scope: "successful-instruction-starts",
+          capturedAt: new Date().toISOString(), pc: machine.pc, steps: machine.state().steps,
+          summary: coverage.summary(), entries: coverage.entries(),
+        };
+        source.digest ??= sha256Hex(source.bytes);
+        void source.digest.then(sha256 => {
+          // Clear, reset, mode changes and replacement invalidate an in-flight report.
+          if (source !== firmware || sample.summary.epoch !== coverage.summary().epoch) return;
+          post({ type: "CoverageReportCreated", requestId, report: {
+            ...sample, firmware: { name: source.name, sha256, byteLength: source.bytes.byteLength },
+          } });
+        }).catch(error => {
+          source.digest = undefined;
+          if (source === firmware && sample.summary.epoch === coverage.summary().epoch)
+            post({ type: "CommandRejected", requestId, error: faultData(error), running });
+        });
+        return;
+      }
       case "ReadCoverage": {
         requireCpu();
         if (!Array.isArray(command.addresses) || command.addresses.length > 256) invalid("覆盖查询最多 256 个 CODE 地址");

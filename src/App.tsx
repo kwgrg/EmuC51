@@ -11,7 +11,7 @@ import {
 import { hex16, hex8 } from "./core/numbers";
 import { MAX_HEX_FILE_SIZE, parseFirmware } from "./core/firmware";
 import { CoveragePanel } from "./components/CoveragePanel";
-import type { CoverageSummary } from "./core/coverage";
+import type { CoverageReport, CoverageSummary } from "./core/coverage";
 import { WatchPanel } from "./components/WatchPanel";
 import { DisassemblyView } from "./components/DisassemblyView";
 import { normalizeDebugConfig, removeBreakpoint } from "./core/debugger";
@@ -100,6 +100,7 @@ export default function App() {
   const coverageRequestRef = useRef(0);
   const coverageControlRef = useRef(0);
   const coverageEpochRef = useRef(-1);
+  const coverageReportRequestRef = useRef<{ id: number; download: boolean } | undefined>(undefined);
   const exportRequestRef = useRef<number | undefined>(undefined);
   const firmwareRequestRef = useRef(0);
   const fileActionRef = useRef(0);
@@ -115,6 +116,13 @@ export default function App() {
   const [saveState, setSaveState] = useState("idle");
   const [workspaceGeneration, setWorkspaceGeneration] = useState(0);
   const watchExpressions = useMemo(() => settings.watchExpressions ?? [], [settings.watchExpressions]);
+  const [coverageReport, setCoverageReport] = useState<CoverageReport>();
+  const [coverageReportPending, setCoverageReportPending] = useState(false);
+  const cancelCoverageReport = useCallback(() => {
+    coverageReportRequestRef.current = undefined;
+    setCoverageReportPending(false);
+    setCoverageReport(undefined);
+  }, []);
   const [coverage, setCoverage] = useState<CoverageSummary>();
   const [coverageSample, setCoverageSample] = useState<Extract<EmulatorEvent, { type: "CoverageData" }>>();
   const [watchSample, setWatchSample] = useState<Extract<EmulatorEvent, { type: "WatchResults" }>>();
@@ -254,7 +262,10 @@ export default function App() {
           if (coverageControlRef.current && event.requestId < coverageControlRef.current) break;
           if (event.requestId === coverageControlRef.current) coverageControlRef.current = 0;
           if (event.summary.epoch < coverageEpochRef.current) break;
-          if (event.summary.epoch !== coverageEpochRef.current) setCoverageSample(undefined);
+          if (event.summary.epoch !== coverageEpochRef.current) {
+            setCoverageSample(undefined);
+            cancelCoverageReport();
+          }
           coverageEpochRef.current = event.summary.epoch;
           setCoverage(event.summary);
           break;
@@ -264,6 +275,26 @@ export default function App() {
           setCoverage(event.summary);
           setCoverageSample(event);
           break;
+        case "CoverageReportCreated": {
+          const request = coverageReportRequestRef.current;
+          if (!request || event.requestId !== request.id || event.report.summary.epoch !== coverageEpochRef.current) break;
+          coverageReportRequestRef.current = undefined;
+          setCoverageReportPending(false);
+          if (event.report.firmware.sha256 !== firmwareRef.current?.sha256) {
+            setError("覆盖报告的固件摘要不匹配，请重新采样");
+            break;
+          }
+          setCoverageReport(event.report);
+          if (request.download) {
+            const url = URL.createObjectURL(new Blob([JSON.stringify(event.report, null, 2)], { type: "application/json" }));
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `${event.report.firmware.name.replace(/\.[^.]+$/, "")}.coverage.json`;
+            link.click();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+          }
+          break;
+        }
         case "WatchResults":
           if (event.requestId === watchRequestRef.current) setWatchSample(event);
           break;
@@ -316,12 +347,13 @@ export default function App() {
           setTimeout(requestMemory, 0);
           break;
         case "CommandRejected":
+          if (event.requestId === coverageReportRequestRef.current?.id) cancelCoverageReport();
           setRunning(event.running);
           setError(formatFault({ ...event, type: "ExecutionFault" }));
           break;
       }
     },
-    [persistSnapshot, requestMemory, postCommand, workspaceRecord],
+    [persistSnapshot, requestMemory, postCommand, workspaceRecord, cancelCoverageReport],
   );
 
   useEffect(() => {
@@ -414,12 +446,20 @@ export default function App() {
     coverageRequestRef.current = postCommand({ type: "ReadCoverage", addresses });
   }, [postCommand]);
 
+  const requestCoverageReport = (download: boolean): void => {
+    if (coverageReportRequestRef.current || coverageControlRef.current) return;
+    coverageReportRequestRef.current = { id: postCommand({ type: "CreateCoverageReport" }), download };
+    setCoverageReportPending(true);
+  };
+
   const setCoverageEnabled = (enabled: boolean): void => {
+    cancelCoverageReport();
     coverageRequestRef.current = postCommand({ type: "SetCoverage", enabled });
     coverageControlRef.current = coverageRequestRef.current;
     setCoverage(current => current ? { ...current, enabled } : current);
   };
   const clearCoverage = (): void => {
+    cancelCoverageReport();
     coverageRequestRef.current = postCommand({ type: "ClearCoverage" });
     coverageControlRef.current = coverageRequestRef.current;
   };
@@ -470,6 +510,7 @@ export default function App() {
       snapshotRef.current = undefined;
       coverageRequestRef.current = -1;
       coverageControlRef.current = 0;
+      cancelCoverageReport();
       setCoverage(undefined);
       setCoverageSample(undefined);
       setFirmware(nextFirmware);
@@ -530,6 +571,7 @@ export default function App() {
   };
 
   const reset = (): void => {
+    cancelCoverageReport();
     setError(undefined);
     setTrace([]);
     setPortHistory([]);
@@ -590,6 +632,7 @@ export default function App() {
       snapshotRef.current = undefined;
       coverageRequestRef.current = -1;
       coverageControlRef.current = 0;
+      cancelCoverageReport();
       setCoverage(undefined);
       setCoverageSample(undefined);
       settingsRef.current = record.settings;
@@ -698,6 +741,7 @@ export default function App() {
           {activeView === "editor" && (
             <WorkbenchView
               key={workspaceGeneration}
+              coverageReport={coverageReport} coverageReportPending={coverageReportPending} requestCoverageReport={requestCoverageReport}
               coverage={coverage} coverageSample={coverageSample} readCoverage={readCoverage}
               setCoverageEnabled={setCoverageEnabled} clearCoverage={clearCoverage}
               controls={controls}
@@ -982,6 +1026,7 @@ interface ControlActions {
 }
 
 function WorkbenchView({
+  coverageReport, coverageReportPending, requestCoverageReport,
   coverage, coverageSample, readCoverage, setCoverageEnabled, clearCoverage,
   controls,
   cpuState,
@@ -1002,6 +1047,9 @@ function WorkbenchView({
   onFileChange,
   clearLocal,
 }: {
+  coverageReport?: CoverageReport;
+  coverageReportPending: boolean;
+  requestCoverageReport: (download: boolean) => void;
   coverage?: CoverageSummary;
   coverageSample?: Extract<EmulatorEvent, { type: "CoverageData" }>;
   readCoverage: (addresses: number[]) => void;
@@ -1027,6 +1075,7 @@ function WorkbenchView({
   onFileChange: (event: ChangeEvent<HTMLInputElement>) => void;
   clearLocal: () => Promise<void>;
 }) {
+  const [coverageNavigation, setCoverageNavigation] = useState<{ address: number }>();
   const registerCards: Array<[string, string]> = cpuState
     ? [
         ["PC", hex16(cpuState.pc)],
@@ -1080,6 +1129,7 @@ function WorkbenchView({
           running={running}
         />
         {firmware ? <DisassemblyView key={`${firmware.sha256}:${firmware.loadedAt}`}
+          browseRequest={coverageNavigation}
           program={firmware.bytes} pc={cpuState?.pc ?? 0}
           coverage={coverage} coverageSample={coverageSample} onReadCoverage={readCoverage}
           breakpoints={settings.debugger?.breakpoints ?? []}
@@ -1116,7 +1166,9 @@ function WorkbenchView({
       </TerminalPanel>
 
       <TerminalPanel className="coverage-card" title="INSTRUCTION_COVERAGE" bits={["SESSION ONLY"]}>
-        <CoveragePanel summary={coverage} disabled={!firmware || restoring} onEnable={setCoverageEnabled} onClear={clearCoverage} />
+        <CoveragePanel summary={coverage} disabled={!firmware || restoring} onEnable={setCoverageEnabled} onClear={clearCoverage}
+          report={coverageReport} pending={coverageReportPending} onSample={requestCoverageReport}
+          onNavigate={address => setCoverageNavigation({ address })} />
       </TerminalPanel>
 
       <TerminalPanel className="debugger-config" title="DEBUGGER" bits={[`${settings.debugger?.breakpoints.length ?? 0} BP`, `${settings.debugger?.watchpoints.length ?? 0} WP`]}>

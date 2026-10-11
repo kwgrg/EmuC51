@@ -1,4 +1,4 @@
-import type { CoverageSummary } from "../core/coverage";
+import type { CoverageReport, CoverageSummary } from "../core/coverage";
 import type { WatchResult } from "../core/expressions";
 import type {
   CpuSnapshot,
@@ -110,6 +110,7 @@ export interface EvaluateExpressionsCommand extends CommandBase {
 }
 
 export type EmulatorCommand =
+  | { type: "CreateCoverageReport"; requestId: number }
   | { type: "SetCoverage"; requestId: number; enabled: boolean }
   | { type: "ClearCoverage"; requestId: number }
   | { type: "ReadCoverage"; requestId: number; addresses: number[] }
@@ -132,6 +133,7 @@ export type EmulatorCommand =
   | CreateSnapshotCommand;
 
 export type EmulatorEvent =
+  | { type: "CoverageReportCreated"; requestId: number; report: CoverageReport }
   | { type: "CoverageChanged"; requestId: number; summary: CoverageSummary }
   | { type: "CoverageData"; requestId: number; summary: CoverageSummary; addresses: number[]; counts: number[] }
   | { type: "WatchResults"; requestId: number; results: WatchResult[]; pc: number; steps: number }

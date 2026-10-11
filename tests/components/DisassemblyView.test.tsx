@@ -138,3 +138,22 @@ it("polls only visible instruction starts at 250ms while running and stops on un
     expect(onReadCoverage).toHaveBeenCalledTimes(6);
   } finally { vi.useRealTimers(); }
 });
+
+it("browses repeated hotspot requests without changing execution, supports history and cancelling drafts", () => {
+  const p = props();
+  const { rerender } = render(<DisassemblyView {...p} running />);
+  fireEvent.change(screen.getByLabelText("反汇编起始地址"), { target: { value: "ffff" } });
+  const request = { address: 2 };
+  rerender(<DisassemblyView {...p} running browseRequest={request} />);
+  expect(screen.getByLabelText("反汇编起始地址")).toHaveValue("0002");
+  expect(screen.getByLabelText("反汇编起始地址")).toHaveFocus();
+  rerender(<DisassemblyView {...p} pc={3} running browseRequest={request} />);
+  expect(firstRow()).toHaveAttribute("data-address", "0002");
+  expect(p.onRunTo).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByText("返回上个地址"));
+  expect(firstRow()).toHaveAttribute("data-address", "0000");
+  rerender(<DisassemblyView {...p} pc={3} running browseRequest={{ address: 2 }} />);
+  expect(firstRow()).toHaveAttribute("data-address", "0002");
+  fireEvent.click(screen.getByText("跟随 PC"));
+  expect(firstRow()).toHaveAttribute("data-address", "0003");
+});

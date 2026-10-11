@@ -312,3 +312,8 @@ M6 后续维护（2026-10-11）：内存地址草稿与读取结果分离，补�
 ## 指令覆盖记录
 
 `InstructionCoverage` 在 Worker 中维护可选 Uint32 计数表，只有成功的 `instruction` 结果被累计；不修改 CPU 快照。Set/Clear 命令改变代次，ReadCoverage 最多查询 256 个 CODE 地址。前端每 250ms 采样可见行，离页停止，默认关闭时没有循环消息。完整生命周期及基准命令见 [INSTRUCTION_COVERAGE.md](INSTRUCTION_COVERAGE.md)。
+
+
+## 固定覆盖报告
+
+CreateCoverageReport 在 Worker 消息边界复制摘要/PC/执行单元及非零计数，再异步求实际固件摘要；异步完成再次核对固件对象与 epoch。报告 v1 只用于导出/热点，不修改工作区 v4 或 CPU 快照 v2。App 用独立请求编号阻止重复下载和旧会话响应，DisassemblyView 接收浏览请求且保留历史，不写 PC。格式与生命周期见 [覆盖记录说明](INSTRUCTION_COVERAGE.md)，下一核心开发闭环见 [KEIL 对照重排](KEIL_PARITY.md#核心缺口重新排序覆盖报告完成后)。

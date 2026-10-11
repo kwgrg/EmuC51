@@ -986,3 +986,9 @@ select:focus-visible { outline: 1px solid var(--primary); outline-offset: 2px; }
 .disassembly-lines.with-coverage > div { grid-template-columns: 24px 44px 80px minmax(150px, 1fr) 80px 70px; }
 .instruction-hits { color: var(--secondary); text-align: right; font-variant-numeric: tabular-nums; }
 @media (max-width: 700px) { .coverage-card { grid-column: auto; grid-row: auto; } }
+
+.coverage-report { flex-basis: 100%; min-width: 0; border-top: 1px solid var(--outline); padding-top: 8px; }
+.coverage-report p { margin-bottom: 6px; }
+.coverage-identity { overflow-wrap: anywhere; }
+.coverage-hotspots { display: flex; flex-wrap: wrap; gap: 8px 20px; list-style: none; padding: 0; margin: 8px 0; }
+.coverage-hotspots li { display: flex; align-items: center; gap: 6px; }

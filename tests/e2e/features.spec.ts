@@ -717,3 +717,80 @@ test("持续运行按需采样覆盖，运行中清除和停用不取消执行",
   await expect(page.getByLabel("记录指令覆盖")).not.toBeChecked();
   await expect(page.getByTestId("coverage-summary")).toContainText("成功指令 0 次");
 });
+
+test("覆盖报告绑定真实固件，热点跳转保留 PC 与浏览历史，清除和换固件撤下采样", async ({ page }) => {
+  const { createHash } = await import("node:crypto");
+  const bytes = [0x74, 0x42, 0x80, 0xfc];
+  await load(page, bytes);
+  await page.getByLabel("记录指令覆盖").check();
+  await page.getByLabel("最大执行单元").fill("7");
+  await page.locator(".control-strip").getByRole("button", { name: "运行" }).click();
+  await expect(page.getByTestId("coverage-summary")).toContainText("成功指令 7 次");
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "导出覆盖报告" }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe("feature.coverage.json");
+  const report = JSON.parse(await readFile((await download.path())!, "utf8"));
+  expect(report).toMatchObject({ format: "emuc51-instruction-coverage", version: 1,
+    firmware: { name: "feature.bin", byteLength: 4, sha256: createHash("sha256").update(Buffer.from(bytes)).digest("hex") },
+    pc: 2, steps: 7, summary: { instructions: 7, uniqueAddresses: 2 }, entries: [{ address: 0, count: 4 }, { address: 2, count: 3 }] });
+  await page.getByRole("button", { name: "查看覆盖热点 0000" }).click();
+  await expect(page.getByLabel("反汇编起始地址")).toHaveValue("0000");
+  await expect(page.getByTestId("register-PC")).toContainText("0002");
+  await page.getByRole("button", { name: "返回上个地址" }).click();
+  await expect(page.getByLabel("反汇编起始地址")).toHaveValue("0002");
+  await page.getByRole("button", { name: "查看覆盖热点 0000" }).click();
+  await page.getByLabel("反汇编起始地址").fill("ffff");
+  await page.getByLabel("反汇编起始地址").press("Escape");
+  await expect(page.getByLabel("反汇编起始地址")).toHaveValue("0000");
+  for (const width of [375, 820, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.getByRole("button", { name: "查看覆盖热点 0002" }).click();
+    await expect(page.getByLabel("反汇编起始地址")).toHaveValue("0002");
+    await page.getByLabel("覆盖报告采样").scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `/tmp/emuc51-coverage-report-${width}.png`, fullPage: true });
+  }
+  await page.getByRole("button", { name: "清除覆盖记录" }).click();
+  await expect(page.getByLabel("覆盖报告采样")).toHaveCount(0);
+  await page.getByRole("button", { name: "采样热点" }).click();
+  await expect(page.getByLabel("覆盖报告采样")).toContainText("采样时尚无指令执行记录");
+  const again = page.waitForEvent("download");
+  await page.getByRole("button", { name: "导出覆盖报告" }).click();
+  const cleared = JSON.parse(await readFile((await (await again).path())!, "utf8"));
+  expect(cleared.summary.epoch).toBeGreaterThan(report.summary.epoch);
+  expect(cleared.entries).toEqual([]);
+  await page.getByTestId("workbench-firmware-input").setInputFiles({ name: "new.bin", mimeType: "application/octet-stream", buffer: Buffer.from([0]) });
+  await expect(page.getByLabel("覆盖报告采样")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "采样热点" })).toBeEnabled();
+  await page.getByRole("button", { name: "采样热点" }).click();
+  await expect(page.getByLabel("覆盖报告采样")).toContainText(createHash("sha256").update(Buffer.from([0])).digest("hex"));
+});
+
+test("运行中报告是固定一致采样，重复导出不暂停执行", async ({ page }) => {
+  await load(page, [0x80, 0xfe]);
+  await page.getByLabel("记录指令覆盖").check();
+  await page.getByLabel("最大执行单元").fill("100000000");
+  await page.getByLabel("CAPTURE_TRACE").uncheck();
+  await page.locator(".control-strip").getByRole("button", { name: "运行" }).click();
+  await expect.poll(async () => Number(await page.getByLabel("地址 0000 执行次数").textContent())).toBeGreaterThan(0);
+  let previous = 0;
+  for (let i = 0; i < 2; i += 1) {
+    const downloadPromise = page.waitForEvent("download");
+    await page.getByRole("button", { name: "导出覆盖报告" }).click();
+    const report = JSON.parse(await readFile((await (await downloadPromise).path())!, "utf8"));
+    expect(report.entries).toEqual([{ address: 0, count: report.summary.instructions }]);
+    expect(report.steps).toBe(report.summary.instructions);
+    expect(report.steps).toBeGreaterThanOrEqual(previous);
+    previous = report.steps;
+    await expect(page.getByRole("button", { name: "暂停" })).toBeEnabled();
+  }
+  const text = await page.getByLabel("覆盖报告采样").textContent();
+  await expect.poll(async () => Number(await page.getByLabel("地址 0000 执行次数").textContent())).toBeGreaterThan(previous);
+  await expect(page.getByLabel("覆盖报告采样")).toHaveText(text!);
+  await page.getByRole("button", { name: "查看覆盖热点 0000" }).click();
+  await expect(page.getByRole("button", { name: "暂停" })).toBeEnabled();
+  await page.getByRole("button", { name: "暂停" }).click();
+  await page.getByRole("button", { name: "复位" }).click();
+  await expect(page.getByLabel("覆盖报告采样")).toHaveCount(0);
+});
