@@ -9,7 +9,7 @@ const port = 41851;
 
 const server = await preview({
   configFile: fileURLToPath(new URL("../vite.config.ts", import.meta.url)),
-  preview: { host, port, strictPort: true, headers: { "Content-Security-Policy": readFileSync(new URL("../public/_headers",import.meta.url),"utf8").match(/Content-Security-Policy: (.+)/)[1].replace("script-src 'self'",process.env.EMUC51_TEST_WASM_CSP === "1" ? "script-src 'self' 'wasm-unsafe-eval'" : "script-src 'self'") } },
+  preview: { host, port, strictPort: true, headers: { "Content-Security-Policy": readFileSync(new URL("../public/_headers",import.meta.url),"utf8").match(/Content-Security-Policy: (.+)/)[1] } },
 });
 
 const playwrightCli = fileURLToPath(

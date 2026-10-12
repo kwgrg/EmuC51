@@ -1,6 +1,6 @@
 # 浏览器 SDCC 4.5.0 移植（开发分支验收）
 
-2026-10-12：已从固定源码实际构建四个 WASM 阶段，在 Chromium Dedicated Worker 中编译单文件 C 和多 C + SDAS8051 工程。**当前生产 CSP 未改动，功能未合入/上线；本地成功测试显式使用待批准的 `wasm-unsafe-eval` 策略。** 不能把本地测试当成现网可用。
+2026-10-12：已从固定源码实际构建四个 WASM 阶段，在 Chromium Dedicated Worker 中编译单文件 C 和多 C + SDAS8051 工程。用户已批准最小 CSP 调整，`public/_headers` 增加 `wasm-unsafe-eval`，测试默认直接使用生产策略。现网可用性仍须以自动部署和在线验证为准。
 
 ## 使用与范围
 
@@ -33,16 +33,16 @@ BIN_INSPECTOR 的 C 编译面板可编辑单文件示例、C + SDAS 示例，或
 
 工具链 JS 内嵌 WASM，`files.js` 内嵌固定头文件/库的 base64；通过同源静态 ES 模块加载。整个应用仍可保持 `connect-src 'none'`，没有 fetch/XHR 取得 WASM/用户源码。
 
-现有 `script-src 'self'` 的真实拒绝已记录在 [生产策略探针](evidence/sdcc-browser-production-csp.json)。唯一建议变更是 `script-src 'self' 'wasm-unsafe-eval'`，允许 WASM 实例化；不加入 JavaScript `unsafe-eval`、外部脚本域、外部连接或跨源隔离头。Emscripten 使用 `DYNAMIC_EXECUTION=0`。**批准前 `public/_headers` 保持原值。**
+现有 `script-src 'self'` 的真实拒绝已记录在 [生产策略探针](evidence/sdcc-browser-production-csp.json)。用户于 2026-10-12 明确批准的唯一变更是 `script-src 'self' 'wasm-unsafe-eval'`，允许 WASM 实例化；不加入 JavaScript `unsafe-eval`、外部脚本域、外部连接或跨源隔离头。Emscripten 使用 `DYNAMIC_EXECUTION=0`。普通 JavaScript eval 与源码网络传输权限不变。
 
-本地测试策略仅由开发者显式启用：
+本地测试默认使用生产 CSP：
 
 ```sh
 npm run build
-EMUC51_TEST_WASM_CSP=1 EMUC51_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run test:e2e -- --project=chromium
-node scripts/sdcc-wasm/benchmark.mjs --allow-wasm
-# 不传 --allow-wasm 验证原生产策略确实拒绝编译：
+EMUC51_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run test:e2e -- --project=chromium
 node scripts/sdcc-wasm/benchmark.mjs
+# 移除 WASM 权限的本地负向对照：
+node scripts/sdcc-wasm/benchmark.mjs --deny-wasm
 ```
 
 ## 固定来源、许可与重建
@@ -64,7 +64,7 @@ python3 scripts/sdcc-wasm/package.py /tmp/NEW-build /tmp/NEW-output public/sdcc/
 
 [性能证据](evidence/sdcc-browser-benchmark.json)记录冷 Worker 和四次连续新 Worker 的墙钟时间、编译阶段时间、WASM 线性内存高水位、10ms 采样渲染进程 RSS、取消和网络请求。RSS 包含页面/Worker/JIT 等开销且采样可能漏掉瞬时峰值，不能当作精确分配器高水位；也不把 WASM 线性内存当成整个浏览器内存。
 
-Chromium 是实际验证的浏览器；Firefox/WebKit 和真实手机尚未验证。30秒超时机制有定时器单测，实际 Worker 取消有浏览器测试；没有声称跑遍任意复杂工程或证明编译器没有资源耗尽漏洞。原生测试成功不是浏览器成功的替代，当前浏览器证据明确要求本地测试策略。
+Chromium 是实际验证的浏览器；Firefox/WebKit 和真实手机尚未验证。30秒超时机制有定时器单测，实际 Worker 取消有浏览器测试；没有声称跑遍任意复杂工程或证明编译器没有资源耗尽漏洞。原生测试成功不是浏览器成功的替代，当前回归默认直接采用生产策略。
 
 ## 编译产物边界回归
 

@@ -7,8 +7,8 @@
     "unitTests": 676,
     "nativeSdccTests": "enabled using hash-verified SDCC 4.5.0",
     "chromiumE2E": 67,
-    "chromiumPolicy": "explicit local test CSP adds only wasm-unsafe-eval; production _headers unchanged",
-    "productionCspProbe": "correctly blocks WASM; approval pending",
+    "chromiumPolicy": "production public/_headers verbatim; no test CSP override",
+    "productionCspProbe": "approved production policy succeeds; removing WASM permission in local negative control correctly blocks",
     "build": "passed",
     "wranglerDryRun": "passed with temporary XDG config and log paths; no deployment",
     "firefox": "not verified",
@@ -17,19 +17,27 @@
   "assets": {
     "javascriptBytes": 4908961,
     "javascriptGzipBytes": 1229597,
-    "distributionBytesIncludingManifest": 33248994,
+    "distributionBytesIncludingManifest": 33248970,
     "largestFileBytes": 11061180
   },
   "sourceRecipe": "complete clean four-stage build succeeded; final cc1 signature patch then rebuilt through the same recipe target; final emitted assets tested in Chromium",
   "sourceMaterial": "all 23 manifest entries checked; all 193 archived source files compared byte-for-byte to current bridge, tests and recipe",
   "remaining": [
-    "User approval for production wasm-unsafe-eval pending; no master merge or production deployment",
-    "GitHub GraphQL request returned Forbidden; PR/check API unavailable"
+    "GitHub check-runs API returns Forbidden; Cloudflare automatic build terminal state requires connector verification",
+    "Production origin request rejected by environment proxy CONNECT 403; live CSP and live compilation not verified"
   ],
   "notes": [
     "Compiler assets can contain build-directory paths; no cross-directory bit-for-bit compiler reproducibility claim",
     "30s timeout tested with fake timers; real Worker cancellation also measured",
     "No arbitrary backend or source upload service added"
   ],
-  "boundaryRegressionEvidence": "sdcc-browser-boundaries.json"
+  "boundaryRegressionEvidence": "sdcc-browser-boundaries.json",
+  "approval": {
+    "date": "2026-10-12",
+    "scope": "script-src adds only wasm-unsafe-eval; connect-src none retained; user approved after explicit explanation"
+  },
+  "productionPolicyEvidence": [
+    "sdcc-approved-csp-benchmark.json",
+    "sdcc-denied-csp-control.json"
+  ]
 }

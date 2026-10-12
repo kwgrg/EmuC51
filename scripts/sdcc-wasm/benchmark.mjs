@@ -5,10 +5,10 @@ import { createServer } from "node:http";
 import process from "node:process";
 import assert from "node:assert/strict";
 import { chromium } from "@playwright/test";
-// Local benchmark only. --allow-wasm explicitly tests a proposed CSP; it does not edit production headers.
-const root=resolve('dist'),allow=process.argv.includes('--allow-wasm');
+// Default uses production CSP; --deny-wasm is a local negative control only.
+const root=resolve('dist'),allow=!process.argv.includes('--deny-wasm');
 const production=readFileSync('public/_headers','utf8').match(/Content-Security-Policy: (.+)/)[1];
-const policy=allow?production.replace("script-src 'self'","script-src 'self' 'wasm-unsafe-eval'"):production;
+const policy=allow?production:production.replace(" 'wasm-unsafe-eval'","");
 const server=createServer((req,res)=>{
   const path=resolve(root,'.'+new URL(req.url,'http://localhost').pathname);
   if(!path.startsWith(root+'/')){res.writeHead(404);res.end();return;}
@@ -41,5 +41,5 @@ try{
   }),{worker});
   if(cancellation)assert.equal(cancellation.messagesAfterTermination,0);
   assert(requests.every(r=>r.method==='GET'&&r.body===null&&r.url.startsWith('http://127.0.0.1:41852/')));
-  console.log(JSON.stringify({chromium:browser.version(),policyMode:allow?'explicit local test policy':'unchanged production policy',policy,trials,cancellation,baselineRendererRssBytes:baselineRss,peakRendererRssBytes:peakRss,memoryScope:'10ms samples of sum of Chromium renderer RSS, includes page, worker, JIT and browser overhead; sampling can miss transients. maxStageHeapBytes is exact monotonic WASM linear memory high-water for each stage, not total browser memory.',requests},null,2));
+  console.log(JSON.stringify({chromium:browser.version(),policyMode:allow?'production policy':'local negative control without WASM permission',policy,trials,cancellation,baselineRendererRssBytes:baselineRss,peakRendererRssBytes:peakRss,memoryScope:'10ms samples of sum of Chromium renderer RSS, includes page, worker, JIT and browser overhead; sampling can miss transients. maxStageHeapBytes is exact monotonic WASM linear memory high-water for each stage, not total browser memory.',requests},null,2));
 }finally{await browser.close();await new Promise(r=>server.close(r));}

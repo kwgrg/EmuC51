@@ -70,7 +70,7 @@ Cloudflare 只托管编译后的 HTML、CSS、JavaScript 等静态应用文件�
 
 ## 浏览器 SDCC 开发进展
 
-真实 WASM 四阶段编译与 C/SDAS 工程编辑已在开发分支验证。生产 CSP 变更待批准，尚未上线；固定来源、对应源码、许可和本地测试方式见 [浏览器 SDCC](docs/BROWSER_SDCC.md)。
+真实 WASM 四阶段编译与 C/SDAS 工程编辑已在开发分支验证。用户已批准最小生产 CSP 调整；现网状态以自动部署为准。固定来源、对应源码、许可和本地测试方式见 [浏览器 SDCC](docs/BROWSER_SDCC.md)。
 
 ## 本地开发
 
