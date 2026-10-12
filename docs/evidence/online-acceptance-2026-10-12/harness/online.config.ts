@@ -1,0 +1,2 @@
+import {defineConfig} from '@playwright/test';
+export default defineConfig({testDir:'./tests/online-acceptance',timeout:90000,expect:{timeout:35000},workers:1,retries:0,reporter:[['list'],['json',{outputFile:'/workspace/acceptance-evidence/results.json'}]],outputDir:'/workspace/acceptance-evidence/tests',use:{baseURL:'https://emuc51.kwgrg-01.workers.dev',viewport:{width:1440,height:1000},trace:'on',launchOptions:{executablePath:'/usr/bin/chromium',proxy:{server:process.env.HTTPS_PROXY!}}}});

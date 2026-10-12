@@ -1,0 +1,53 @@
+import { expect,test } from "../../online-fixture";
+import { readFile } from "node:fs/promises";
+import type { SdccDebugData } from "../../src/core/sdcc-debug";
+async function fixture(name:string,file:string){return readFile(`tests/fixtures/${name}/${file}`,"utf8");}
+test("真实浏览器 C 编译：基线、源码编辑、错误、取消、重新编译及固件持久化",async({page})=>{
+  test.setTimeout(60000);
+  const requests:{method:string;url:string;body:string|null}[]=[];
+  page.on("request",r=>requests.push({method:r.method(),url:r.url(),body:r.postData()}));
+  await page.goto('/#editor');
+  const source=await fixture('sdcc-counter','main.c');
+  const edit=page.getByLabel('C 编译源码'),status=page.getByTestId('c-build-status');
+  await edit.fill(source);
+  const build=()=>page.getByRole('button',{name:'编译 C 工程',exact:true}).click();
+  const download=async()=>{const next=page.waitForEvent('download');await page.getByRole('button',{name:'下载 C 构建包'}).click();return JSON.parse(await readFile((await(await next).path())!,'utf8')) as SdccDebugData;};
+  await build();await expect(status).toContainText('编译成功');
+  const first=await download();expect(first.ihx).toBe(await fixture('sdcc-counter','main.ihx'));expect(first.cdb).toBe(await fixture('sdcc-counter','main.cdb'));
+  await edit.fill(source.replace('counter = 0;','counter = 7;'));await expect(page.getByRole('button',{name:'加载 C 编译固件'})).toBeDisabled();
+  await build();await expect(status).toContainText('编译成功');expect((await download()).ihx).not.toBe(first.ihx);
+  await edit.fill('void main(void) {\nunsigned char value = ;\n}\n');await build();await expect(status).toContainText('main.c:2:');await expect(status).toContainText('syntax error');await expect(page.getByRole('button',{name:'加载 C 编译固件'})).toBeDisabled();
+  await edit.fill(source);await build();await page.getByRole('button',{name:'取消 C 编译'}).click();await expect(status).toContainText('取消');await expect(page.getByRole('button',{name:'下载 C 构建包'})).toBeDisabled();
+  await build();await expect(status).toContainText('编译成功');expect((await download()).ihx).toBe(first.ihx);
+  await page.getByRole('button',{name:'加载 C 编译固件'}).click();await expect(page.getByTestId('sdcc-status')).toContainText('已校验文件摘要');
+  await page.getByLabel('最大执行单元').fill('1000');await page.locator('.control-strip').getByRole('button',{name:'运行'}).click();await expect(page.locator('.footer-status')).toContainText('步数上限');
+  await expect(page.getByRole('main')).toHaveAttribute('data-save-state','saved');await page.reload();await expect(page.getByTestId('sdcc-status')).toContainText('已校验文件摘要');
+  expect(requests.every(r=>r.method==='GET'&&r.body===null&&r.url.startsWith('https://emuc51.kwgrg-01.workers.dev/'))).toBe(true);
+});
+test("真实混合 WASM 编译与原生 IHX/CDB 完全一致，编辑头文件重建并保持跨文件调试",async({page})=>{
+  await page.goto('/#editor');await page.getByLabel('导入 SDCC 构建文件').setInputFiles('tests/fixtures/sdcc-mixed/emuc51-project.build.json');
+  await expect(page.getByTestId('sdcc-status')).toContainText('已校验文件摘要');
+  await page.getByRole('button',{name:'编辑已加载 C 工程'}).click();await page.getByRole('button',{name:'编译 C 工程',exact:true}).click();await expect(page.getByTestId('c-build-status')).toContainText('编译成功');
+  const next=page.waitForEvent('download');await page.getByRole('button',{name:'下载 C 构建包'}).click();
+  const built=JSON.parse(await readFile((await(await next).path())!,'utf8'));
+  const original=JSON.parse(await fixture('sdcc-mixed','emuc51-project.build.json'));
+  expect(built.ihx).toBe(original.ihx);expect(built.cdb).toBe(original.cdb);
+  await page.getByLabel('编译源文件',{exact:true}).selectOption('include/shared.h');
+  await page.getByLabel('C 编译源码').fill(original.inputs.find((f:{path:string})=>f.path==='include/shared.h').text+'\n#define INITIAL_VALUE 9\n');
+  await page.getByLabel('编译源文件',{exact:true}).selectOption('src/main.c');await page.getByLabel('C 编译源码').fill(original.source.replace('   5);','   INITIAL_VALUE);'));
+  await page.getByRole('button',{name:'编译 C 工程',exact:true}).click();await expect(page.getByTestId('c-build-status')).toContainText('编译成功');
+  await page.getByRole('button',{name:'加载 C 编译固件'}).click();await expect(page.getByLabel('工程源文件',{exact:true})).toHaveValue('src/main.c');
+  await page.getByLabel('最大执行单元').fill('1000');await page.locator('.control-strip').getByRole('button',{name:'运行'}).click();await expect(page.locator('.footer-status')).toContainText('步数上限');
+  await page.getByRole('button',{name:'观察 CDB::main::Fmain$shadow$0_0$0',exact:true}).click();await expect(page.getByTestId('symbol-integer')).toHaveText('14');
+});
+test("真实 flow 重建、链接失败与随后成功构建不混用旧文件",async({page})=>{
+  await page.goto('/#editor');await page.getByLabel('导入 SDCC 构建文件').setInputFiles(['emuc51-sdcc.json','flow.c','flow.ihx','flow.cdb'].map(name=>`tests/fixtures/sdcc-flow/${name}`));
+  await expect(page.getByTestId('sdcc-status')).toContainText('已校验文件摘要');
+  await page.getByRole('button',{name:'编辑已加载 C 工程'}).click();
+  const source=await fixture('sdcc-flow','flow.c'),edit=page.getByLabel('C 编译源码');
+  await edit.fill('unsigned char missing(void);\nvoid main(void) { missing(); }\n');
+  await page.getByRole('button',{name:'编译 C 工程',exact:true}).click();await expect(page.getByTestId('c-build-status')).toContainText('sdld 退出');await expect(page.getByRole('button',{name:'加载 C 编译固件'})).toBeDisabled();
+  await edit.fill(source);await page.getByRole('button',{name:'编译 C 工程',exact:true}).click();await expect(page.getByTestId('c-build-status')).toContainText('编译成功');
+  const next=page.waitForEvent('download');await page.getByRole('button',{name:'下载 C 构建包'}).click();const built=JSON.parse(await readFile((await(await next).path())!,'utf8'));
+  expect(built.ihx).toBe(await fixture('sdcc-flow','flow.ihx'));expect(built.cdb).toBe(await fixture('sdcc-flow','flow.cdb'));
+});

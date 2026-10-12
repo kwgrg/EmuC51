@@ -1,0 +1,6 @@
+Connecting to 172.31.0.157
+depth=1 C=US, ST=California, L=San Francisco, O=OpenAI, LLC, CN=openai.com
+verify return:1
+depth=0 CN=emuc51.kwgrg-01.workers.dev
+verify return:1
+DONE

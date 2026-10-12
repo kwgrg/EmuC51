@@ -1,0 +1,22 @@
+HTTP/1.1 200 OK
+date: Mon, 12 Oct 2026 07:51:44 GMT
+server: envoy
+
+HTTP/2 200 
+date: Mon, 12 Oct 2026 07:51:45 GMT
+content-type: text/html
+content-length: 617
+cf-cache-status: HIT
+cache-control: public, max-age=0, must-revalidate
+etag: "773c44cc38db5147b8edcd0552b17615"
+content-security-policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'
+permissions-policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+referrer-policy: no-referrer
+x-content-type-options: nosniff
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=SzCVK88LoW5OaDOkl2HO12HM%2FDp30kropiJRA3x6senflh62Ydm8m9vTcOAyHZ1TvF2ztyN2lLi9HXOc37kfKmQF2frh5hcvwhoySXu5Q3NktEhNbw3CswvpQWx8JpqG4t%2BwGhrqoyKpR26HUqE%3D"}]}
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+server: envoy
+cf-ray: a494856a5a4cad02-MSP
+alt-svc: h3=":443"; ma=86400
+x-envoy-upstream-service-time: 186
+
