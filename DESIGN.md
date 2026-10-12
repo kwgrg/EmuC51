@@ -1,100 +1,31 @@
-# C51 Geek Terminal Design System
+# EmuC51 Neutral Workbench Design System
 
-> Source of truth: Google Stitch project **C51 Geek Terminal** (`projects/9059343258789011941`), design system **Cyber-C51 Emulator System**. Synced on 2026-08-01. Never store Stitch credentials or signed asset URLs in this repository.
+Updated 2026-10-12 following the user's request to reference the ChatGPT web visual language. This supersedes the original C51 Geek Terminal / Stitch visual direction; technical interaction contracts below remain applicable.
 
 ## 1. Design direction
 
-The interface is a retro-futuristic 8051 diagnostic terminal for engineers and learners. It combines the rigid structure of a command-line workbench with restrained glass layers and CRT-like luminous accents.
+A focused engineering workspace with neutral charcoal surfaces, a quiet sidebar, soft separators and restrained rounded corners. EmuC51 remains an 8051 compiler/debugger, not a chat application. No third-party brand assets, fonts, icons, analytics or remote runtime requests are introduced.
 
-- Mood: deep focus, technical precision, local-machine confidence.
-- Geometry: square corners everywhere except circular LEDs and rotary indicators.
-- Surfaces: layered transparent black panels; use borders, not soft card shadows, to establish hierarchy.
-- Motion: glow only for execution, selection, and live signals. Respect `prefers-reduced-motion`.
-- Motifs: 40 px circuit grid, subtle 4 px scanlines, compact status bits, monospaced data alignment.
-- Product truth wins over concept copy. The classic 8051 core now includes digital peripherals and instruction-boundary debugging; do not claim WebAssembly, precise bus timing, cloud sync, full A51/SDAS compatibility, browser C compilation, or source-level debugging. The local single-file ASM subset is documented separately.
+The existing application has a fixed dark theme and no user theme switch. Preserve that mechanism. Remove scanline/grid backgrounds and ornamental neon glow. Use color for execution, addresses, errors and breakpoints, with text or shape conveying the same state.
 
-## 2. Tokens
+## 2. Tokens and typography
 
-### Color
+- Canvas `#212121`; sidebar/inset `#171717`; panels `#242424`; controls `#303030`; hover `#383838`.
+- Text `#ececec`; secondary `#b8b8b8`; metadata `#a3a3a3`; separators `#3b3b3b`.
+- Execution/success `#8bd5b0`; address/information `#b4c9e4`; warning/breakpoint `#e9bd75`; error `#ffb4ab`.
+- System sans-serif for navigation, headings and explanations. Locally available monospace for source, memory, registers and logs; tabular numerals for aligned data. No font downloads.
+- Ordinary technical labels are 11–13px; small badges are 10px. Source stays 13px/20px. Main headings use 36–60px only on the welcome view.
+- Borders 1px; controls 6–8px radius; panels 10px; welcome cards 12px. Avoid glow except illustrative hardware signals.
+- Desktop header 60px, footer 30px; pane gutters 12px and outer spacing 16px. Mobile header 56px and bottom navigation 54px.
 
-| Token | Value | Use |
-| --- | --- | --- |
-| `terminal-bg` | `#0a0a0a` | App canvas and inset data surfaces |
-| `surface` | `#131313` | Default dark surface |
-| `surface-lowest` | `#0e0e0e` | Footer, inset terminal areas |
-| `surface-low` | `#1c1b1b` | Secondary surface |
-| `surface-container` | `#201f1f` | Neutral controls |
-| `surface-high` | `#2a2a2a` | Hover/raised neutral |
-| `surface-highest` | `#353534` | Strong neutral separator |
-| `glass-surface` | `rgba(20, 20, 20, 0.78)` | Terminal windows with `backdrop-filter: blur(12px)` |
-| `on-surface` | `#e5e2e1` | Primary text |
-| `on-surface-variant` | `#baccb0` | Secondary text |
-| `outline` | `#85967c` | Labels and subdued metadata |
-| `outline-variant` | `#3c4b35` | Inactive 1 px borders |
-| `primary` | `#39ff14` | Run/success/current instruction/live output |
-| `primary-dim` | `#2ae500` | Primary hover and glow |
-| `primary-soft` | `#79ff5b` | Readable primary data text |
-| `secondary` | `#00f1fd` | Addresses, navigation, information |
-| `secondary-soft` | `#6ff6ff` | Readable secondary data text |
-| `warning` | `#f59e0b` | Limitations and byte highlights |
-| `error` | `#ffb4ab` | Human-readable error text |
-| `error-red` | `#ef4444` | Hardware-style fault/display accent |
-| `circuit-trace` | `#162221` | Background grid at low opacity |
+## 3. Components and accessibility
 
-Do not introduce arbitrary accent colors. New semantic states must reuse these roles or be added here first with contrast verification.
-
-### Typography
-
-- Primary/code/headlines: `JetBrains Mono`, then `Cascadia Mono`, `SFMono-Regular`, `Consolas`, monospace.
-- Labels/metadata: `Fira Sans`, then `Segoe UI`, sans-serif.
-- `headline-lg`: 32/40 px, weight 700, tracking `-0.02em`.
-- `headline-md`: 24/32 px, weight 600.
-- `code-display`: 18/28 px, weight 500, tracking `0.05em`.
-- `body-sm`: 14/20 px, weight 400.
-- `label-caps`: 12/16 px, weight 700, tracking `0.1em`, uppercase.
-- `address-label`: 11/14 px, weight 400.
-
-The application must remain usable when the named fonts are not installed; external fonts are intentionally not fetched because production CSP is self-only.
-
-### Spacing and layout
-
-- Base unit: 4 px.
-- Gutter: 16 px.
-- Desktop page margin: 24 px; mobile page margin: 12 px.
-- Terminal window body padding: 12 px unless dense data requires 8 px.
-- Desktop: 12-column workbench logic; terminal panes align to a strict grid.
-- Mobile: one-column content and a persistent bottom navigation. Never compress dense tables until values become ambiguous; allow horizontal scrolling inside the pane.
-
-## 3. Components and states
-
-### Terminal window
-
-- 1 px inactive border using secondary/outline at low opacity.
-- 26 px header bar: uppercase title on the left, rectangular status bits on the right.
-- Active/live pane: primary border plus a restrained `0 0 8px` primary glow.
-- Body uses transparent black so the circuit grid can show through faintly.
-
-### Commands
-
-- Primary: black background, 1 px neon-green border/text; hover fills green and switches text to black.
-- Secondary: same behavior with cyber blue.
-- Ghost: no fill; prefix command copy with `>` where it reads naturally.
-- Disabled controls retain their geometry and use reduced opacity.
-- All keyboard-focusable controls require a visible 1 px primary outline.
-
-### Data, lists, and status
-
-- Addresses are cyber blue; executable/current values are neon green; raw bytes may use amber.
-- Separate list rows with low-opacity 1 px lines. Zebra striping is forbidden.
-- The current instruction is a full-row primary fill with black text.
-- Status bits are small square labels. Active bits use primary fill; inactive bits use transparent fill and a muted border.
-- LEDs are the only routinely circular component; active LEDs glow in their semantic color.
-
-### Inputs
-
-- Dark inset or transparent background, square corners, bottom border only for data entry.
-- Hex/address inputs use monospaced text and an explicit accessible label.
-- File input remains local-only and accepts `.bin` up to 64 KiB or `.hex`/`.ihx` text up to 1 MiB decoding to at most 64 KiB CODE.
+- Desktop sidebar can collapse with a labeled button using `aria-expanded` and `aria-controls`. Collapse changes presentation only and leaves drafts, CPU and build identity intact. Header navigation remains available. Narrow layouts retain bottom navigation and in-panel import actions.
+- Active navigation uses a neutral filled surface plus `aria-current`. Running/paused state has explicit text in the header. Execution controls retain semantic green, breakpoints their visible filled/hollow markers, and current instruction a contrasting full-row highlight.
+- Buttons and file-picker labels have visible keyboard focus. Keep native controls and keyboard behavior; don't invent a modal or replace browser file dialogs for appearance.
+- Dense tables scroll inside their panel; don't wrap hexadecimal byte columns or shrink data to fit a phone. Logs and long identifiers wrap or scroll within bounded areas. Controls wrap without disappearing.
+- Default, hover, focus, disabled, running, stale-build and error states must remain distinct. Reduced-motion behavior remains respected.
+- Validate actual pages at 1440, 1280, 820 and 390px widths. Screenshots and review notes live in `docs/screenshots/neutral-workbench/`.
 
 ## 4. Page patterns
 

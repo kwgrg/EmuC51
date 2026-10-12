@@ -129,6 +129,7 @@ export default function App() {
   const saveRevisionRef = useRef(0);
 
   const [activeView, setActiveView] = useState<AppView>(viewFromHash);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [firmware, setFirmware] = useState<FirmwareState>();
   const [cpuState, setCpuState] = useState<CpuViewState>();
   const [settings, setSettingsState] = useState(DEFAULT_SETTINGS);
@@ -873,9 +874,9 @@ export default function App() {
   return (
     <div className="terminal-app">
       <div className="scanline-overlay" aria-hidden="true" />
-      <AppHeader activeView={activeView} navigate={navigate} running={running} />
+      <AppHeader activeView={activeView} navigate={navigate} running={running} sidebarCollapsed={sidebarCollapsed} onToggleSidebar={() => setSidebarCollapsed(value => !value)} />
 
-      <div className={`page-frame ${activeView === "home" ? "is-home" : "is-console"}`}>
+      <div className={`page-frame ${activeView === "home" ? "is-home" : "is-console"} ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
         {activeView !== "home" && (
           <SystemRail
             activeView={activeView}
@@ -967,7 +968,7 @@ export default function App() {
           )}
           {activeView === "io" && (<>
             <ControlStrip controls={controls} blocked={asmBlocked||scenarioPending} canStepOut={Boolean(cpuState?.callStack.frames.length)} firmware={firmware} restoring={restoring} running={running} />
-            <label>重放运行预算<input aria-label="重放运行预算" type="number" min="0" max="100000000" value={settings.maxSteps} disabled={running||restoring} onChange={event=>{
+            <label className="replay-budget">重放运行预算<input aria-label="重放运行预算" type="number" min="0" max="100000000" value={settings.maxSteps} disabled={running||restoring} onChange={event=>{
               const maxSteps=Number(event.target.value);if(Number.isSafeInteger(maxSteps)&&maxSteps>=0&&maxSteps<=100000000)updateSettings({...settingsRef.current,maxSteps});
             }} /></label>
             {asmBlocked&&<p className="asm-stale-warning">ASM 源码与固件须先在工作台重建验证，才能继续执行或重放。</p>}
@@ -1012,20 +1013,26 @@ function AppHeader({
   activeView,
   navigate,
   running,
+  sidebarCollapsed,
+  onToggleSidebar,
 }: {
+  sidebarCollapsed: boolean;
+  onToggleSidebar: () => void;
   activeView: AppView;
   navigate: (view: AppView) => void;
   running: boolean;
 }) {
   return (
     <header className="top-bar">
-      <button className="brand-mark" onClick={() => navigate("home")}>
-        MCS-51_EMU_V1.0
-      </button>
+      <div className="header-brand">
+        {activeView !== "home" && <button className="sidebar-toggle" aria-label={sidebarCollapsed ? "展开侧栏" : "折叠侧栏"} aria-expanded={!sidebarCollapsed} aria-controls="workbench-sidebar" onClick={onToggleSidebar}>☰</button>}
+        <button className="brand-mark" onClick={() => navigate("home")}>EmuC51</button>
+      </div>
       <nav className="desktop-nav" aria-label="主导航">
         {NAV_ITEMS.filter((item) => item.view !== "home").map((item) => (
           <button
             className={activeView === item.view ? "active" : ""}
+            aria-current={activeView === item.view ? "page" : undefined}
             key={item.view}
             onClick={() => navigate(item.view)}
           >
@@ -1036,8 +1043,8 @@ function AppHeader({
       <div className="system-icons" aria-label="系统状态">
         <span title="浏览器 Worker">⌁</span>
         <span title="本地存储">▣</span>
-        <span className={running ? "is-live" : ""} title={running ? "正在运行" : "已暂停"}>
-          ϟ
+        <span className={`run-state ${running ? "is-live" : ""}`} title={running ? "正在运行" : "已暂停"}>
+          {running ? "运行中" : "已暂停"}
         </span>
       </div>
     </header>
@@ -1064,7 +1071,7 @@ function SystemRail({
   setDragging: (value: boolean) => void;
 }) {
   return (
-    <aside className="system-rail">
+    <aside className="system-rail" id="workbench-sidebar" aria-label="工作台侧栏">
       <div className="cpu-ident">
         <span>SYSTEM OPERATOR</span>
         <strong>CPU_8051</strong>
@@ -1093,6 +1100,7 @@ function SystemRail({
         {NAV_ITEMS.filter((item) => item.view !== "home").map((item) => (
           <button
             className={activeView === item.view ? "active" : ""}
+            aria-current={activeView === item.view ? "page" : undefined}
             key={item.view}
             onClick={() => navigate(item.view)}
           >
@@ -1138,7 +1146,7 @@ RET`}
         </pre>
         <div className="hero-copy">
           <span className="status-chip">STATUS: ONLINE // LOCAL RUNTIME</span>
-          <h1>MCS-51 Next-Gen Emulation</h1>
+          <h1>EmuC51<br />专注每一条指令。</h1>
           <p>
             在浏览器 Worker 中运行经典 8051 BIN / Intel HEX 固件。无需账号、无需上传，
             CPU、内存与调试状态全部留在当前设备。
@@ -1711,6 +1719,7 @@ function MobileNav({
       {NAV_ITEMS.map((item) => (
         <button
           className={activeView === item.view ? "active" : ""}
+            aria-current={activeView === item.view ? "page" : undefined}
           key={item.view}
           onClick={() => navigate(item.view)}
         >

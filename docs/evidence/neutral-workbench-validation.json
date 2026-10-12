@@ -1,0 +1,29 @@
+{
+  "date": "2026-10-12",
+  "baseCommit": "41c41c0157da8356e2f288a70060f332d225c94f",
+  "scope": "Neutral dark workbench styling, EmuC51 branding, explicit running/paused text, accessible sidebar collapse and active navigation",
+  "checks": {
+    "typecheck": "passed",
+    "lint": "passed",
+    "unitTests": 676,
+    "nativeSdcc": "enabled using verified SDCC 4.5.0",
+    "chromiumE2E": 72,
+    "build": "passed",
+    "wranglerDryRun": "passed; no independent deployment",
+    "productionCsp": "unchanged and used directly by E2E",
+    "firefox": "not verified",
+    "webkit": "not verified"
+  },
+  "visualReview": {
+    "gallery": "../screenshots/neutral-workbench/README.md",
+    "screenshots": 14,
+    "layoutTestWidths": [1440, 1280, 820, 390],
+    "reviewed": ["home", "desktop editor", "memory table", "GPIO/UART and replay form", "tablet", "mobile", "actual compiled C/SDAS firmware with registers and current instruction"],
+    "interactionChecks": ["keyboard sidebar collapse preserves compiler draft", "active navigation and mobile navigation", "visible keyboard focus", "dismissible import error", "16-row bounded memory table and internal horizontal scrolling", "existing full C/ASM compile, breakpoint, watch, tracing, cancel and stale-result suite"],
+    "dialogs": "Native file input remains unchanged; application has no custom modal dialog"
+  },
+  "sourceDistribution": {"manifestEntriesVerified": 23, "archivedSourceFilesCompared": 195, "bytesIncludingManifest": 33251546, "compilerBinaries": "unchanged; corresponding application source archive refreshed"},
+  "unchanged": ["CPU/compiler behavior", "workspace format and theme mechanism (fixed dark)", "CSP and deployment configuration", "no source upload"],
+  "remaining": ["Parent will verify existing Cloudflare automatic build for final master SHA", "Production site access not retried after previous proxy denial"],
+  "deferred": "Diagnostic navigation task had no repository implementation changes and is not included"
+}

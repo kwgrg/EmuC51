@@ -34,7 +34,7 @@ test("固件不上传且刷新后恢复工作区", async ({ page }) => {
 test("四个终端视图可以通过共享导航访问", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("main")).toHaveAttribute("data-view", "home");
-  await expect(page.getByText("MCS-51 Next-Gen Emulation")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "EmuC51 专注每一条指令。" })).toBeVisible();
 
   const desktopNav = page.locator(".desktop-nav");
   await desktopNav.getByRole("button", { name: "BIN_INSPECTOR" }).click();
@@ -48,6 +48,6 @@ test("四个终端视图可以通过共享导航访问", async ({ page }) => {
   await expect(page.getByRole("main")).toHaveAttribute("data-view", "io");
   await expect(page.getByText("GPIO_INPUT_OUTPUT")).toBeVisible();
 
-  await page.getByRole("button", { name: "MCS-51_EMU_V1.0" }).click();
+  await page.getByRole("button", { name: "EmuC51" }).click();
   await expect(page.getByRole("main")).toHaveAttribute("data-view", "home");
 });
