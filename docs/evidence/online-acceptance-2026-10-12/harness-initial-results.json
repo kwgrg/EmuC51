@@ -1,0 +1,265 @@
+{
+  "config": {
+    "argv": [
+      "/opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node",
+      "/workspace/EmuC51/node_modules/.bin/playwright",
+      "test",
+      "--config",
+      "online-examples.config.ts"
+    ],
+    "configFile": "/workspace/EmuC51/online-examples.config.ts",
+    "rootDir": "/workspace/EmuC51/tests/online-acceptance",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/workspace/acceptance-evidence/examples",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "",
+        "name": "",
+        "testDir": "/workspace/EmuC51/tests/online-acceptance",
+        "testIgnore": [],
+        "testMatch": [
+          "live-examples.spec.ts"
+        ],
+        "timeout": 90000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "/workspace/acceptance-evidence/examples-results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.62.1",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "live-examples.spec.ts",
+      "file": "live-examples.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "现网内置单C：编辑、编译、加载、断点、单步、运行暂停与截图",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 39136,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoContainText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.run-state')\nExpected substring: \u001b[32m\"运行中\"\u001b[39m\nReceived string:    \u001b[31m\"已暂停\"\u001b[39m\nTimeout: 35000ms\n\nCall log:\n\u001b[2m  - Expect \"toContainText\" with timeout 35000ms\u001b[22m\n\u001b[2m  - waiting for locator('.run-state')\u001b[22m\n\u001b[2m    73 × locator resolved to <span title=\"已暂停\" class=\"run-state \">已暂停</span>\u001b[22m\n\u001b[2m       - unexpected value \"已暂停\"\u001b[22m\n",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoContainText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.run-state')\nExpected substring: \u001b[32m\"运行中\"\u001b[39m\nReceived string:    \u001b[31m\"已暂停\"\u001b[39m\nTimeout: 35000ms\n\nCall log:\n\u001b[2m  - Expect \"toContainText\" with timeout 35000ms\u001b[22m\n\u001b[2m  - waiting for locator('.run-state')\u001b[22m\n\u001b[2m    73 × locator resolved to <span title=\"已暂停\" class=\"run-state \">已暂停</span>\u001b[22m\n\u001b[2m       - unexpected value \"已暂停\"\u001b[22m\n\n    at /workspace/EmuC51/tests/online-acceptance/live-examples.spec.ts:25:61",
+                    "location": {
+                      "file": "/workspace/EmuC51/tests/online-acceptance/live-examples.spec.ts",
+                      "column": 61,
+                      "line": 25
+                    },
+                    "snippet": "  23 |  await expect(page.getByTestId('register-PC')).not.toHaveText(oldPC);\n  24 |  await page.getByLabel('最大执行单元').fill('0');\n> 25 |  await run.click();await expect(page.locator('.run-state')).toContainText('运行中');\n     |                                                             ^\n  26 |  await page.getByRole('button',{name:'暂停',exact:false}).click();\n  27 |  await expect(page.locator('.run-state')).toContainText('已暂停');\n  28 |  await expect(page.locator('.footer-status')).toContainText('执行已暂停');"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/workspace/EmuC51/tests/online-acceptance/live-examples.spec.ts",
+                        "column": 61,
+                        "line": 25
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoContainText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.run-state')\nExpected substring: \u001b[32m\"运行中\"\u001b[39m\nReceived string:    \u001b[31m\"已暂停\"\u001b[39m\nTimeout: 35000ms\n\nCall log:\n\u001b[2m  - Expect \"toContainText\" with timeout 35000ms\u001b[22m\n\u001b[2m  - waiting for locator('.run-state')\u001b[22m\n\u001b[2m    73 × locator resolved to <span title=\"已暂停\" class=\"run-state \">已暂停</span>\u001b[22m\n\u001b[2m       - unexpected value \"已暂停\"\u001b[22m\n\n\n  23 |  await expect(page.getByTestId('register-PC')).not.toHaveText(oldPC);\n  24 |  await page.getByLabel('最大执行单元').fill('0');\n> 25 |  await run.click();await expect(page.locator('.run-state')).toContainText('运行中');\n     |                                                             ^\n  26 |  await page.getByRole('button',{name:'暂停',exact:false}).click();\n  27 |  await expect(page.locator('.run-state')).toContainText('已暂停');\n  28 |  await expect(page.locator('.footer-status')).toContainText('执行已暂停');\n    at /workspace/EmuC51/tests/online-acceptance/live-examples.spec.ts:25:61"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-12T07:55:42.688Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/workspace/acceptance-evidence/examples/live-examples-现网内置单C：编辑、编译、加载、断点、单步、运行暂停与截图/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "/workspace/acceptance-evidence/examples/live-examples-现网内置单C：编辑、编译、加载、断点、单步、运行暂停与截图/trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/workspace/EmuC51/tests/online-acceptance/live-examples.spec.ts",
+                    "column": 61,
+                    "line": 25
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "fecc79396dd84916d59b-52dba0b778b16314fb61",
+          "file": "live-examples.spec.ts",
+          "line": 3,
+          "column": 33
+        },
+        {
+          "title": "现网内置C-SDAS：编辑、编译、加载、断点、单步、运行暂停与截图",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 39260,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoContainText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.run-state')\nExpected substring: \u001b[32m\"运行中\"\u001b[39m\nReceived string:    \u001b[31m\"已暂停\"\u001b[39m\nTimeout: 35000ms\n\nCall log:\n\u001b[2m  - Expect \"toContainText\" with timeout 35000ms\u001b[22m\n\u001b[2m  - waiting for locator('.run-state')\u001b[22m\n\u001b[2m    73 × locator resolved to <span title=\"已暂停\" class=\"run-state \">已暂停</span>\u001b[22m\n\u001b[2m       - unexpected value \"已暂停\"\u001b[22m\n",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoContainText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.run-state')\nExpected substring: \u001b[32m\"运行中\"\u001b[39m\nReceived string:    \u001b[31m\"已暂停\"\u001b[39m\nTimeout: 35000ms\n\nCall log:\n\u001b[2m  - Expect \"toContainText\" with timeout 35000ms\u001b[22m\n\u001b[2m  - waiting for locator('.run-state')\u001b[22m\n\u001b[2m    73 × locator resolved to <span title=\"已暂停\" class=\"run-state \">已暂停</span>\u001b[22m\n\u001b[2m       - unexpected value \"已暂停\"\u001b[22m\n\n    at /workspace/EmuC51/tests/online-acceptance/live-examples.spec.ts:25:61",
+                    "location": {
+                      "file": "/workspace/EmuC51/tests/online-acceptance/live-examples.spec.ts",
+                      "column": 61,
+                      "line": 25
+                    },
+                    "snippet": "  23 |  await expect(page.getByTestId('register-PC')).not.toHaveText(oldPC);\n  24 |  await page.getByLabel('最大执行单元').fill('100000000');\n> 25 |  await run.click();await expect(page.locator('.run-state')).toContainText('运行中');\n     |                                                             ^\n  26 |  await page.getByRole('button',{name:'暂停',exact:false}).click();\n  27 |  await expect(page.locator('.run-state')).toContainText('已暂停');\n  28 |  await expect(page.locator('.footer-status')).toContainText('执行已暂停');"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/workspace/EmuC51/tests/online-acceptance/live-examples.spec.ts",
+                        "column": 61,
+                        "line": 25
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoContainText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.run-state')\nExpected substring: \u001b[32m\"运行中\"\u001b[39m\nReceived string:    \u001b[31m\"已暂停\"\u001b[39m\nTimeout: 35000ms\n\nCall log:\n\u001b[2m  - Expect \"toContainText\" with timeout 35000ms\u001b[22m\n\u001b[2m  - waiting for locator('.run-state')\u001b[22m\n\u001b[2m    73 × locator resolved to <span title=\"已暂停\" class=\"run-state \">已暂停</span>\u001b[22m\n\u001b[2m       - unexpected value \"已暂停\"\u001b[22m\n\n\n  23 |  await expect(page.getByTestId('register-PC')).not.toHaveText(oldPC);\n  24 |  await page.getByLabel('最大执行单元').fill('100000000');\n> 25 |  await run.click();await expect(page.locator('.run-state')).toContainText('运行中');\n     |                                                             ^\n  26 |  await page.getByRole('button',{name:'暂停',exact:false}).click();\n  27 |  await expect(page.locator('.run-state')).toContainText('已暂停');\n  28 |  await expect(page.locator('.footer-status')).toContainText('执行已暂停');\n    at /workspace/EmuC51/tests/online-acceptance/live-examples.spec.ts:25:61"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-12T07:56:23.356Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/workspace/acceptance-evidence/examples/live-examples-现网内置C-SDAS：编辑、编译、加载、断点、单步、运行暂停与截图/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "/workspace/acceptance-evidence/examples/live-examples-现网内置C-SDAS：编辑、编译、加载、断点、单步、运行暂停与截图/trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/workspace/EmuC51/tests/online-acceptance/live-examples.spec.ts",
+                    "column": 61,
+                    "line": 25
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "fecc79396dd84916d59b-5a3682760c313ffafde6",
+          "file": "live-examples.spec.ts",
+          "line": 3,
+          "column": 33
+        },
+        {
+          "title": "现网编辑与离开面板立即作废正在编译的旧结果",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3201,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-12T07:57:03.894Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "/workspace/acceptance-evidence/examples/live-examples-现网编辑与离开面板立即作废正在编译的旧结果/trace.zip"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "fecc79396dd84916d59b-f3d3f72450b6760ed8b7",
+          "file": "live-examples.spec.ts",
+          "line": 40,
+          "column": 1
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-10-12T07:55:42.198Z",
+    "duration": 85615.73400000001,
+    "expected": 1,
+    "skipped": 0,
+    "unexpected": 2,
+    "flaky": 0
+  }
+}

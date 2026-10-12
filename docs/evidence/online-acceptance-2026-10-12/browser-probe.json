@@ -1,0 +1,24 @@
+{
+  "time": "2026-10-12T07:53:41.352Z",
+  "status": 200,
+  "headers": {
+    "alt-svc": "h3=\":443\"; ma=86400",
+    "cache-control": "public, max-age=0, must-revalidate",
+    "cf-cache-status": "HIT",
+    "cf-ray": "a4948838acac5122-MSP",
+    "content-encoding": "zstd",
+    "content-security-policy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+    "content-type": "text/html",
+    "date": "Mon, 12 Oct 2026 07:53:39 GMT",
+    "etag": "W/\"773c44cc38db5147b8edcd0552b17615\"",
+    "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+    "permissions-policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+    "referrer-policy": "no-referrer",
+    "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=oU3kxOzDhfG0IA2fNvx6fA2%2BYLuX1YvvXCnYQ3hKuNGtyZNG6bP0eev0hhas%2FdfhxqwfCnuEDi3TZ0X%2B0TiYTfUix34RPCuVhF65NtO1%2Fm8jjYZf7R8Kj11ZKlkKdxMp%2B3vjoy6Sdr6KWHHGnms%3D\"}]}",
+    "server": "envoy",
+    "x-content-type-options": "nosniff",
+    "x-envoy-upstream-service-time": "105"
+  },
+  "text": "EmuC51\nBIN_INSPECTOR\nSYS_MEM\nI/O_PORTS\n⌁\n▣\n已暂停\nSTATUS: ONLINE // LOCAL RUNTIME\nEmuC51\n专注每一条指令。\n\n在浏览器 Worker 中运行经典 8051 BIN / Intel HEX 固件。无需账号、无需上传， CPU、内存与调试状态全部留在当前设备。\n\n> INIT_ENV\nLOAD_FIRMWARE\n// 选择一个本地固件即可开始；文件不会离开浏览器\nMCS-51\n8051\n8-BIT MCU\n◫ SYS_FEATURES\nϟ\n> Browser Worker Core\n\n支持地址断点、写入监视点、单步、步过、定时器、中断、串口与 GPIO。\n\n▣\n> Local Workspace\n\n固件、CPU 快照和调试设置保存在 IndexedDB，也可导入导出为 JSON 工作区。\n\n⌁\n> Zero Upload\n\nBIN 最大 64 KiB；HEX 源文件最大 1 MiB。固件本地读取，生产 CSP 禁止应用联网。\n\nRUNTIME METRICS\nAWAITING ROM\nROM_USAGE\n—\nINSTRUCTIONS\n0\nM_CYCLES\n0\n©1981–2026 INTEL_COMPATIBLE_CORE\n选择一个本地固件即可开始；文件不会离开浏览器\nLOCAL_ONLY · CSP_LOCKED",
+  "errors": []
+}

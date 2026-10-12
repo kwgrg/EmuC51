@@ -1,0 +1,139 @@
+{
+  "title": "混合工程：取消的包读取及晚到校验不覆盖新固件",
+  "events": [
+    {
+      "kind": "request",
+      "time": "2026-10-12T07:54:49.501Z",
+      "url": "https://emuc51.kwgrg-01.workers.dev/",
+      "method": "GET",
+      "body": null,
+      "type": "document"
+    },
+    {
+      "kind": "request",
+      "time": "2026-10-12T07:54:49.577Z",
+      "url": "https://emuc51.kwgrg-01.workers.dev/assets/index-BLsTETfI.js",
+      "method": "GET",
+      "body": null,
+      "type": "script"
+    },
+    {
+      "kind": "request",
+      "time": "2026-10-12T07:54:49.577Z",
+      "url": "https://emuc51.kwgrg-01.workers.dev/assets/index-BFG94jva.css",
+      "method": "GET",
+      "body": null,
+      "type": "stylesheet"
+    },
+    {
+      "kind": "response",
+      "time": "2026-10-12T07:54:49.582Z",
+      "url": "https://emuc51.kwgrg-01.workers.dev/",
+      "status": 200,
+      "headers": {
+        "alt-svc": "h3=\":443\"; ma=86400",
+        "cache-control": "public, max-age=0, must-revalidate",
+        "cf-cache-status": "HIT",
+        "cf-ray": "a49489eb9dbe0c73-MSP",
+        "content-encoding": "zstd",
+        "content-security-policy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+        "content-type": "text/html",
+        "date": "Mon, 12 Oct 2026 07:54:49 GMT",
+        "etag": "W/\"773c44cc38db5147b8edcd0552b17615\"",
+        "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+        "permissions-policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+        "referrer-policy": "no-referrer",
+        "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=9bAWtatdR%2BUJiTrFU2eGbIfz8KjQifPOadYoGaEjFY4Ijy1%2BaP1%2F5gZEit9hF11sHQc6IHmOH3GNlNOF2VRCuQcztC7kM84%2FjNPzH9LV3HLsHgZZsBm5Pwfrs11acNevHZpkAenIKib0RLgQMgQ%3D\"}]}",
+        "server": "envoy",
+        "x-content-type-options": "nosniff",
+        "x-envoy-upstream-service-time": "28"
+      },
+      "sha256": "633b79548e6a395126e36b47da5a785925e089d6ee6ec044e0e1a6f396219fff"
+    },
+    {
+      "kind": "response",
+      "time": "2026-10-12T07:54:49.625Z",
+      "url": "https://emuc51.kwgrg-01.workers.dev/assets/index-BFG94jva.css",
+      "status": 200,
+      "headers": {
+        "alt-svc": "h3=\":443\"; ma=86400",
+        "cache-control": "public, max-age=31536000, immutable",
+        "cf-cache-status": "HIT",
+        "cf-ray": "a49489ebfaf8a1d3-MSP",
+        "content-encoding": "zstd",
+        "content-security-policy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+        "content-type": "text/css",
+        "date": "Mon, 12 Oct 2026 07:54:49 GMT",
+        "etag": "W/\"a34986cb7b9d88d6dfeb439a529022f0\"",
+        "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+        "permissions-policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+        "referrer-policy": "no-referrer",
+        "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=yjxoLSZQQbEh2LW2NMBuz6mi%2FaKYfa9yd8u1bC4%2FllUr991GHWzsWCkiVR4YSOqLW5BkLdix7l7kHjwjbyI4N5CVYSupV9CqFRQ5KXwM9u2DqRyfuMs5GgRTXEYV90DlH558qUQ%2FKWaJLjgN3KE%3D\"}]}",
+        "server": "envoy",
+        "x-content-type-options": "nosniff",
+        "x-envoy-upstream-service-time": "22"
+      },
+      "sha256": "b45104810ebf531e2c0888893e9e1e2da329b37b40b99a8e3da6480903a280c8"
+    },
+    {
+      "kind": "response",
+      "time": "2026-10-12T07:54:49.694Z",
+      "url": "https://emuc51.kwgrg-01.workers.dev/assets/index-BLsTETfI.js",
+      "status": 200,
+      "headers": {
+        "alt-svc": "h3=\":443\"; ma=86400",
+        "cache-control": "public, max-age=31536000, immutable",
+        "cf-cache-status": "HIT",
+        "cf-ray": "a49489ec0f150c73-MSP",
+        "content-encoding": "zstd",
+        "content-security-policy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+        "content-type": "text/javascript",
+        "date": "Mon, 12 Oct 2026 07:54:49 GMT",
+        "etag": "W/\"f847d7670d829f7fd5894e0f5ae2b00e\"",
+        "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+        "permissions-policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+        "referrer-policy": "no-referrer",
+        "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=zqE0uh1Mf0e1giqzMji0FYYsfWcs0kyp5G8wWKZh1hNFNo3XpGXLzJov6bRdlfRHKbkTyEyaBEF64cB3XFi3Y77XAPW4%2FONIUN002lvHk3raPyY6y%2FqKnpoRtQ%2FwGDFe2ED5%2FlZ8w76xX0smXFw%3D\"}]}",
+        "server": "envoy",
+        "x-content-type-options": "nosniff",
+        "x-envoy-upstream-service-time": "35"
+      },
+      "sha256": "bfdf1644428b60305f17d167a089e08e81a44aa30d8ffa458e19b0db7e77e651"
+    },
+    {
+      "kind": "request",
+      "time": "2026-10-12T07:54:49.843Z",
+      "url": "https://emuc51.kwgrg-01.workers.dev/assets/emulator.worker-W79XGJ5H.js",
+      "method": "GET",
+      "body": null,
+      "type": "script"
+    },
+    {
+      "kind": "response",
+      "time": "2026-10-12T07:54:49.912Z",
+      "url": "https://emuc51.kwgrg-01.workers.dev/assets/emulator.worker-W79XGJ5H.js",
+      "status": 200,
+      "headers": {
+        "alt-svc": "h3=\":443\"; ma=86400",
+        "cache-control": "public, max-age=31536000, immutable",
+        "cf-cache-status": "HIT",
+        "cf-ray": "a49489edac780c73-MSP",
+        "content-encoding": "zstd",
+        "content-security-policy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+        "content-type": "text/javascript",
+        "date": "Mon, 12 Oct 2026 07:54:49 GMT",
+        "etag": "W/\"f34648511058efc1cd2328a43551779d\"",
+        "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+        "permissions-policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+        "referrer-policy": "no-referrer",
+        "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=%2F7tRAw40hf065glhQTzTcVPvlu9%2BA1ruoLaiqnuocm9ZYdNym75KoZdHKDT58gkKOYDl9ej6FB3H%2FfBTx%2FfnVTZ%2FDWSkTpZcq359Bl%2BFlYpXOthE64mxFQTFeG9vrlvrW5LCa%2FGUHCZ2jHlf%2F7c%3D\"}]}",
+        "server": "envoy",
+        "x-content-type-options": "nosniff",
+        "x-envoy-upstream-service-time": "24"
+      },
+      "sha256": "8c6a8c55ab31e7b29a791de3bc2507e921ea0d9973dd8ba658139560295f7d1d"
+    }
+  ],
+  "errors": [],
+  "failed": []
+}

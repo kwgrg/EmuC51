@@ -1,0 +1,15 @@
+
+Running 3 tests using 1 worker
+
+(node:2371) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 tests/online-acceptance/live-examples.spec.ts:3:33 › 现网内置单C：编辑、编译、加载、断点、单步、运行暂停与截图 (4.5s)
+  ✓  2 tests/online-acceptance/live-examples.spec.ts:3:33 › 现网内置C-SDAS：编辑、编译、加载、断点、单步、运行暂停与截图 (5.1s)
+  ✓  3 tests/online-acceptance/live-examples.spec.ts:41:1 › 现网编辑与离开面板立即作废正在编译的旧结果 (2.9s)
+
+  3 passed (14.4s)
+npm notice
+npm notice New major version of npm available! 11.9.0 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice

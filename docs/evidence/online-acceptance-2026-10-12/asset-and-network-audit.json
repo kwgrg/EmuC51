@@ -1,0 +1,173 @@
+{
+  "commit": "1a096b739e946218ad0d8102dd2358000f41dcfb",
+  "testCount": 15,
+  "requestCount": 155,
+  "allRequestsSameOriginGetWithoutBody": true,
+  "sourceMarkerAbsentFromRequests": true,
+  "jsErrors": [],
+  "failedRequests": [],
+  "tests": [
+    {
+      "test": "真实 flow 重建、链接失败与随后成功构建不混用旧文件",
+      "requests": 16,
+      "errors": [],
+      "failed": []
+    },
+    {
+      "test": "真实浏览器 C 编译：基线、源码编辑、错误、取消、重新编译及固件持久化",
+      "requests": 37,
+      "errors": [],
+      "failed": []
+    },
+    {
+      "test": "真实混合 WASM 编译与原生 IHX/CDB 完全一致，编辑头文件重建并保持跨文件调试",
+      "requests": 16,
+      "errors": [],
+      "failed": []
+    },
+    {
+      "test": "混合工程：取消的包读取及晚到校验不覆盖新固件",
+      "requests": 4,
+      "errors": [],
+      "failed": []
+    },
+    {
+      "test": "混合工程：篡改、歧义模块和路径不能替换当前固件",
+      "requests": 4,
+      "errors": [],
+      "failed": []
+    },
+    {
+      "test": "混合工程：跨文件 C/SDAS 精确行断点、ABI 执行、同名静态对象和恢复",
+      "requests": 8,
+      "errors": [],
+      "failed": []
+    },
+    {
+      "test": "混合工程：重复导入及原单文件工作区往返不保留旧文件或符号样本",
+      "requests": 8,
+      "errors": [],
+      "failed": []
+    },
+    {
+      "test": "中性工作台 1280px：导航、数据面板与窄屏不溢出",
+      "requests": 4,
+      "errors": [],
+      "failed": []
+    },
+    {
+      "test": "中性工作台 1440px：导航、数据面板与窄屏不溢出",
+      "requests": 4,
+      "errors": [],
+      "failed": []
+    },
+    {
+      "test": "中性工作台 390px：导航、数据面板与窄屏不溢出",
+      "requests": 4,
+      "errors": [],
+      "failed": []
+    },
+    {
+      "test": "中性工作台 820px：导航、数据面板与窄屏不溢出",
+      "requests": 4,
+      "errors": [],
+      "failed": []
+    },
+    {
+      "test": "侧栏键盘折叠保留编译草稿、导航与错误提示可关闭",
+      "requests": 4,
+      "errors": [],
+      "failed": []
+    },
+    {
+      "test": "现网内置C-SDAS：编辑、编译、加载、断点、单步、运行暂停与截图",
+      "requests": 10,
+      "errors": [],
+      "failed": []
+    },
+    {
+      "test": "现网内置单C：编辑、编译、加载、断点、单步、运行暂停与截图",
+      "requests": 10,
+      "errors": [],
+      "failed": []
+    },
+    {
+      "test": "现网编辑与离开面板立即作废正在编译的旧结果",
+      "requests": 22,
+      "errors": [],
+      "failed": []
+    }
+  ],
+  "assets": [
+    {
+      "url": "https://emuc51.kwgrg-01.workers.dev/",
+      "status": 200,
+      "observedSha256": "633b79548e6a395126e36b47da5a785925e089d6ee6ec044e0e1a6f396219fff",
+      "localSha256": "633b79548e6a395126e36b47da5a785925e089d6ee6ec044e0e1a6f396219fff",
+      "matches": true
+    },
+    {
+      "url": "https://emuc51.kwgrg-01.workers.dev/assets/compiler.worker-DsGMX8rk.js",
+      "status": 200,
+      "observedSha256": "74384c6906bada284ca55f8462feb0ade415a77475749e97be42558f9e3ccb55",
+      "localSha256": "74384c6906bada284ca55f8462feb0ade415a77475749e97be42558f9e3ccb55",
+      "matches": true
+    },
+    {
+      "url": "https://emuc51.kwgrg-01.workers.dev/assets/emulator.worker-W79XGJ5H.js",
+      "status": 200,
+      "observedSha256": "8c6a8c55ab31e7b29a791de3bc2507e921ea0d9973dd8ba658139560295f7d1d",
+      "localSha256": "8c6a8c55ab31e7b29a791de3bc2507e921ea0d9973dd8ba658139560295f7d1d",
+      "matches": true
+    },
+    {
+      "url": "https://emuc51.kwgrg-01.workers.dev/assets/index-BFG94jva.css",
+      "status": 200,
+      "observedSha256": "b45104810ebf531e2c0888893e9e1e2da329b37b40b99a8e3da6480903a280c8",
+      "localSha256": "b45104810ebf531e2c0888893e9e1e2da329b37b40b99a8e3da6480903a280c8",
+      "matches": true
+    },
+    {
+      "url": "https://emuc51.kwgrg-01.workers.dev/assets/index-BLsTETfI.js",
+      "status": 200,
+      "observedSha256": "bfdf1644428b60305f17d167a089e08e81a44aa30d8ffa458e19b0db7e77e651",
+      "localSha256": "bfdf1644428b60305f17d167a089e08e81a44aa30d8ffa458e19b0db7e77e651",
+      "matches": true
+    },
+    {
+      "url": "https://emuc51.kwgrg-01.workers.dev/sdcc/4.5.0-r1/files.js",
+      "status": 200,
+      "observedSha256": "72f12a9a76b3649205a5aa89c871e1f4d52711c819f18fa496b906297bcea2c2",
+      "localSha256": "72f12a9a76b3649205a5aa89c871e1f4d52711c819f18fa496b906297bcea2c2",
+      "matches": true
+    },
+    {
+      "url": "https://emuc51.kwgrg-01.workers.dev/sdcc/4.5.0-r1/sdas8051.js",
+      "status": 200,
+      "observedSha256": "f64e8e9a5c84cad0b0038dd3bd3b7d1cf1b3a824fea9fb6c6918ac1fd56eef5e",
+      "localSha256": "f64e8e9a5c84cad0b0038dd3bd3b7d1cf1b3a824fea9fb6c6918ac1fd56eef5e",
+      "matches": true
+    },
+    {
+      "url": "https://emuc51.kwgrg-01.workers.dev/sdcc/4.5.0-r1/sdcc.js",
+      "status": 200,
+      "observedSha256": "2e7c911d400b0180e88f11460e3b23d188c12dbaab0fee1b29930e4d88c50c95",
+      "localSha256": "2e7c911d400b0180e88f11460e3b23d188c12dbaab0fee1b29930e4d88c50c95",
+      "matches": true
+    },
+    {
+      "url": "https://emuc51.kwgrg-01.workers.dev/sdcc/4.5.0-r1/sdcpp.js",
+      "status": 200,
+      "observedSha256": "ff1dc03bd1c6f7be839924cc1686caebe7d58adf25bcb24ab6a4976f45790186",
+      "localSha256": "ff1dc03bd1c6f7be839924cc1686caebe7d58adf25bcb24ab6a4976f45790186",
+      "matches": true
+    },
+    {
+      "url": "https://emuc51.kwgrg-01.workers.dev/sdcc/4.5.0-r1/sdld.js",
+      "status": 200,
+      "observedSha256": "3f653e925d34ba2d1eee78bf414d8d87d5b61eab4a80ef5ebde77bbeb7cf16fa",
+      "localSha256": "3f653e925d34ba2d1eee78bf414d8d87d5b61eab4a80ef5ebde77bbeb7cf16fa",
+      "matches": true
+    }
+  ]
+}

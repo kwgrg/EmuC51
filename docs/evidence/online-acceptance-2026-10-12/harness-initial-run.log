@@ -1,0 +1,93 @@
+
+Running 3 tests using 1 worker
+
+(node:1828) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 tests/online-acceptance/live-examples.spec.ts:3:33 › 现网内置单C：编辑、编译、加载、断点、单步、运行暂停与截图 (39.1s)
+(node:2008) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  2 tests/online-acceptance/live-examples.spec.ts:3:33 › 现网内置C-SDAS：编辑、编译、加载、断点、单步、运行暂停与截图 (39.3s)
+(node:2188) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  3 tests/online-acceptance/live-examples.spec.ts:40:1 › 现网编辑与离开面板立即作废正在编译的旧结果 (3.2s)
+
+
+  1) tests/online-acceptance/live-examples.spec.ts:3:33 › 现网内置单C：编辑、编译、加载、断点、单步、运行暂停与截图 ────────────
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: locator('.run-state')
+    Expected substring: "运行中"
+    Received string:    "已暂停"
+    Timeout: 35000ms
+
+    Call log:
+      - Expect "toContainText" with timeout 35000ms
+      - waiting for locator('.run-state')
+        73 × locator resolved to <span title="已暂停" class="run-state ">已暂停</span>
+           - unexpected value "已暂停"
+
+
+      23 |  await expect(page.getByTestId('register-PC')).not.toHaveText(oldPC);
+      24 |  await page.getByLabel('最大执行单元').fill('0');
+    > 25 |  await run.click();await expect(page.locator('.run-state')).toContainText('运行中');
+         |                                                             ^
+      26 |  await page.getByRole('button',{name:'暂停',exact:false}).click();
+      27 |  await expect(page.locator('.run-state')).toContainText('已暂停');
+      28 |  await expect(page.locator('.footer-status')).toContainText('执行已暂停');
+        at /workspace/EmuC51/tests/online-acceptance/live-examples.spec.ts:25:61
+
+    Error Context: ../acceptance-evidence/examples/live-examples-现网内置单C：编辑、编译、加载、断点、单步、运行暂停与截图/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../acceptance-evidence/examples/live-examples-现网内置单C：编辑、编译、加载、断点、单步、运行暂停与截图/trace.zip
+    Usage:
+
+        npx playwright show-trace ../acceptance-evidence/examples/live-examples-现网内置单C：编辑、编译、加载、断点、单步、运行暂停与截图/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) tests/online-acceptance/live-examples.spec.ts:3:33 › 现网内置C-SDAS：编辑、编译、加载、断点、单步、运行暂停与截图 ────────
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: locator('.run-state')
+    Expected substring: "运行中"
+    Received string:    "已暂停"
+    Timeout: 35000ms
+
+    Call log:
+      - Expect "toContainText" with timeout 35000ms
+      - waiting for locator('.run-state')
+        73 × locator resolved to <span title="已暂停" class="run-state ">已暂停</span>
+           - unexpected value "已暂停"
+
+
+      23 |  await expect(page.getByTestId('register-PC')).not.toHaveText(oldPC);
+      24 |  await page.getByLabel('最大执行单元').fill('100000000');
+    > 25 |  await run.click();await expect(page.locator('.run-state')).toContainText('运行中');
+         |                                                             ^
+      26 |  await page.getByRole('button',{name:'暂停',exact:false}).click();
+      27 |  await expect(page.locator('.run-state')).toContainText('已暂停');
+      28 |  await expect(page.locator('.footer-status')).toContainText('执行已暂停');
+        at /workspace/EmuC51/tests/online-acceptance/live-examples.spec.ts:25:61
+
+    Error Context: ../acceptance-evidence/examples/live-examples-现网内置C-SDAS：编辑、编译、加载、断点、单步、运行暂停与截图/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../acceptance-evidence/examples/live-examples-现网内置C-SDAS：编辑、编译、加载、断点、单步、运行暂停与截图/trace.zip
+    Usage:
+
+        npx playwright show-trace ../acceptance-evidence/examples/live-examples-现网内置C-SDAS：编辑、编译、加载、断点、单步、运行暂停与截图/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    tests/online-acceptance/live-examples.spec.ts:3:33 › 现网内置单C：编辑、编译、加载、断点、单步、运行暂停与截图 ─────────────
+    tests/online-acceptance/live-examples.spec.ts:3:33 › 现网内置C-SDAS：编辑、编译、加载、断点、单步、运行暂停与截图 ─────────
+  1 passed (1.4m)
+npm notice
+npm notice New major version of npm available! 11.9.0 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
