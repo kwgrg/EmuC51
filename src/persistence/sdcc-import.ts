@@ -3,11 +3,11 @@ import { normalizeSdccDebug, SDCC_TEXT_LIMIT, verifySdccDebug, type VerifiedSdcc
 
 /** Validate all four explicit files before changing the active workspace. */
 export async function importSdccFiles(files: File[]): Promise<VerifiedSdccDebug> {
-  if (files.length === 1 && files[0]!.name === "emuc51-project.build.json") {
+  if (files.length === 1 && ["emuc51-project.build.json", "emuc51-browser.build.json"].includes(files[0]!.name)) {
     if (files[0]!.size > PROJECT_BUNDLE_LIMIT) throw new Error("混合工程构建包最多 2 MiB");
     const text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(await files[0]!.arrayBuffer());
     const data = normalizeSdccDebug(JSON.parse(text));
-    if (!data.project) throw new Error("此入口需要版本 2 混合工程构建包");
+    if (files[0]!.name === "emuc51-project.build.json" && !data.project) throw new Error("此入口需要版本 2 混合工程构建包");
     return verifySdccDebug(data);
   }
   if (files.length !== 4 || new Set(files.map(file => file.name)).size !== 4) throw new Error("请同时选择源文件、IHX、CDB 和摘要清单四个不同文件");

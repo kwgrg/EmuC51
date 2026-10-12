@@ -1,0 +1,45 @@
+--- a/support/cpp/gcc/cc1_dummies.cc
++++ b/support/cpp/gcc/cc1_dummies.cc
+@@ -116,8 +116,9 @@
+ {
+ 	return false;
+ }
+-void dwarf2out_do_cfi_asm()
+-{ SDCPP_DUMMY_FCT();
++bool dwarf2out_do_cfi_asm()
++{ SDCPP_DUMMY_FCT();
++  return false;
+ }
+ void emergency_dump_function()
+ { untested();
+@@ -132,13 +133,11 @@
+ { SDCPP_DUMMY_FCT();
+ 	return 0;
+ }
+-int ggc_mark_stringpool()
+-{ SDCPP_DUMMY_FCT();
+-	return 0;
+-}
+-int ggc_purge_stringpool()
+-{ SDCPP_DUMMY_FCT();
+-	return 0;
++void ggc_mark_stringpool()
++{ SDCPP_DUMMY_FCT();
++}
++void ggc_purge_stringpool()
++{ SDCPP_DUMMY_FCT();
+ }
+ void gt_clear_caches()
+ { SDCPP_DUMMY_FCT();
+@@ -152,9 +151,8 @@
+ void gt_pch_p_S(void*, void*, void (*)(void*, void*, void*), void*)
+ { SDCPP_DUMMY_FCT();
+ }
+-int gt_pch_restore_stringpool()
+-{ SDCPP_DUMMY_FCT();
+-	return 0;
++void gt_pch_restore_stringpool()
++{ SDCPP_DUMMY_FCT();
+ }
+ int gt_pch_save_stringpool()
+ { SDCPP_DUMMY_FCT();

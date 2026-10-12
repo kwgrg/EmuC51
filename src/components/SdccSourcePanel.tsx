@@ -35,7 +35,7 @@ export function SdccSourcePanel({ verified, checking, error, disabled, pc, confi
         requestAnimationFrame(() => scroller.current?.querySelector(`[data-source-line="${line}"]`)?.scrollIntoView({ block: "nearest" }));
       }}>定位当前源码行</button>
     </div>
-    <p>选择同次本地 SDCC 构建的 .c、.ihx、.cdb 和 emuc51-sdcc.json 摘要清单。此处不编译 C；支持 classic 8051、small 模型、128 字节 IRAM。单文件清单由 scripts/build-sdcc-bundle.mjs 生成；混合工程选择一个 emuc51-project.build.json，使用 scripts/build-sdcc-project.mjs 外部构建。SDAS8051 与应用内简化 ASM 不兼容。</p>
+    <p>选择同次本地 SDCC 构建的 .c、.ihx、.cdb 和 emuc51-sdcc.json 摘要清单。外部产物导入支持 classic 8051、small 模型、128 字节 IRAM。单文件清单由 scripts/build-sdcc-bundle.mjs 生成；混合工程选择一个 emuc51-project.build.json，使用 scripts/build-sdcc-project.mjs 外部构建。浏览器构建包也可在此重新导入。SDAS8051 与应用内简化 ASM 不兼容。</p>
     <p data-testid="sdcc-status">{checking ? "正在校验 SDCC 文件…" : error ? `源码映射不可用：${error}` : verified ? `已校验文件摘要 · ${verified.data.manifest.files.source.name} · ${locations!.length} 个精确行地址` : "尚未导入带构建清单的 SDCC 文件"}</p>
     {verified && <>
       {verified.files && <label>工程源文件<select aria-label="工程源文件" value={filename} onChange={event => {

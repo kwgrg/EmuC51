@@ -1,0 +1,9 @@
+--- a/config.sub
++++ b/config.sub
+@@ -1,1 +1,6 @@
+ #! /bin/sh
++# EmuC51: recognize the Emscripten cross target.
++if test "$1" = wasm32-unknown-emscripten; then
++  echo wasm32-unknown-emscripten
++  exit 0
++fi

@@ -37,7 +37,7 @@ function checkText(path, text, generated = false) {
   const clean = text.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\/\/[^\n]*/g, "");
   for (const line of clean.split(/\r\n|\n|\r/)) {
     if (!/^\s*#/.test(line)) continue;
-    const include = /^\s*#\s*include\s*(["<])([A-Za-z_][A-Za-z0-9_/-]*\.[hH])[">]\s*$/.exec(line);
+    const include = /^\s*#\s*include\s*(["<])([A-Za-z0-9_][A-Za-z0-9_/-]*\.[hH])[">]\s*$/.exec(line);
     if (include) {
       const name = include[2];
       const candidates = [join(dirname(path), name), ...project.includeDirs.map(dir => join(dir, name))];

@@ -1,0 +1,94 @@
+{
+  "NOTICE.txt": {
+    "bytes": 3141,
+    "sha256": "4a9f473b9bd98989847de30410077282885b66066bc9df30edfaef38a14e509c"
+  },
+  "boost-headers-source.tar.xz": {
+    "bytes": 10220904,
+    "sha256": "6ed89807ecda76e653103f8db9325c62e9007c3f5f7d77775895ed4702b1ff78"
+  },
+  "emscripten-runtime-source.tar.xz": {
+    "bytes": 4471860,
+    "sha256": "35f73ac8d796fd033380b5763f6a8370db454bc1ed62ff3a5287a743a6e49a1e"
+  },
+  "emuc51-port-source.tar.xz": {
+    "bytes": 220272,
+    "sha256": "a71e1548d517569d3cf7f7c3374aefc5f0da1db4f7755b2e0da0993d2b8270f8"
+  },
+  "files.js": {
+    "bytes": 1110845,
+    "sha256": "72f12a9a76b3649205a5aa89c871e1f4d52711c819f18fa496b906297bcea2c2"
+  },
+  "licenses/BOOST-COPYRIGHT": {
+    "bytes": 2175464,
+    "sha256": "87ff229c71d391f951383b2246ba630c849e2024ea42a2ac9113dc9646f1e667"
+  },
+  "licenses/COMPILER-RT-LICENSE": {
+    "bytes": 16708,
+    "sha256": "1a8f1058753f1ba890de984e48f0242a3a5c29a6a8f2ed9fd813f36985387e8d"
+  },
+  "licenses/EMSCRIPTEN-AUTHORS": {
+    "bytes": 29004,
+    "sha256": "8585fa1b981f576f52806833481323007ccac5c00f31a873215e31c0f42820f0"
+  },
+  "licenses/EMSCRIPTEN-LICENSE": {
+    "bytes": 5093,
+    "sha256": "620a78084fc7ca97c0b5dea9abf891f3ffcadfdbf305276f099c9c4e12fc1d86"
+  },
+  "licenses/GPL-2.txt": {
+    "bytes": 17984,
+    "sha256": "edaef632cbb643e4e7a221717a6c441a4c1a7c918e6e4d56debc3d8739b233f6"
+  },
+  "licenses/GPL-3.txt": {
+    "bytes": 35149,
+    "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+  },
+  "licenses/LIBCXX-LICENSE": {
+    "bytes": 16703,
+    "sha256": "539dd7aed86e8a4f12cbdd0e6c50c189c7d74847e4fecc64ce2c6ee3a01da38b"
+  },
+  "licenses/LIBCXXABI-LICENSE": {
+    "bytes": 16706,
+    "sha256": "e2b35be49f7284a45b7baca8fc7b3ab7440e7902392b2528a457816b5bb2a15c"
+  },
+  "licenses/MUSL-COPYRIGHT": {
+    "bytes": 6204,
+    "sha256": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af"
+  },
+  "licenses/SDCC-COPYING": {
+    "bytes": 17990,
+    "sha256": "1ca3e8f71b7de618968e7ea9fe47822d9e704dc476aef8544033abedec355225"
+  },
+  "licenses/SDCC-DEBIAN-COPYRIGHT": {
+    "bytes": 6183,
+    "sha256": "104fe61a3a5a6521196c04270b061a79e03ce60f4fdbef4d47d98f0e2c71bd8e"
+  },
+  "licenses/SDCC-LIBRARIES-COPYRIGHT": {
+    "bytes": 6183,
+    "sha256": "104fe61a3a5a6521196c04270b061a79e03ce60f4fdbef4d47d98f0e2c71bd8e"
+  },
+  "licenses/SDCC-README": {
+    "bytes": 5423,
+    "sha256": "39c81a22595e472dcae2caf7b1a4009a9bbaad7b043d800a5af0631c612961af"
+  },
+  "sdas8051.js": {
+    "bytes": 196778,
+    "sha256": "f64e8e9a5c84cad0b0038dd3bd3b7d1cf1b3a824fea9fb6c6918ac1fd56eef5e"
+  },
+  "sdcc.js": {
+    "bytes": 2263002,
+    "sha256": "2e7c911d400b0180e88f11460e3b23d188c12dbaab0fee1b29930e4d88c50c95"
+  },
+  "sdcc_4.5.0+dfsg.orig.tar.xz": {
+    "bytes": 11061180,
+    "sha256": "f7af2c454c398a70393cbbbbb9c809e21cedbeb7d284a0a445120743ebc873b8"
+  },
+  "sdcpp.js": {
+    "bytes": 1123497,
+    "sha256": "ff1dc03bd1c6f7be839924cc1686caebe7d58adf25bcb24ab6a4976f45790186"
+  },
+  "sdld.js": {
+    "bytes": 214839,
+    "sha256": "3f653e925d34ba2d1eee78bf414d8d87d5b61eab4a80ef5ebde77bbeb7cf16fa"
+  }
+}

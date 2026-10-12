@@ -1,0 +1,26 @@
+{
+  "date": "2026-10-12",
+  "defaultBranch": "master",
+  "remoteHeadBeforeWork": "062f6cb6ef0bf3ddc54f4c67d1386ca6b1ef8cdd",
+  "emsdkTag": "4.0.19",
+  "emsdkCommit": "7b4e60e4bfcba326025e373024369eaa9904af55",
+  "release": "8b01e2ec3f33e6b94842096d7312ce4ef5f33f6c",
+  "downloads": [
+    {
+      "url": "https://storage.googleapis.com/webassembly/emscripten-releases-builds/deps/node-v22.16.0-linux-x64.tar.xz",
+      "bytes": 30425588,
+      "sha256": "f4cb75bb036f0d0eddf6b79d9596df1aaab9ddccd6a20bf489be5abe9467e84e",
+      "status": "downloaded completely; original emsdk installer then also downloaded, extracted and installed successfully"
+    },
+    {
+      "url": "https://storage.googleapis.com/webassembly/emscripten-releases-builds/linux/8b01e2ec3f33e6b94842096d7312ce4ef5f33f6c/wasm-binaries.tar.xz",
+      "bytes": 354201528,
+      "status": "official emsdk installer downloaded, extracted and installed successfully",
+      "note": "installer removed archive after installation; no archive SHA256 is claimed"
+    }
+  ],
+  "emccVersion": "emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 4.0.19 (08e2de1031913e4ba7963b1c56f35f036a7d4d56)\nCopyright (C) 2025 the Emscripten authors (see AUTHORS.txt)\nThis is free and open source software under the MIT license.\nThere is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n",
+  "installLog": "Resolving SDK version '4.0.19' to 'sdk-releases-8b01e2ec3f33e6b94842096d7312ce4ef5f33f6c-64bit'\nInstalling SDK 'sdk-releases-8b01e2ec3f33e6b94842096d7312ce4ef5f33f6c-64bit'..\nInstalling tool 'node-22.16.0-64bit'..\nDownloading: /tmp/emuc51-emsdk/downloads/node-v22.16.0-linux-x64.tar.xz from https://storage.googleapis.com/webassembly/emscripten-releases-builds/deps/node-v22.16.0-linux-x64.tar.xz, 30425588 Bytes\n [----------------------------------------------------------------------------]\nUnpacking '/tmp/emuc51-emsdk/downloads/node-v22.16.0-linux-x64.tar.xz' to '/tmp/emuc51-emsdk/node/22.16.0_64bit'\nDone installing tool 'node-22.16.0-64bit'.\nInstalling tool 'releases-8b01e2ec3f33e6b94842096d7312ce4ef5f33f6c-64bit'..\nDownloading: /tmp/emuc51-emsdk/downloads/8b01e2ec3f33e6b94842096d7312ce4ef5f33f6c-wasm-binaries.tar.xz from https://storage.googleapis.com/webassembly/emscripten-releases-builds/linux/8b01e2ec3f33e6b94842096d7312ce4ef5f33f6c/wasm-binaries.tar.xz, 354201528 Bytes\n [----------------------------------------------------------------------------]\nUnpacking '/tmp/emuc51-emsdk/downloads/8b01e2ec3f33e6b94842096d7312ce4ef5f33f6c-wasm-binaries.tar.xz' to '/tmp/emuc51-emsdk/upstream'\nDone installing tool 'releases-8b01e2ec3f33e6b94842096d7312ce4ef5f33f6c-64bit'.\nDone installing SDK 'sdk-releases-8b01e2ec3f33e6b94842096d7312ce4ef5f33f6c-64bit'.\n",
+  "sdccSourceSha256": "f7af2c454c398a70393cbbbbb9c809e21cedbeb7d284a0a445120743ebc873b8",
+  "proxyOrMirrorSubstitution": false
+}

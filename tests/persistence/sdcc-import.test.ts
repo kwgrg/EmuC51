@@ -51,3 +51,13 @@ it("imports a bounded mixed package and persists every source/header atomically"
   await expect(importWorkspace(JSON.stringify(changed))).rejects.toThrow("SHA-256");
   await expect(importSdccFiles([{ ...file, size: 2 * 1024 * 1024 + 1 } as File])).rejects.toThrow("2 MiB");
 });
+
+it("imports a downloaded single-file browser bundle and rejects altered source or a false mixed-package name", async () => {
+  const file = (value: unknown, name = "emuc51-browser.build.json") => {
+    const bytes = new TextEncoder().encode(JSON.stringify(value));
+    return { name, size: bytes.length, arrayBuffer: async () => bytes.buffer } as File;
+  };
+  expect((await importSdccFiles([file(data)])).data).toEqual(data);
+  await expect(importSdccFiles([file({ ...data, source: data.source + "\n" })])).rejects.toThrow("SHA-256");
+  await expect(importSdccFiles([file(data, "emuc51-project.build.json")])).rejects.toThrow("版本 2");
+});

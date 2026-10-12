@@ -1,0 +1,49 @@
+--- a/src/SDCCmain.c
++++ b/src/SDCCmain.c
+@@ -1077,6 +1077,7 @@
+ parseCmdLine (int argc, char **argv)
+ {
+   int i;
++  const char *c1Source = NULL;
+ 
+   /* go thru whole command line */
+   for (i = 1; i < argc; i++)
+@@ -1084,6 +1085,20 @@
+       if (i >= argc)
+         break;
+ 
++      /* EmuC51: explicit original source identity for a process-free c1 stage.
++         processFile below opens the real source for debug output, while yyin
++         remains the preprocessed standard input. */
++      if (strcmp (argv[i], "--c1-source") == 0)
++        {
++          if (c1Source || i + 1 >= argc)
++            {
++              fprintf (stderr, "--c1-source requires one source filename\n");
++              exit (EXIT_FAILURE);
++            }
++          c1Source = argv[++i];
++          continue;
++        }
++
+       /* check port specific options before general ones */
+       if (port->parseOption (&argc, argv, &i) == TRUE)
+         {
+@@ -1705,6 +1720,17 @@
+           moduleName = m;
+         }
+     }
++  if (c1Source)
++    {
++      if (!options.c1mode)
++        {
++          fprintf (stderr, "--c1-source requires --c1mode\n");
++          exit (EXIT_FAILURE);
++        }
++      processFile (c1Source);
++      if (!fullSrcFileName)
++        exit (EXIT_FAILURE);
++    }
+   /* if no dstFileName given with -o, we've to find one: */
+   if (!dstFileName)
+     {

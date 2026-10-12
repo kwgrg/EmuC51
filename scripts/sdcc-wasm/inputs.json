@@ -1,0 +1,53 @@
+{
+  "emsdkCommit": "7b4e60e4bfcba326025e373024369eaa9904af55",
+  "emsdkVersion": "4.0.19",
+  "release": "8b01e2ec3f33e6b94842096d7312ce4ef5f33f6c",
+  "source": {
+    "url": "https://deb.debian.org/debian/pool/main/s/sdcc/sdcc_4.5.0+dfsg.orig.tar.xz",
+    "sha256": "f7af2c454c398a70393cbbbbb9c809e21cedbeb7d284a0a445120743ebc873b8"
+  },
+  "packages": [
+    {
+      "Package": "bison",
+      "Version": "2:3.8.2+dfsg-1+b2",
+      "Filename": "pool/main/b/bison/bison_3.8.2+dfsg-1+b2_amd64.deb",
+      "SHA256": "ce6eb1f7aad18850e32d223a68f54bcbe756d74f138c8ec5460ad9d220f4d335",
+      "Depends": "m4, libc6 (>= 2.38)"
+    },
+    {
+      "Package": "libboost1.83-dev",
+      "Version": "1.83.0-4.2",
+      "Filename": "pool/main/b/boost1.83/libboost1.83-dev_1.83.0-4.2_amd64.deb",
+      "SHA256": "1f11fc6fb2ffe9378a0f0ebc8f2fd9223fb958b4a40bb9381c67a8857d947ca3",
+      "Depends": "libstdc++-14-dev"
+    },
+    {
+      "Package": "flex",
+      "Version": "2.6.4-8.2+b4",
+      "Filename": "pool/main/f/flex/flex_2.6.4-8.2+b4_amd64.deb",
+      "SHA256": "75f963765232c356d0a2fb70e780dfa9de2425aca036ec60eefb7fc98a2c905b",
+      "Depends": "libc6 (>= 2.38), m4"
+    },
+    {
+      "Package": "m4",
+      "Version": "1.4.19-8",
+      "Filename": "pool/main/m/m4/m4_1.4.19-8_amd64.deb",
+      "SHA256": "221b3e224708c1da2a1a88b6824380593579b2254ae7d914afa14cbd5d343334",
+      "Depends": "libc6 (>= 2.38)"
+    },
+    {
+      "Package": "sdcc",
+      "Version": "4.5.0+dfsg-1",
+      "Filename": "pool/main/s/sdcc/sdcc_4.5.0+dfsg-1_amd64.deb",
+      "SHA256": "81dfc9e3d469b11c3465a6ebae7034679b845f4a7de4435afb3a2e974abc1ff3",
+      "Depends": "sdcc-libraries (= 4.5.0+dfsg-1), libc6 (>= 2.38), libgcc-s1 (>= 3.4), libstdc++6 (>= 13.1), zlib1g (>= 1:1.2.0)"
+    },
+    {
+      "Package": "sdcc-libraries",
+      "Version": "4.5.0+dfsg-1",
+      "Filename": "pool/main/s/sdcc/sdcc-libraries_4.5.0+dfsg-1_all.deb",
+      "SHA256": "3693c67f573663d400d95a2bad8d41ba1047decb608f4ee61d9d2e2fa96046a7",
+      "Depends": null
+    }
+  ]
+}

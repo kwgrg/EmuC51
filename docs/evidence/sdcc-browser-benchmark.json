@@ -1,0 +1,227 @@
+{
+  "chromium": "151.0.7922.173",
+  "policyMode": "explicit local test policy",
+  "policy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+  "trials": [
+    {
+      "wallMilliseconds": 502,
+      "compileMilliseconds": 438.60000000009313,
+      "maxStageHeapBytes": 43843584
+    },
+    {
+      "wallMilliseconds": 488.39999999990687,
+      "compileMilliseconds": 422.40000000037253,
+      "maxStageHeapBytes": 43843584
+    },
+    {
+      "wallMilliseconds": 480.10000000009313,
+      "compileMilliseconds": 411.5,
+      "maxStageHeapBytes": 43843584
+    },
+    {
+      "wallMilliseconds": 459.3000000002794,
+      "compileMilliseconds": 398.6999999997206,
+      "maxStageHeapBytes": 43843584
+    },
+    {
+      "wallMilliseconds": 603,
+      "compileMilliseconds": 523.2999999998137,
+      "maxStageHeapBytes": 43843584
+    }
+  ],
+  "cancellation": {
+    "terminateMilliseconds": 0,
+    "messagesAfterTermination": 0,
+    "workload": "1600 volatile arithmetic statements; terminate at 100ms; observe another 200ms"
+  },
+  "baselineRendererRssBytes": 174821376,
+  "peakRendererRssBytes": 451792896,
+  "memoryScope": "10ms samples of sum of Chromium renderer RSS, includes page, worker, JIT and browser overhead; sampling can miss transients. maxStageHeapBytes is exact monotonic WASM linear memory high-water for each stage, not total browser memory.",
+  "requests": [
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/assets/emulator.worker-W79XGJ5H.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/assets/compiler.worker-eGee7dmO.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/sdcc/4.5.0-r1/sdcpp.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/sdcc/4.5.0-r1/sdcc.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/sdcc/4.5.0-r1/sdas8051.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/sdcc/4.5.0-r1/sdld.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/sdcc/4.5.0-r1/files.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/assets/compiler.worker-eGee7dmO.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/sdcc/4.5.0-r1/sdcpp.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/sdcc/4.5.0-r1/sdcc.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/sdcc/4.5.0-r1/sdas8051.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/sdcc/4.5.0-r1/sdld.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/sdcc/4.5.0-r1/files.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/assets/compiler.worker-eGee7dmO.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/sdcc/4.5.0-r1/sdcpp.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/sdcc/4.5.0-r1/sdcc.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/sdcc/4.5.0-r1/sdas8051.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/sdcc/4.5.0-r1/sdld.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/sdcc/4.5.0-r1/files.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/assets/compiler.worker-eGee7dmO.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/sdcc/4.5.0-r1/sdcpp.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/sdcc/4.5.0-r1/sdcc.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/sdcc/4.5.0-r1/sdas8051.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/sdcc/4.5.0-r1/sdld.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/sdcc/4.5.0-r1/files.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/assets/compiler.worker-eGee7dmO.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/sdcc/4.5.0-r1/sdcpp.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/sdcc/4.5.0-r1/sdcc.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/sdcc/4.5.0-r1/sdas8051.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/sdcc/4.5.0-r1/sdld.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/sdcc/4.5.0-r1/files.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/assets/compiler.worker-eGee7dmO.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/sdcc/4.5.0-r1/sdcpp.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/sdcc/4.5.0-r1/sdcc.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/sdcc/4.5.0-r1/sdas8051.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/sdcc/4.5.0-r1/sdld.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/sdcc/4.5.0-r1/files.js",
+      "body": null
+    }
+  ]
+}

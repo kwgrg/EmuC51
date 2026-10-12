@@ -4,6 +4,7 @@ import { symbolByteExpressions } from "./core/cdb-symbols";
 import { InputScenarioPanel } from "./components/InputScenarioPanel";
 import type { InputScenario, ReplayView } from "./core/input-scenario";
 import { AsmSourcePanel } from "./components/AsmSourcePanel";
+import { CCompilerPanel } from "./components/CCompilerPanel";
 import { SdccSourcePanel } from "./components/SdccSourcePanel";
 import { useSdccDebug } from "./components/useSdccDebug";
 import { toggleSourceBreakpoints, type SdccDebugData } from "./core/sdcc-debug";
@@ -539,7 +540,7 @@ export default function App() {
     if (snapshot) void persistSnapshot(snapshot);
   };
 
-  const loadFile = async (file: File, built?: AsmArtifact, sdccDebug?: SdccDebugData): Promise<void> => {
+  const loadFile = async (file: File, built?: AsmArtifact, sdccDebug?: SdccDebugData, accept?: () => boolean): Promise<void> => {
     const action = ++fileActionRef.current;
     setSdccImporting(false);
     setError(undefined);
@@ -556,7 +557,7 @@ export default function App() {
         sha256: await sha256Hex(bytes),
         loadedAt: Date.now(),
       };
-      if (action !== fileActionRef.current) return;
+      if (action !== fileActionRef.current || (accept && !accept())) return;
       if (built && (settingsRef.current.asmProject?.source !== built.project.source || settingsRef.current.asmProject?.name !== built.project.name || nextFirmware.sha256 !== built.binding.firmwareSha256)) {
         setError("源码或产物已变化，未加载旧构建；请重新构建"); return;
       }
@@ -903,7 +904,7 @@ export default function App() {
               key={workspaceGeneration}
               asmBlocked={asmBlocked}
               cdbFunctions={sdcc.verified && !sdcc.checking && !sdccImporting && !restoring ? sdcc.verified.functions : undefined}
-              sdccPanel={onBrowseAddress => <><SdccSourcePanel verified={sdcc.verified} checking={sdcc.checking || sdccImporting} error={sdcc.error}
+              sdccPanel={onBrowseAddress => <><CCompilerPanel disabled={running || restoring || sdccImporting} epoch={workspaceGeneration} imported={settings.sdccDebug} onLoad={(data,current) => { void loadFile(new File([data.ihx],data.manifest.files.ihx.name),undefined,data,current); }} /><SdccSourcePanel verified={sdcc.verified} checking={sdcc.checking || sdccImporting} error={sdcc.error}
                 disabled={running || restoring || sdccImporting} pc={cpuState?.pc} config={settings.debugger ?? { breakpoints: [], watchpoints: [] }}
                 onCancelImport={sdccImporting ? () => { fileActionRef.current += 1; setSdccImporting(false); setNotice("已取消 SDCC 导入"); } : undefined}
                 onFiles={files => void onSdccFiles(files)} onToggleLine={toggleSdccLine}
@@ -1283,7 +1284,7 @@ function WorkbenchView({
 
   return (
     <div className="workbench-grid">
-      <TerminalPanel className="sdcc-card" title="SDCC_SOURCE" bits={["EXTERNAL BUILD", "READ ONLY"]}>{sdccPanel(address => {
+      <TerminalPanel className="sdcc-card" title="SDCC_SOURCE" bits={["LOCAL BUILD", "SDCC 4.5"]}>{sdccPanel(address => {
         setInstructionNavigation({ address });
         document.querySelector(".source-view")?.scrollIntoView({ block: "start" });
       })}</TerminalPanel>

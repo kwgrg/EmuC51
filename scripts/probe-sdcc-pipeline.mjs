@@ -10,11 +10,12 @@ import process from "node:process";
 const root = process.env.SDCC_ROOT;
 if (!root) throw new Error("Set SDCC_ROOT to the verified installation prefix (containing bin and share/sdcc)");
 const prefix = resolve(root);
-const bin = name => join(prefix, "bin", name);
+const bin = name => name === "sdcc" && process.env.SDCC_C1_BIN ? resolve(process.env.SDCC_C1_BIN) : join(prefix, "bin", name);
+const patchedC1 = Boolean(process.env.SDCC_C1_BIN);
 const include = join(prefix, "share/sdcc/include");
 const library = join(prefix, "share/sdcc/lib/small");
 const version = execFileSync(bin("sdcc"), ["--version"], { encoding: "utf8", timeout: 10000 });
-assert.match(version, /4\.5\.0 #15242 \(Linux\)/);
+assert.match(version, /4\.5\.0 #15242/);
 const macros = ["__SDCC_CHAR_UNSIGNED", "__SDCC_MODEL_SMALL", "__SDCC_FLOAT_REENT", "__SDCCCALL=0", "__SDCC=4_5_0", "__SDCC_VERSION_MAJOR=4", "__SDCC_VERSION_MINOR=5", "__SDCC_VERSION_PATCH=0", "SDCC=450", "__SDCC_REVISION=15242", "__SDCC_mcs51", "__STDC_NO_COMPLEX__=1", "__STDC_NO_THREADS__=1", "__STDC_NO_ATOMICS__=1", "__STDC_NO_VLA__=1", "__STDC_ISO_10646__=201409L", "__SIZEOF_FLOAT__=4", "__SIZEOF_DOUBLE__=4", "__SDCC_BITINT_MAXWIDTH=64"];
 const options = ["-mmcs51", "--model-small", "--iram-size", "128", "--debug"];
 const sha = bytes => createHash("sha256").update(bytes).digest("hex");
@@ -24,7 +25,7 @@ function compile(source, stem) {
   try {
     writeFileSync(join(work, `${stem}.c`), source);
     const preprocessed = run("sdcpp", ["-nostdinc", "-Wall", "-std=c11", "--obj-ext=.rel", ...macros.map(value => `-D${value}`), "-isystem", join(include, "mcs51"), "-isystem", include, "-xc", `${stem}.c`]);
-    run("sdcc", ["--c1mode", ...options, "-o", `${stem}.asm`], preprocessed);
+    run("sdcc", ["--c1mode", ...(patchedC1 ? ["--c1-source", `${stem}.c`] : []), ...options, "-o", `${stem}.asm`], preprocessed);
     run("sdas8051", ["-plosgffwy", `${stem}.rel`, `${stem}.asm`]);
     writeFileSync(join(work, `${stem}.lk`), ["-muwx", `-i ${stem}.ihx`, "-M", "-I 0x0080", "-y", "-b HOME = 0x0000", "-b XSEG = 0x0001", "-b PSEG = 0x0001", "-b ISEG = 0x0000", "-b BSEG = 0x0000", `-k ${library}`, "-l mcs51", "-l libsdcc", "-l libint", "-l liblong", "-l libfloat", `${stem}.rel`, "-e", ""].join("\n"));
     run("sdld", ["-nf", `${stem}.lk`]);
@@ -37,9 +38,10 @@ for (const [directory, stem] of [["sdcc-counter", "main"], ["sdcc-flow", "flow"]
   const result = compile(source, stem);
   assert.deepEqual(result.ihx, readFileSync(`tests/fixtures/${directory}/${stem}.ihx`));
   // Known upstream c1mode limitation: never claim that native binary parity implies debug parity.
-  assert.equal(/^M:/m.test(result.cdb), false);
-  assert.equal(/^L:C\$/m.test(result.cdb), false);
-  results.push({ fixture: directory, ihxSha256: sha(result.ihx), ihxMatches: true, sourceDebugAvailable: false });
+  assert.equal(/^M:/m.test(result.cdb), patchedC1);
+  assert.equal(/^L:C\$/m.test(result.cdb), patchedC1);
+  if (patchedC1) assert.equal(result.cdb, readFileSync(`tests/fixtures/${directory}/${stem}.cdb`, "utf8"));
+  results.push({ fixture: directory, ihxSha256: sha(result.ihx), ihxMatches: true, sourceDebugAvailable: patchedC1 });
 }
 const original = readFileSync("tests/fixtures/sdcc-counter/main.c", "utf8");
 const edited = compile(original.replace("counter = 0;", "counter = 7;"), "main");
@@ -55,4 +57,4 @@ const assets = ["mcs51", "libsdcc", "libint", "liblong", "libfloat"].map(name =>
 });
 const header = readFileSync(join(include, "mcs51/8051.h"));
 assets.push({ path: "include/mcs51/8051.h", bytes: header.length, sha256: sha(header) });
-process.stdout.write(JSON.stringify({ compiler: "SDCC 4.5.0 #15242 (Linux)", nativeOnly: true, options, results, editedSourceChangesFirmware: true, syntaxDiagnostic: diagnostic.trim(), validBuildAfterErrorMatches: true, assets, assetBytes: assets.reduce((total, item) => total + item.bytes, 0), wasmBuild: "not attempted by this native-only probe", browserWorker: "not run", browserCancellation: "not run", wasmSizeAndPeakMemory: "not measured" }, null, 2) + "\n");
+process.stdout.write(JSON.stringify({ compiler: version.split("\n")[0], patchedC1, nativeOnly: true, options, results, editedSourceChangesFirmware: true, syntaxDiagnostic: diagnostic.trim(), validBuildAfterErrorMatches: true, assets, assetBytes: assets.reduce((total, item) => total + item.bytes, 0), wasmBuild: "not attempted by this native-only probe", browserWorker: "not run", browserCancellation: "not run", wasmSizeAndPeakMemory: "not measured" }, null, 2) + "\n");

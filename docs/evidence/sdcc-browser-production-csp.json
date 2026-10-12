@@ -1,0 +1,51 @@
+{
+  "chromium": "151.0.7922.173",
+  "policyMode": "unchanged production policy",
+  "policy": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+  "trials": [
+    {
+      "blocked": true,
+      "error": "Aborted(CompileError: WebAssembly.instantiate(): Compiling or instantiating WebAssembly module violates the following Content Security policy directive because 'unsafe-eval' is not an allowed source of script in the following Content Security Policy directive: \"script-src 'self'\".). Build with -sASSERTIONS for more info."
+    }
+  ],
+  "baselineRendererRssBytes": 166612992,
+  "peakRendererRssBytes": 241340416,
+  "memoryScope": "10ms samples of sum of Chromium renderer RSS, includes page, worker, JIT and browser overhead; sampling can miss transients. maxStageHeapBytes is exact monotonic WASM linear memory high-water for each stage, not total browser memory.",
+  "requests": [
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/assets/emulator.worker-W79XGJ5H.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/assets/compiler.worker-eGee7dmO.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/sdcc/4.5.0-r1/sdcpp.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/sdcc/4.5.0-r1/sdcc.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/sdcc/4.5.0-r1/sdas8051.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/sdcc/4.5.0-r1/sdld.js",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41852/sdcc/4.5.0-r1/files.js",
+      "body": null
+    }
+  ]
+}
