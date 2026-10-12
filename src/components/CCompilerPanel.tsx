@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { CBuildInput } from "../core/sdcc-build";
 import type { SdccDebugData } from "../core/sdcc-debug";
 import { useCBuild } from "./useCBuild";
-import { PROJECT_OPTIONS } from "../core/sdcc-project";
+import { PROJECT_OPTIONS, serializeSdccBundle } from "../core/sdcc-project";
 const counter="#include <8051.h>\nvolatile __data unsigned char counter;\nvoid main(void) {\n  counter = 0;\n  for (;;) {\n    P1 = counter;\n    counter++;\n  }\n}\n";
 const single: CBuildInput={files:[{path:"main.c",text:counter}]};
 const mixed: CBuildInput={project:{format:"emuc51-sdcc-project",version:1,entry:"main.c",sources:[{path:"main.c",language:"c"},{path:"bridge.asm",language:"sdas8051"}],headers:[],includeDirs:[],options:[...PROJECT_OPTIONS]},files:[{path:"main.c",text:"#include <8051.h>\nunsigned char add_two(unsigned char value);\nvoid main(void) {\n  P1 = add_two(5);\n  for (;;) {}\n}\n"},{path:"bridge.asm",text:".module bridge\n.globl _add_two\n.area CSEG (CODE)\n_add_two:\n mov a,dpl\n add a,#2\n mov dpl,a\n ret\n"}]};
@@ -13,7 +13,7 @@ export function CCompilerPanel({disabled,epoch,imported,onLoad}:{disabled:boolea
   const replace=(value:CBuildInput)=>{setInput(value);setSelected(value.files[0]!.path);};
   const download=()=>{
     if(!build.artifact)return;
-    const url=URL.createObjectURL(new Blob([JSON.stringify(build.artifact.data,null,2)],{type:"application/json"}));
+    const url=URL.createObjectURL(new Blob([serializeSdccBundle(build.artifact.data)],{type:"application/json"}));
     const link=document.createElement("a");link.href=url;link.download=build.artifact.data.project?"emuc51-project.build.json":"emuc51-browser.build.json";link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
   };
   return <section className="asm-panel" aria-label="浏览器 C 编译">

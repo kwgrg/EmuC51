@@ -1,0 +1,18 @@
+{
+  "baseCommit": "bf9ba70a7137d48e1da49a97e3153f832cbf4833",
+  "date": "2026-10-12",
+  "browser": "system Chromium, actual four-stage WASM Worker, explicit local wasm-unsafe-eval test policy",
+  "before": {
+    "ordinaryString": "不支持的 SDAS 指令：main.asm",
+    "oversizedBundle": {"headers": 7, "controlCharactersPerHeader": 60000, "returnedJsonUtf8BytesWithoutNewline": 2527793, "importLimit": 2097152},
+    "bomEntry": "SDCC 导入：入口文件与工程不一致"
+  },
+  "after": {
+    "strings": "Three fixtures (ordinary string, typed initializers, escaped/directive-looking literals) match complete native IHX and CDB byte for byte and load successfully",
+    "oversizedBundle": "Worker returns explicit 2 MiB error and no result",
+    "serializationBoundary": "Exact 2097152 UTF-8 bytes accepted; one extra byte rejected, including multibyte and JSON-escaped prefixes; source round-trips without truncation",
+    "bomEntry": "Original U+FEFF preserved in source and inputs; actual mixed build and digest-verified reimport succeed",
+    "assemblySafety": "Actual file includes, incbin, macros and unknown directives including labeled forms rejected; user SDAS profile unchanged"
+  },
+  "productionCsp": "unchanged; permission still pending"
+}

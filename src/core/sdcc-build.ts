@@ -1,4 +1,5 @@
-import { normalizeProjectInputs, normalizeSdccProject, PROJECT_OPTIONS, type SdccProject } from "./sdcc-project";
+import { checkGeneratedSdccAssembly } from "./sdcc-assembly-profile";
+import { normalizeProjectInputs, normalizeSdccProject, serializeSdccBundle, PROJECT_OPTIONS, type SdccProject } from "./sdcc-project";
 import { sha256Hex } from "./digest";
 import { verifySdccDebug, type SdccDebugData } from "./sdcc-debug";
 
@@ -17,10 +18,11 @@ export function validateBuildInput(input: CBuildInput): CBuildInput {
   return { project, files: input.files.map(file => ({ ...file })) };
 }
 export function checkBuildText(path: string, text: string, project?: SdccProject, generated = false) {
+  if (generated) { checkGeneratedSdccAssembly(path, text); return; }
   if (/\\\r?\n|\?\?|%:|_Pragma|__has_include/.test(text) || /\.\s*(?:include|incbin)\b/i.test(text)) throw new Error(`不支持的文件指令：${path}`);
   if (path.endsWith(".asm")) for (const line of text.split(/\r\n|\n|\r/)) {
     const directive = /^\s*\.([A-Za-z]+)/.exec(line.split(";")[0]!);
-    if (directive && !["module","globl","area","org","db","dw","ds","equ","end",...(generated ? ["optsdcc"] : [])].includes(directive[1]!.toLowerCase())) throw new Error(`不支持的 SDAS 指令：${path}`);
+    if (directive && !["module","globl","area","org","db","dw","ds","equ","end"].includes(directive[1]!.toLowerCase())) throw new Error(`不支持的 SDAS 指令：${path}`);
   }
   const clean = text.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\/\/[^\n]*/g, "");
   for (const line of clean.split(/\r\n|\n|\r/)) {
@@ -86,7 +88,7 @@ export async function compileC(input: CBuildInput, tools: Record<ToolName, ToolF
   const stem=project ? "firmware" : entry.replace(/\.c$/,"");
   files.set(`${stem}.lk`,new TextEncoder().encode(["-muwx",`-i ${stem}.ihx`,"-M","-I 0x0080","-y","-b HOME = 0x0000","-b XSEG = 0x0001","-b PSEG = 0x0001","-b ISEG = 0x0000","-b BSEG = 0x0000","-k /sdk/lib","-l mcs51","-l libsdcc","-l libint","-l liblong","-l libfloat",...rels,"-e",""].join("\n")));
   await stage("sdld",["-nf",`${stem}.lk`]);
-  const source=text(entry), ihx=text(`${stem}.ihx`), cdb=text(`${stem}.cdb`);
+  const source=sources.find(file=>file.path===entry)!.text, ihx=text(`${stem}.ihx`), cdb=text(`${stem}.cdb`);
   if (project) {
     const module=entry.split("/").at(-1)!.replace(/\.c$/,"");
     const records=cdb.split(/^M:/m).find(section=>section.startsWith(`${module}\n`));
@@ -95,6 +97,7 @@ export async function compileC(input: CBuildInput, tools: Record<ToolName, ToolF
   const inputs=await Promise.all(sources.map(async file=>({...file,sha256:await sha(file.text)})));
   const data: SdccDebugData={manifest:{format:"emuc51-sdcc-debug",version:project?2:1,compiler:"SDCC 4.5.0 #15242",target:"classic-8051",options:[...PROJECT_OPTIONS],
     files:{source:{name:entry,sha256:await sha(source)},ihx:{name:`${stem}.ihx`,sha256:await sha(ihx)},cdb:{name:`${stem}.cdb`,sha256:await sha(cdb)}},...(project?{projectSha256:await sha(JSON.stringify(project))}:{})},source,ihx,cdb,...(project?{project,inputs}:{})};
+  serializeSdccBundle(data);
   await verifySdccDebug(data);
   return {data,milliseconds:performance.now()-start,maxStageHeapBytes,diagnostics:diagnostics.trim()};
 }

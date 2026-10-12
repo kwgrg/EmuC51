@@ -1,6 +1,12 @@
 /** Shared browser/native project contract. No commands, user flags or absolute paths. */
 export const PROJECT_OPTIONS = ["-mmcs51", "--model-small", "--iram-size", "128", "--debug"] as const;
 export const PROJECT_BUNDLE_LIMIT = 2 * 1024 * 1024;
+/** Exact download representation: JSON escaping and UTF-8 both count toward import's limit. */
+export function serializeSdccBundle(bundle: unknown): string {
+  const text = JSON.stringify(bundle, null, 2) + "\n";
+  if (new TextEncoder().encode(text).byteLength > PROJECT_BUNDLE_LIMIT) throw new Error("构建包超过 2 MiB / Build package exceeds 2 MiB");
+  return text;
+}
 export interface SdccProject {
   format: "emuc51-sdcc-project"; version: 1;
   entry: string;

@@ -65,3 +65,9 @@ python3 scripts/sdcc-wasm/package.py /tmp/NEW-build /tmp/NEW-output public/sdcc/
 [性能证据](evidence/sdcc-browser-benchmark.json)记录冷 Worker 和四次连续新 Worker 的墙钟时间、编译阶段时间、WASM 线性内存高水位、10ms 采样渲染进程 RSS、取消和网络请求。RSS 包含页面/Worker/JIT 等开销且采样可能漏掉瞬时峰值，不能当作精确分配器高水位；也不把 WASM 线性内存当成整个浏览器内存。
 
 Chromium 是实际验证的浏览器；Firefox/WebKit 和真实手机尚未验证。30秒超时机制有定时器单测，实际 Worker 取消有浏览器测试；没有声称跑遍任意复杂工程或证明编译器没有资源耗尽漏洞。原生测试成功不是浏览器成功的替代，当前浏览器证据明确要求本地测试策略。
+
+## 编译产物边界回归
+
+生成汇编使用独立、共享于原生和浏览器的检查器：接受真实 SDCC 字符串 `.ascii` 和初始化器 `.byte`，忽略字符串/注释内的指令外观，仍拒绝实际文件包含、宏及未知指令。手写 SDAS 的受限协议不扩大。新增三个原生样例与真实 Chromium 的完整 IHX/CDB 比较。
+
+最终构建包在报告成功前使用与下载、原生 CLI 相同的序列化函数检查 **UTF-8 字节数（含 JSON 转义和末尾换行）≤2 MiB**；超限明确失败，不截断源码或调试信息。七个未使用头文件中的控制字符曾使旧实现返回 2,527,793 字节不可导入包，现有真实 Worker 回归拒绝该输入。入口源码直接保留原始文本，包括 U+FEFF BOM，使 source、inputs 和摘要一致；其他产物仍严格 UTF-8 解码。BOM 混合工程已真实编译并重新导入验证。

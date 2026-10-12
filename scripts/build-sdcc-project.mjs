@@ -1,3 +1,4 @@
+import { checkGeneratedSdccAssembly } from "../src/core/sdcc-assembly-profile.ts";
 import { Buffer } from "node:buffer";
 import { TextDecoder } from "node:util";
 import { execFileSync } from "node:child_process";
@@ -6,7 +7,7 @@ import { readFileSync, writeFileSync, lstatSync, realpathSync, mkdirSync, mkdtem
 import { resolve, dirname, join, relative, sep, basename } from "node:path";
 import { tmpdir } from "node:os";
 import process from "node:process";
-import { normalizeSdccProject, normalizeProjectInputs, PROJECT_BUNDLE_LIMIT } from "../src/core/sdcc-project.ts";
+import { normalizeSdccProject, normalizeProjectInputs, serializeSdccBundle } from "../src/core/sdcc-project.ts";
 
 // Node >=22.18 native TS stripping; this is a local developer tool, never invoked by the browser.
 const [manifestArgument, outputArgument] = process.argv.slice(2);
@@ -26,12 +27,13 @@ const inputs = normalizeProjectInputs(project, files.map(path => {
 }));
 const inputByPath = new Map(inputs.map(item => [item.path, item.text]));
 function checkText(path, text, generated = false) {
+  if (generated) { checkGeneratedSdccAssembly(path, text); return; }
   // Conservative initial profile: no disguised directives, pragma flags or assembler file inclusion.
   if (/\\\r?\n|\?\?|%:|_Pragma|__has_include/.test(text) || /\.\s*(?:include|incbin)\b/i.test(text)) throw new Error(`Unsupported file/directive syntax in ${path}`);
   if (path.endsWith(".asm")) {
     for (const line of text.split(/\r\n|\n|\r/)) {
       const directive = /^\s*\.([A-Za-z]+)/.exec(line.split(";")[0]);
-      if (directive && !["module","globl","area","org","db","dw","ds","equ","end",...(generated ? ["optsdcc"] : [])].includes(directive[1].toLowerCase())) throw new Error(`Unsupported SDAS directive in ${path}`);
+      if (directive && !["module","globl","area","org","db","dw","ds","equ","end"].includes(directive[1].toLowerCase())) throw new Error(`Unsupported SDAS directive in ${path}`);
     }
   }
   const clean = text.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\/\/[^\n]*/g, "");
@@ -76,8 +78,7 @@ try {
   const bundle = { manifest: { format: "emuc51-sdcc-debug", version: 2, compiler: "SDCC 4.5.0 #15242", target: "classic-8051", options: project.options,
     files: { source: { name: entry.path, sha256: entry.sha256 }, ihx: { name: "firmware.ihx", sha256: sha(ihx) }, cdb: { name: "firmware.cdb", sha256: sha(cdb) } }, projectSha256: sha(JSON.stringify(project)) },
     project, inputs, source: entry.text, ihx, cdb };
-  const text = JSON.stringify(bundle, null, 2) + "\n";
-  if (Buffer.byteLength(text) > PROJECT_BUNDLE_LIMIT) throw new Error("Build package exceeds 2 MiB");
+  const text = serializeSdccBundle(bundle);
   // Publish a single package only after every stage succeeds. Never leave partial output.
   mkdirSync(dirname(output), { recursive: true });
   const staging = mkdtempSync(join(dirname(output), ".emuc51-package-"));

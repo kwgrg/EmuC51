@@ -7,3 +7,11 @@ it("limits browser compiler inputs and rejects user filesystem/flag directives",
   expect(()=>validateBuildInput({files:[{path:"main.c",text:'#include <8051.h>\n#include <stdint.h>\nvoid main(void) {}'}]})).not.toThrow();
   for(const text of ['.include "x"','.incbin "x"','.macro evil']) expect(()=>checkBuildText('bridge.asm',text)).toThrow();
 });
+
+it("accepts actual SDCC strings/typed initializers while rejecting generated file/macro directives", async()=>{
+  const { readFileSync } = await import('node:fs');
+  for(const name of ['main','values','literals']) expect(()=>checkBuildText(`${name}.asm`,readFileSync(`tests/fixtures/sdcc-generated/${name}.asm`,'utf8'),undefined,true)).not.toThrow();
+  expect(()=>checkBuildText('main.asm','.ascii "semi; .include x"\n.byte 0x12,0x34',undefined,true)).not.toThrow();
+  for(const directive of ['.include "x"','.incbin "x"','.macro evil','.unknown 1']) for(const label of ['', 'foo: ', '00123$: ']) expect(()=>checkBuildText('main.asm',`.ascii "safe"\n${label}${directive}`,undefined,true)).toThrow();
+  for(const directive of ['.ascii "x"','.byte 1','.optsdcc -mmcs51']) expect(()=>checkBuildText('user.asm',directive)).toThrow();
+});
