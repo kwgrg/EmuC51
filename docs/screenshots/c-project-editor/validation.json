@@ -1,0 +1,104 @@
+{
+  "date": "2026-10-13T07:33:42.003Z",
+  "scope": "local production build with production CSP; no production retry",
+  "chromium": "151.0.7922.173",
+  "files": [
+    "src/start.c",
+    "bridge.asm",
+    "include/value.h",
+    "src/helper.c"
+  ],
+  "entry": "src/start.c",
+  "p1": 11,
+  "draftKeys": [
+    "format",
+    "version",
+    "input",
+    "selected"
+  ],
+  "errors": [],
+  "environmentNotes": [
+    {
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "location": {
+        "url": "http://127.0.0.1:41855/favicon.ico",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    }
+  ],
+  "network": [
+    {
+      "url": "http://127.0.0.1:41855/",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "url": "http://127.0.0.1:41855/assets/index-CvrSyM2G.js",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "url": "http://127.0.0.1:41855/assets/index-Dx_XZenp.css",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "url": "http://127.0.0.1:41855/assets/emulator.worker-W79XGJ5H.js",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "url": "http://127.0.0.1:41855/",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "url": "http://127.0.0.1:41855/assets/index-CvrSyM2G.js",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "url": "http://127.0.0.1:41855/assets/index-Dx_XZenp.css",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "url": "http://127.0.0.1:41855/assets/emulator.worker-W79XGJ5H.js",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "url": "http://127.0.0.1:41855/assets/compiler.worker-zxGCDQU1.js",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "url": "http://127.0.0.1:41855/sdcc/4.5.0-r1/sdcpp.js",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "url": "http://127.0.0.1:41855/sdcc/4.5.0-r1/sdcc.js",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "url": "http://127.0.0.1:41855/sdcc/4.5.0-r1/sdas8051.js",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "url": "http://127.0.0.1:41855/sdcc/4.5.0-r1/sdld.js",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "url": "http://127.0.0.1:41855/sdcc/4.5.0-r1/files.js",
+      "method": "GET",
+      "body": null
+    }
+  ]
+}

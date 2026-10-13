@@ -8,10 +8,10 @@ EmuC51 是一个在浏览器中运行的经典 Intel 8051/MCS-51 模拟器。打
 
 - 固件、源码和调试文件由浏览器的 `File` API 直接读取，不经过上传接口；
 - CPU、CODE、IRAM、SFR 和 XRAM 全部在 Dedicated Web Worker 中运行；
-- 最近一个工作区保存在当前浏览器的 IndexedDB，刷新后自动恢复；单文件 ASM 草稿另存本地 localStorage；
+- 最近一个工作区保存在当前浏览器的 IndexedDB，刷新后自动恢复；单文件 ASM 草稿和显式保存的独立 C/SDAS 草稿另存本地 localStorage；
 - 应用没有 Worker 后端、API、Cookie、遥测、KV、D1、R2 或 Durable Objects；
 - 生产 CSP 使用 `connect-src 'none'` 阻止应用发起网络连接；
-- “清除本地工作区”会删除浏览器保存的固件、运行状态、SDCC 源码/调试文件和 ASM 草稿。
+- “清除本地工作区”会删除浏览器保存的固件、运行状态、SDCC 源码/调试文件、ASM 草稿和独立 C/SDAS 草稿。
 
 Cloudflare 只托管编译后的 HTML、CSS、JavaScript 等静态应用文件。Cloudflare 可能记录普通页面请求，但用户选择的固件、源码、调试文件、CPU 状态和内存不会包含在这些请求中。
 
@@ -68,9 +68,9 @@ Cloudflare 只托管编译后的 HTML、CSS、JavaScript 等静态应用文件�
 
 8051 没有通用 HALT 指令。连续运行默认最多推进 1,000,000 个执行单元（指令、中断响应或空闲周期），达到上限属于正常停止；指令计数只统计成功执行的 CPU 指令。掉电状态会停止连续运行。
 
-## 浏览器 SDCC 开发进展
+## 浏览器 SDCC 与混合工程
 
-真实 WASM 四阶段编译与 C/SDAS 工程编辑已上线并通过 [2026-10-12 现网验收](docs/evidence/online-acceptance-2026-10-12/README.md)。支持 [构建诊断跳转](docs/SDCC_DIAGNOSTICS.md)：点击可信的 C、头文件或 SDAS 诊断定位编辑器，修复后重新构建；保留原始日志，编辑后撤下旧诊断。固定来源、对应源码、许可和本地测试方式见 [浏览器 SDCC](docs/BROWSER_SDCC.md)。
+真实 WASM 四阶段编译与 C/SDAS 工程编辑已上线并通过 [2026-10-12 现网验收](docs/evidence/online-acceptance-2026-10-12/README.md)。支持 [构建诊断跳转](docs/SDCC_DIAGNOSTICS.md)：点击可信的 C、头文件或 SDAS 诊断定位编辑器，修复后重新构建；保留原始日志，编辑后撤下旧诊断。支持 [工程文件管理与本地草稿](docs/C_PROJECT_EDITOR.md)：增删改名、入口选择、会话跨页保留和显式保存/恢复。固定来源、对应源码、许可和本地测试方式见 [浏览器 SDCC](docs/BROWSER_SDCC.md)。
 
 ## 本地开发
 

@@ -11,7 +11,7 @@ export function useCBuild(input: CBuildInput, epoch: number) {
   const [result,setResult]=useState<{input:CBuildInput;epoch:number;value:CBuildResult}>();
   const [report,setReport]=useState<{input:CBuildInput;epoch:number;stages:BuildStageLog[]}>();
   const [building,setBuilding]=useState(false);
-  const [message,setMessage]=useState("编辑草稿后在浏览器内编译；草稿仅保留在当前页面");
+  const [message,setMessage]=useState("编辑草稿后在浏览器内编译；可在工程管理中保存本地草稿");
   const stop=useCallback(()=>{if(task.current){task.current.worker.terminate();clearTimeout(task.current.timer);task.current=undefined;}},[]);
   const cancel=useCallback(()=>{stop();published.current=undefined;setBuilding(false);setResult(undefined);setReport(undefined);setMessage("编译已取消或草稿已变更");},[stop]);
   useEffect(()=>{cancel();},[input,epoch,cancel]);

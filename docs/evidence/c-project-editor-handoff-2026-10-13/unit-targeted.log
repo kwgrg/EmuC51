@@ -1,0 +1,20 @@
+
+> emuc51@0.1.0 test
+> vitest run tests/core/c-project-editor.test.ts tests/persistence/c-draft.test.ts
+
+
+ RUN  v3.2.7 /workspace/EmuC51
+
+ ✓ tests/core/c-project-editor.test.ts (5 tests) 15ms
+ ✓ tests/persistence/c-draft.test.ts (4 tests) 13ms
+
+ Test Files  2 passed (2)
+      Tests  9 passed (9)
+   Start at  07:31:47
+   Duration  1.37s (transform 281ms, setup 394ms, collect 169ms, tests 29ms, environment 1.12s, prepare 307ms)
+
+npm notice
+npm notice New major version of npm available! 11.9.0 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice

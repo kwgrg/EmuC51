@@ -16,7 +16,7 @@ export function parseCDraft(text:string):CEditorDraft {
   return {input,selected:data.selected};
 }
 export function serializeCDraft(draft:CEditorDraft):string {
-  const text=JSON.stringify({format:'emuc51-c-draft',version:1,input:draft.input,selected:draft.selected});
+  const text=JSON.stringify({format:'emuc51-c-draft',version:1,input:normalizeCEditorInput(draft.input),selected:draft.selected});
   parseCDraft(text);return text;
 }
 export function saveCDraft(draft:CEditorDraft):void {

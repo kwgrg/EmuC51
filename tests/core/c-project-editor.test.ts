@@ -35,3 +35,8 @@ it('allows broken source drafts but rejects unsupported structure and bounded so
  expect(()=>normalizeCEditorInput({files:[{path:'dir/main.c',text:''}]})).toThrow();
  let full=base;for(let i=0;i<13;i++)full=editCProject(full,{kind:'add',path:`more${i}.c`});expect(()=>editCProject(full,{kind:'add',path:'overflow.c'})).toThrow();
 });
+it('can delete a file to repair an oversized edited draft without allowing oversized saved results',()=>{
+ const input=editCProject(fresh(),{kind:'add',path:'too_big.c'});input.files.at(-1)!.text='x'.repeat(65537);
+ expect(()=>normalizeCEditorInput(input)).toThrow();expect(editCProject(input,{kind:'delete',path:'too_big.c'}).files).toHaveLength(4);
+ expect(()=>editCProject(input,{kind:'rename',path:'too_big.c',next:'still_big.c'})).toThrow();
+});

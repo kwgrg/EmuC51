@@ -1,0 +1,21 @@
+
+> emuc51@0.1.0 build
+> tsc -b && vite build
+
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 78 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                             0.62 kB │ gzip:   0.45 kB
+dist/assets/assembler.worker-DetE7tWo.js   10.89 kB
+dist/assets/compiler.worker-zxGCDQU1.js    28.68 kB
+dist/assets/emulator.worker-W79XGJ5H.js    56.25 kB
+dist/assets/index-Dx_XZenp.css             45.67 kB │ gzip:   9.53 kB
+dist/assets/index-CvrSyM2G.js             367.18 kB │ gzip: 120.18 kB │ map: 1,474.79 kB
+✓ built in 2.35s
+npm notice
+npm notice New major version of npm available! 11.9.0 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice

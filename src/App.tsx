@@ -769,11 +769,11 @@ export default function App() {
 
   const clearLocal = async (): Promise<void> => {
     if(cEditorSession.current?.unsaved&&!window.confirm("清除本地工作区也会删除 C/SDAS 草稿及未保存编辑。继续？"))return;
-    try { clearCDraft(); }
-    catch { setError("无法清除本地 C/SDAS 草稿；当前工作区未清除，请检查浏览器存储权限后重试"); return; }
     // A failed draft deletion must not leave the active emulator terminated.
     try { saveAsmDraft(undefined); }
     catch { setError("无法清除本地 ASM 草稿；当前工作区未清除，请检查浏览器存储权限后重试"); return; }
+    try { clearCDraft(); }
+    catch { setError("无法清除本地 C/SDAS 草稿；当前工作区未清除，请检查浏览器存储权限后重试"); return; }
     setRestoring(true);
     clearingRef.current = true;
     fileActionRef.current += 1;
