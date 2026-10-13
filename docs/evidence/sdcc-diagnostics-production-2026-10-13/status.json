@@ -1,0 +1,30 @@
+{
+  "recordedAt": "2026-10-13T07:09:35.758141+00:00",
+  "applicationCommit": "2e571b17c3df1054d2d0283bc435c7ced8617db6",
+  "remoteMasterConfirmed": true,
+  "localVerification": {
+    "unit": 682,
+    "chromiumE2E": 75,
+    "typecheck": "passed",
+    "lint": "passed",
+    "build": "passed",
+    "dryRun": "passed"
+  },
+  "production": {
+    "url": "https://emuc51.kwgrg-01.workers.dev/",
+    "state": "blocked; new-version browser workflow not executed",
+    "lastSuccessfulObservation": "curl returned previous main script index-BLsTETfI.js after push; expected index-H2DU56iy.js not yet observed",
+    "failedAttempt": {
+      "client": "Python 3.12 urllib.request.urlopen",
+      "method": "GET",
+      "proxy": "existing HTTPS_PROXY; unchanged",
+      "exception": "urllib.error.HTTPError: HTTP Error 403: Forbidden",
+      "responseHeaders": null,
+      "responseBody": null,
+      "originOf403": "unknown; exception handler did not capture headers/body",
+      "furtherRequests": "stopped; no proxy/client/domain/IP switch to bypass rejection"
+    },
+    "deploymentCheck": "Cloudflare check/version must be verified by parent with application commit; no independent deployment performed"
+  },
+  "screenshots": "../../screenshots/sdcc-diagnostics/README.md (local production-equivalent screenshots only)"
+}
