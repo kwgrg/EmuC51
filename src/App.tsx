@@ -4,6 +4,7 @@ import { symbolByteExpressions } from "./core/cdb-symbols";
 import { InputScenarioPanel } from "./components/InputScenarioPanel";
 import type { InputScenario, ReplayView } from "./core/input-scenario";
 import { AsmSourcePanel } from "./components/AsmSourcePanel";
+import { clearCDraft, type CEditorSession } from "./persistence/c-draft";
 import { CCompilerPanel } from "./components/CCompilerPanel";
 import { SdccSourcePanel } from "./components/SdccSourcePanel";
 import { useSdccDebug } from "./components/useSdccDebug";
@@ -143,6 +144,11 @@ export default function App() {
   const [running, setRunning] = useState(false);
   const [saveState, setSaveState] = useState("idle");
   const [workspaceGeneration, setWorkspaceGeneration] = useState(0);
+  const cEditorSession=useRef<CEditorSession|undefined>(undefined);
+  useEffect(()=>{
+    const warn=(event:BeforeUnloadEvent)=>{if(cEditorSession.current?.unsaved){event.preventDefault();event.returnValue="";}};
+    window.addEventListener("beforeunload",warn);return ()=>window.removeEventListener("beforeunload",warn);
+  },[]);
   const watchExpressions = useMemo(() => settings.watchExpressions ?? [], [settings.watchExpressions]);
   const [coverageReport, setCoverageReport] = useState<CoverageReport>();
   const [coverageReportPending, setCoverageReportPending] = useState(false);
@@ -762,6 +768,9 @@ export default function App() {
   };
 
   const clearLocal = async (): Promise<void> => {
+    if(cEditorSession.current?.unsaved&&!window.confirm("清除本地工作区也会删除 C/SDAS 草稿及未保存编辑。继续？"))return;
+    try { clearCDraft(); }
+    catch { setError("无法清除本地 C/SDAS 草稿；当前工作区未清除，请检查浏览器存储权限后重试"); return; }
     // A failed draft deletion must not leave the active emulator terminated.
     try { saveAsmDraft(undefined); }
     catch { setError("无法清除本地 ASM 草稿；当前工作区未清除，请检查浏览器存储权限后重试"); return; }
@@ -775,6 +784,7 @@ export default function App() {
     asm.cancel();
     await saveQueueRef.current.catch(() => undefined);
     await clearWorkspace();
+    cEditorSession.current=undefined;
     window.location.reload();
   };
 
@@ -905,7 +915,7 @@ export default function App() {
               key={workspaceGeneration}
               asmBlocked={asmBlocked}
               cdbFunctions={sdcc.verified && !sdcc.checking && !sdccImporting && !restoring ? sdcc.verified.functions : undefined}
-              sdccPanel={onBrowseAddress => <><CCompilerPanel disabled={running || restoring || sdccImporting} epoch={workspaceGeneration} imported={settings.sdccDebug} onLoad={(data,current) => { void loadFile(new File([data.ihx],data.manifest.files.ihx.name),undefined,data,current); }} /><SdccSourcePanel verified={sdcc.verified} checking={sdcc.checking || sdccImporting} error={sdcc.error}
+              sdccPanel={onBrowseAddress => <><CCompilerPanel session={cEditorSession} disabled={running || restoring || sdccImporting} epoch={workspaceGeneration} imported={settings.sdccDebug} onLoad={(data,current) => { void loadFile(new File([data.ihx],data.manifest.files.ihx.name),undefined,data,current); }} /><SdccSourcePanel verified={sdcc.verified} checking={sdcc.checking || sdccImporting} error={sdcc.error}
                 disabled={running || restoring || sdccImporting} pc={cpuState?.pc} config={settings.debugger ?? { breakpoints: [], watchpoints: [] }}
                 onCancelImport={sdccImporting ? () => { fileActionRef.current += 1; setSdccImporting(false); setNotice("已取消 SDCC 导入"); } : undefined}
                 onFiles={files => void onSdccFiles(files)} onToggleLine={toggleSdccLine}
@@ -999,8 +1009,8 @@ export default function App() {
         <button
           className="clear-workspace"
           onClick={() => void clearLocal()}
-          disabled={!firmware && !settings.asmProject}
-          title="删除此浏览器中的固件、CPU 快照和 ASM 草稿"
+          disabled={restoring}
+          title="删除此浏览器中的固件、CPU 快照、ASM 和 C/SDAS 草稿"
         >
           &gt; CLEAR_LOCAL
         </button>

@@ -1170,3 +1170,10 @@ code, pre, textarea, .source-lines, .memory-heading, .memory-row, .monitor-regis
 .compiler-diagnostics pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 320px; overflow: auto; }
 .compiler-diagnostics summary { cursor: pointer; }
 .compiler-position { overflow-wrap: anywhere; }
+
+.c-project-tools { margin-block: 16px; min-width: 0; }
+.c-project-tools summary { cursor: pointer; padding-block: 8px; }
+.c-project-tools p { overflow-wrap: anywhere; }
+.c-project-manager label { display: block; margin-block: 8px; }
+.c-project-manager input, .c-project-manager select { max-width: 100%; }
+.c-project-manager input { display: block; width: 100%; box-sizing: border-box; margin-top: 6px; }
