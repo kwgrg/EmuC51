@@ -21,7 +21,7 @@ test("真实浏览器 C 编译：基线、源码编辑、错误、取消、重�
   await build();await expect(status).toContainText('编译成功');expect((await download()).ihx).toBe(first.ihx);
   await page.getByRole('button',{name:'加载 C 编译固件'}).click();await expect(page.getByTestId('sdcc-status')).toContainText('已校验文件摘要');
   await page.getByLabel('最大执行单元').fill('1000');await page.locator('.control-strip').getByRole('button',{name:'运行'}).click();await expect(page.locator('.footer-status')).toContainText('步数上限');
-  await expect(page.getByRole('main')).toHaveAttribute('data-save-state','saved');await page.reload();await expect(page.getByTestId('sdcc-status')).toContainText('已校验文件摘要');
+  await expect(page.getByRole('main')).toHaveAttribute('data-save-state','saved');page.once('dialog',dialog=>dialog.accept());await page.reload();await expect(page.getByTestId('sdcc-status')).toContainText('已校验文件摘要');
   expect(requests.every(r=>r.method==='GET'&&r.body===null&&r.url.startsWith('http://127.0.0.1:41851/'))).toBe(true);
 });
 test("真实混合 WASM 编译与原生 IHX/CDB 完全一致，编辑头文件重建并保持跨文件调试",async({page})=>{

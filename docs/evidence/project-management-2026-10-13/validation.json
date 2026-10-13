@@ -1,0 +1,48 @@
+{
+  "date": "2026-10-13T07:55:40.795013+00:00",
+  "base": "2e571b17c3df1054d2d0283bc435c7ced8617db6",
+  "checkpoint": "31b82bde8de7d096b969bba32f9c473a0bf03284",
+  "handoffReviewed": "92d71610ceaf03cdd18c7c5dfbcff937ce848669",
+  "node": "24.19.0",
+  "chromium": "151.0.7922.173",
+  "nativeSdcc": "4.5.0 #15242",
+  "tests": {
+    "unit": {
+      "passed": 693,
+      "skipped": 0,
+      "files": 48
+    },
+    "chromiumE2E": {
+      "passed": 81,
+      "failed": 0
+    },
+    "typecheck": "passed",
+    "lint": "passed",
+    "build": "passed",
+    "deployDryRun": "passed",
+    "capture": "passed",
+    "correspondingSourceFilesVerified": 210,
+    "allDistributedDigests": "passed"
+  },
+  "runtimeResults": {
+    "newMixedProjectResult": 27,
+    "restoredMixedProjectP1": 11
+  },
+  "scope": "local production build, unchanged production CSP; no production request or independent deploy",
+  "distAssets": {
+    "dist/assets/assembler.worker-DetE7tWo.js": "9a6ce65083c34b2dd12dd47abb907dfd752d215e9937763b30e9b2e964f27031",
+    "dist/assets/assembler.worker-DetE7tWo.js.map": "d22cb34a906ac4b8a39272d11697e0480ea969b649a5aeefc1b2e25094921332",
+    "dist/assets/compiler.worker-zxGCDQU1.js": "64c2846f34b12ba8491df32c30935c80b3e62231f78400a1325912f1dbceee3f",
+    "dist/assets/compiler.worker-zxGCDQU1.js.map": "b7f7e6618815cf235fffc438a47a0944b81d0b2fd43d41e0ac9d6499d61c5744",
+    "dist/assets/emulator.worker-W79XGJ5H.js": "8c6a8c55ab31e7b29a791de3bc2507e921ea0d9973dd8ba658139560295f7d1d",
+    "dist/assets/emulator.worker-W79XGJ5H.js.map": "b21cad6eccd780fa3c261c8456d17084301294e01d0155df17cd82923d4d1fba",
+    "dist/assets/index-CE-nxyGk.js": "5d8cbd39b9488b53968ab43656a47bed210c02115929c4ecc2943a0178eebb7c",
+    "dist/assets/index-CE-nxyGk.js.map": "ff620ba2ec1d0b74237a692faf206b4049a31d08c64448d5f5a35229bc41d813",
+    "dist/assets/index-Dx_XZenp.css": "f6ede6c309d4e5061f86a748c9be58106fbdbffb21d2ae1124a7bebccad9af1d"
+  },
+  "remaining": [
+    "Firefox/WebKit not run",
+    "production acceptance not run",
+    "parent to verify Cloudflare check for final remote SHA"
+  ]
+}

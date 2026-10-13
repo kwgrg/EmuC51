@@ -8,10 +8,10 @@ EmuC51 是一个在浏览器中运行的经典 Intel 8051/MCS-51 模拟器。打
 
 - 固件、源码和调试文件由浏览器的 `File` API 直接读取，不经过上传接口；
 - CPU、CODE、IRAM、SFR 和 XRAM 全部在 Dedicated Web Worker 中运行；
-- 最近一个工作区保存在当前浏览器的 IndexedDB，刷新后自动恢复；单文件 ASM 草稿另存本地 localStorage；
+- 最近一个工作区保存在当前浏览器的 IndexedDB，刷新后自动恢复；单文件 ASM 和独立 C/SDAS 草稿另存本地 localStorage，C/SDAS 需显式保存/恢复；
 - 应用没有 Worker 后端、API、Cookie、遥测、KV、D1、R2 或 Durable Objects；
 - 生产 CSP 使用 `connect-src 'none'` 阻止应用发起网络连接；
-- “清除本地工作区”会删除浏览器保存的固件、运行状态、SDCC 源码/调试文件和 ASM 草稿。
+- “清除本地工作区”会删除浏览器保存的固件、运行状态、SDCC 源码/调试文件、ASM 和 C/SDAS 草稿。
 
 Cloudflare 只托管编译后的 HTML、CSS、JavaScript 等静态应用文件。Cloudflare 可能记录普通页面请求，但用户选择的固件、源码、调试文件、CPU 状态和内存不会包含在这些请求中。
 

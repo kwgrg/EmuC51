@@ -1,4 +1,5 @@
 import { useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { normalizeCEditorInput } from "../core/c-project-editor";
 import { CProjectManager } from "./CProjectManager";
 import { readCDraft, saveCDraft, C_DRAFT_KEY, type CEditorSession } from "../persistence/c-draft";
 import { buildDiagnostics, type BuildDiagnostic } from "../core/sdcc-diagnostics";
@@ -21,8 +22,7 @@ export function CCompilerPanel({disabled,epoch,imported,onLoad,session}:{disable
   const build=useCBuild(input,epoch);
   const diagnostics=useMemo(()=>build.report ? buildDiagnostics(build.report.stages,input) : [],[build.report,input]);
   const dirty=useMemo(()=>JSON.stringify(input)!==JSON.stringify(baseline),[input,baseline]);
-  const matchesLoaded=useMemo(()=>Boolean(imported)&&JSON.stringify(input)===JSON.stringify(fromImported(imported)),[input,imported]);
-  useLayoutEffect(()=>{session.current={input,baseline,selected,unsaved:dirty&&!matchesLoaded,savedInput};},[session,input,baseline,selected,dirty,matchesLoaded,savedInput]);
+  useLayoutEffect(()=>{session.current={input,baseline,selected,unsaved:dirty,savedInput};},[session,input,baseline,selected,dirty,savedInput]);
   const currentNavigation=navigation?.input===input&&navigation.epoch===epoch&&diagnostics.includes(navigation.diagnostic)?navigation:undefined;
   useLayoutEffect(()=>{
     const target=currentNavigation?.diagnostic.target;
@@ -43,6 +43,12 @@ export function CCompilerPanel({disabled,epoch,imported,onLoad,session}:{disable
     if(dirty && !window.confirm("当前 C/SDAS 草稿有编辑。替换将丢弃当前草稿，是否继续？"))return;
     setInput(value);setBaseline(value);setSelected(selection);setNavigation(undefined);setSavedInput(saved?value:undefined);setDraftError("");setDraftMessage(saved?"已恢复本地草稿；未加载固件或运行 CPU":"已替换编辑草稿；尚未保存到本地草稿槽");
   };
+  const editText=(text:string)=>{
+    try {
+      const next=normalizeCEditorInput({...input,files:input.files.map(item=>item.path===selected?{...item,text}:item)});
+      setInput(next);setDraftError("");setDraftMessage("");
+    }catch(caught){setDraftError(`编辑未应用：${caught instanceof Error?caught.message:"输入无效"}。原内容保留。`);}
+  };
   const saveDraft=()=>{
     try {
       if(!savedInput&&localStorage.getItem(C_DRAFT_KEY)!==null&&!window.confirm("此浏览器只保存一个 C/SDAS 草稿。用当前草稿覆盖已保存内容？"))return;
@@ -51,7 +57,7 @@ export function CCompilerPanel({disabled,epoch,imported,onLoad,session}:{disable
   };
   const restoreDraft=()=>{
     try{const value=readCDraft();if(!value)throw new Error("此浏览器没有已保存的 C/SDAS 草稿");replace(value.input,value.selected,true);}
-    catch(caught){setDraftError(caught instanceof Error?caught.message:"无法读取本地草稿；当前编辑保留");}
+    catch(caught){setDraftError(`无法恢复本地 C/SDAS 草稿：${caught instanceof Error?caught.message:"浏览器存储不可用"}。当前编辑未替换。`);}
   };
   const download=()=>{
     if(!build.artifact)return;
@@ -67,14 +73,15 @@ export function CCompilerPanel({disabled,epoch,imported,onLoad,session}:{disable
       <button disabled={disabled||!imported} onClick={()=>{if(imported)replace(fromImported(imported));}}>编辑已加载 C 工程</button>
     </div>
     <details className="c-project-tools"><summary>工程管理与本地草稿</summary>
-      <p>一个本地草稿槽，仅保存工程源码、清单和所选文件，不包含 CPU 状态或编译产物。刷新后需显式恢复；未保存编辑关闭页面可能丢失。</p>
+      <p>一个本地草稿槽，仅保存工程源码、清单和所选文件，不包含 CPU 状态或编译产物。刷新后需显式恢复；未保存编辑关闭页面可能丢失。切换固件不会覆盖编辑草稿，需用「编辑已加载 C 工程」显式复制其源码。</p>
       <div className="asm-actions"><button disabled={disabled} onClick={saveDraft}>保存本地 C/SDAS 草稿</button><button disabled={disabled} onClick={restoreDraft}>恢复本地 C/SDAS 草稿</button></div>
       <p data-testid="c-draft-save-state">{savedInput===input ? "当前草稿内容已保存" : "当前内容尚未保存到本地草稿槽"}</p>
-      {draftMessage&&<p role="status">{draftMessage}</p>}{draftError&&<p role="alert">{draftError}</p>}
-      <CProjectManager input={input} selected={selected} disabled={disabled} onChange={(value,selection)=>{setInput(value);setSelected(selection);setNavigation(undefined);setDraftError("");}} />
+      {draftMessage&&<p role="status">{draftMessage}</p>}
+      <CProjectManager input={input} selected={selected} disabled={disabled} onChange={(value,selection)=>{setInput(value);setSelected(selection);setNavigation(undefined);setDraftError("");setDraftMessage("");}} />
     </details>
     <label>编译源文件 <select aria-label="编译源文件" value={file.path} onChange={event=>{setSelected(event.target.value);setNavigation(undefined);}}>{input.files.map(file=><option key={file.path}>{file.path}</option>)}</select></label>
-    <label className="asm-source-label">{file.path}<textarea ref={editor} wrap="off" aria-label="C 编译源码" spellCheck={false} disabled={disabled} value={file.text} onChange={event=>setInput({...input,files:input.files.map(item=>item.path===file.path?{...item,text:event.target.value}:item)})}/></label>
+    <label className="asm-source-label">{file.path}<textarea ref={editor} wrap="off" aria-label="C 编译源码" spellCheck={false} disabled={disabled} value={file.text} onChange={event=>editText(event.target.value)}/></label>
+    {draftError&&<p role="alert">{draftError}</p>}
     <p className="compiler-position" role="status">{dirty ? "草稿有编辑（替换前需确认）" : "当前草稿"}{currentNavigation ? ` · ${file.path}:${currentNavigation.diagnostic.line}${currentNavigation.diagnostic.column===undefined ? "（未提供列号，选择整行）" : `:${currentNavigation.diagnostic.column}${currentNavigation.diagnostic.preciseColumn ? "（已定位报告列）" : "（列位置无法精确换算，选择整行）"}`}` : ""}</p>
     <div className="asm-actions">
       <button disabled={disabled||build.building} onClick={build.build}>编译 C 工程</button>

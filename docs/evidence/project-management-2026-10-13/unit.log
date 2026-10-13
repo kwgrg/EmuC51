@@ -1,0 +1,110 @@
+
+> emuc51@0.1.0 test
+> vitest run
+
+
+ RUN  v3.2.7 /workspace/EmuC51
+
+ ✓ tests/components/DisassemblyView.test.tsx (11 tests) 5332ms
+   ✓ DisassemblyView > follows PC until an explicit address is submitted, then returns to following  907ms
+   ✓ DisassemblyView > supports cancellable drafts and rejects malformed or out-of-range addresses  1346ms
+   ✓ DisassemblyView > advances by decoded instruction boundaries and navigates back without guessing  888ms
+   ✓ DisassemblyView > decodes wrapped operands and zero-filled CODE beyond the firmware  330ms
+   ✓ DisassemblyView > uses exact instruction addresses for breakpoints and run-to without editing PC  599ms
+   ✓ DisassemblyView > allows removing existing breakpoints at the configuration limit  328ms
+ ✓ tests/core/peripherals.test.ts (39 tests) 5519ms
+   ✓ 8051 interrupts and power control > idle advances timers and wakes on interrupt; power-down freezes cycles  905ms
+   ✓ core snapshots and fault atomicity > round-trips GPIO, queues, frame progress, and interrupt nesting  1292ms
+   ✓ core snapshots and fault atomicity > rejects corrupt peripheral snapshots before any mutation  816ms
+   ✓ core snapshots and fault atomicity > rejects inconsistent GPIO snapshots and leaves blocked-interrupt faults intact  1341ms
+   ✓ core snapshots and fault atomicity > validates operand destinations before changes and validates host APIs  980ms
+ ✓ tests/persistence/transfer.test.ts (55 tests) 3153ms
+   ✓ 工作区 JSON 导入导出 > 完整往返固件、各类内存、GPIO、串口帧、中断栈和调试设置  877ms
+   ✓ 工作区 JSON 导入导出 > 校验和失败时不替换已有工作区  826ms
+   ✓ input scenario workspace binding > round-trips a bounded definition without persisting scheduler execution  643ms
+ ✓ tests/worker/emulator.worker.test.ts (86 tests) 9932ms
+   ✓ Step Out with verified frames > is bounded, can pause between chunks, and cancels stale scheduled work  497ms
+   ✓ conditional breakpoint execution > stops on 1/ACC before execution and retries errors on resume  938ms
+   ✓ conditional breakpoint execution > stops on IRAM[128] before execution and retries errors on resume  903ms
+   ✓ conditional breakpoint execution > stops on missing == 0 before execution and retries errors on resume  708ms
+   ✓ conditional breakpoint execution > stops on ACC = 1 before execution and retries errors on resume  671ms
+   ✓ conditional breakpoint execution > does not use peripheral read hooks or mutate the CPU while testing a true condition  709ms
+   ✓ instruction coverage transport and execution boundaries > bounds read payloads, rejects malformed requests, and clears between running chunks without cancelling execution  692ms
+   ✓ coverage report snapshots > captures all mutable data before asynchronous hashing while execution keeps running  679ms
+   ✓ coverage report snapshots > rejects without firmware and recovers from a digest failure without cancelling a run  812ms
+ ✓ tests/components/AsmSourcePanel.test.tsx (6 tests) 2860ms
+   ✓ exposes exact instruction actions and disabled breakpoint state without mapping data or label-only lines  503ms
+   ✓ bounds rendering and locates PC on another page while locking mutations during execution  701ms
+   ✓ pages and filters CODE labels, navigates a pure definition and limits breakpoints to instruction starts  1430ms
+ ✓ tests/core/bit-access.test.ts (19 tests) 1242ms
+   ✓ observing every bit instruction preserves CPU and peripheral state for all valid addresses  1184ms
+ ✓ tests/persistence/db.test.ts (39 tests) 2181ms
+   ✓ IndexedDB 工作区 > 迁移旧版快照并保留 CPU、固件与可选设置  832ms
+   ✓ v3 breakpoint settings > migrates v2 records without changing the CPU snapshot  633ms
+   ✓ v3 breakpoint settings > persists disabled and counted breakpoints and discards malformed settings on recovery  587ms
+ ✓ tests/core/uart-ti-timing.test.ts (12 tests) 1038ms
+   ✓ preserves acknowledged TI across a stop-bit snapshot and raises once for each queued frame  517ms
+   ✓ restores older in-flight frames without a marker and rejects malformed markers atomically  450ms
+ ✓ tests/native/sdcc-project.test.ts (4 tests) 3012ms
+   ✓ rebuilds the actual mixed package byte-identically and refuses stale destinations  614ms
+   ✓ rebuilds changed headers and leaves previous success intact when a later build fails  911ms
+   ✓ rejects escaping includes, macro directives, symlinks and arbitrary project commands before compiling  1202ms
+ ✓ tests/components/SdccSymbolsPanel.test.tsx (3 tests) 695ms
+   ✓ keeps ambiguous names qualified, unsupported rows unavailable and samples bound  352ms
+ ✓ tests/core/input-scenario.test.ts (28 tests) 757ms
+   ✓ bounded declarative input scenarios > reproduces the real Timer/INT0/UART program from clean memory  727ms
+ ✓ tests/core/expressions.test.ts (62 tests) 734ms
+   ✓ read-only watch expressions > reads SFR latches without peripheral accesses or changes to machine state  705ms
+ ✓ tests/core/sdcc-integers.test.ts (2 tests) 643ms
+   ✓ records actual little-endian integer boundary bytes with no observation side effects  617ms
+ ✓ tests/core/cdb-integers.test.ts (12 tests) 682ms
+   ✓ interprets real integer storage boundaries, including enum storage, without claiming source types  677ms
+ ✓ tests/core/callstack.test.ts (18 tests) 733ms
+   ✓ return and stack fault boundaries > does not partially pop a return whose low byte is outside classic IRAM  687ms
+ ✓ tests/core/cdb-symbols.test.ts (20 tests) 828ms
+   ✓ binds a real native build, reads bounded raw storage without side effects or register name shadowing  769ms
+ ✓ tests/components/DebuggerPanel.test.tsx (6 tests) 398ms
+ ✓ tests/components/MemoryNavigation.test.tsx (12 tests) 312ms
+ ✓ tests/components/SdccSourcePanel.test.tsx (2 tests) 492ms
+ ✓ tests/core/operand-access.test.ts (15 tests) 360ms
+ ✓ tests/components/CoveragePanel.test.tsx (3 tests) 220ms
+ ✓ tests/components/InputScenarioPanel.test.tsx (2 tests) 428ms
+   ✓ cancels delayed file reads and ignores results after navigation  305ms
+ ✓ tests/components/AsmPanel.test.tsx (3 tests) 436ms
+   ✓ locates diagnostics at a real source character and blocks loading without successful bytes  323ms
+ ✓ tests/components/WatchPanel.test.tsx (4 tests) 207ms
+ ✓ tests/core/assembler.test.ts (45 tests) 134ms
+ ✓ tests/core/cdb-functions.test.ts (12 tests) 108ms
+ ✓ tests/components/useSdccDebug.test.tsx (2 tests) 86ms
+ ✓ tests/persistence/sdcc-import.test.ts (5 tests) 130ms
+ ✓ tests/core/sdcc-bundle.test.ts (1 test) 111ms
+ ✓ tests/core/sdcc-project.test.ts (20 tests) 140ms
+ ✓ tests/core/opcodes.test.ts (4 tests) 34ms
+ ✓ tests/core/sdcc-debug.test.ts (22 tests) 70ms
+ ✓ tests/components/useCBuild.test.tsx (4 tests) 43ms
+ ✓ tests/components/useAsmBuild.test.tsx (3 tests) 118ms
+ ✓ tests/worker/assembler.worker.test.ts (1 test) 45ms
+ ✓ tests/core/sdcc-fixture.test.ts (1 test) 80ms
+ ✓ tests/core/peripheral-programs.test.ts (3 tests) 19ms
+ ✓ tests/core/cpu.test.ts (11 tests) 37ms
+ ✓ tests/core/c-project-editor.test.ts (7 tests) 25ms
+ ✓ tests/core/firmware.test.ts (24 tests) 44ms
+ ✓ tests/core/disassembler.test.ts (7 tests) 58ms
+ ✓ tests/core/sdcc-build.test.ts (3 tests) 22ms
+ ✓ tests/core/debugger.test.ts (31 tests) 22ms
+ ✓ tests/persistence/c-draft.test.ts (4 tests) 53ms
+ ✓ tests/persistence/asm-project.test.ts (7 tests) 11ms
+ ✓ tests/core/sdcc-diagnostics.test.ts (4 tests) 7ms
+ ✓ tests/core/coverage.test.ts (4 tests) 9ms
+ ✓ tests/core/memory.test.ts (5 tests) 4ms
+
+ Test Files  48 passed (48)
+      Tests  693 passed (693)
+   Start at  07:49:17
+   Duration  34.60s (transform 2.26s, setup 5.49s, collect 5.84s, tests 43.60s, environment 27.99s, prepare 5.19s)
+
+npm notice
+npm notice New major version of npm available! 11.9.0 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice

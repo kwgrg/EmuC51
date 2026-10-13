@@ -2,14 +2,15 @@ import type { CBuildInput } from './sdcc-build';
 import { normalizeProjectInputs, normalizeSdccProject, projectPath, type SdccProject } from './sdcc-project';
 const object=(value:unknown):value is Record<string,unknown>=>Boolean(value&&typeof value==='object'&&!Array.isArray(value));
 /** Drafts may contain broken C/ASM; validate structure and limits, not compilability. */
-export function normalizeCEditorInput(value:unknown):CBuildInput {
+export function normalizeCEditorInput(value:unknown):CBuildInput {return normalizeEditorInput(value,true);}
+function normalizeEditorInput(value:unknown,bounded:boolean):CBuildInput {
   if(!object(value)||Object.keys(value).some(key=>!['project','files'].includes(key))||!Array.isArray(value.files)||!value.files.length||value.files.length>32)throw new Error('C/SDAS 草稿结构无效');
   const files=value.files.map(file=>{
-    if(!object(file)||Object.keys(file).some(key=>!['path','text'].includes(key))||typeof file.text!=='string'||file.text.length>65536||file.text.split(/\r\n|\n|\r/).length>8192)throw new Error('草稿文件无效或超过 64 Ki 字符 / 8192 行');
+    if(!object(file)||Object.keys(file).some(key=>!['path','text'].includes(key))||typeof file.text!=='string'||(bounded&&(file.text.length>65536||file.text.split(/\r\n|\n|\r/).length>8192)))throw new Error('草稿文件无效或超过 64 Ki 字符 / 8192 行');
     return {path:projectPath(file.path),text:file.text};
   });
   const project=value.project===undefined?undefined:normalizeSdccProject(value.project);
-  if(project)normalizeProjectInputs(project,files.map(file=>({...file,sha256:'0'.repeat(64)})));
+  if(project)normalizeProjectInputs(project,files.map(file=>({...file,text:bounded?file.text:'',sha256:'0'.repeat(64)})));
   else if(files.length!==1||!/^[A-Za-z_][A-Za-z0-9_]{0,63}\.c$/.test(files[0]!.path))throw new Error('单 C 草稿必须只有一个规范 .c 文件');
   return {project,files};
 }
@@ -23,7 +24,7 @@ export function deletionBlock(input:CBuildInput,path:string):string|undefined {
 }
 /** Metadata-only rename: never rewrite include directives, .module or linker symbols. */
 export function editCProject(current:CBuildInput,edit:CProjectEdit):CBuildInput {
-  const input=normalizeCEditorInput(current);
+  const input=normalizeEditorInput(current,false);
   if(!input.project)throw new Error('结构编辑仅用于 C/SDAS 混合工程');
   const project:SdccProject=structuredClone(input.project);
   let files=input.files;
