@@ -1,0 +1,43 @@
+{
+  "python": "3.12.14",
+  "openssl": "OpenSSL 3.5.8 25 Aug 2026",
+  "proxyVariablesPresent": [
+    "HTTPS_PROXY",
+    "https_proxy",
+    "HTTP_PROXY",
+    "http_proxy",
+    "NO_PROXY",
+    "no_proxy"
+  ],
+  "effectiveHttpsProxy": {
+    "scheme": "http",
+    "host": "proxy",
+    "port": 8080,
+    "credentialsPresent": false
+  },
+  "proxyBypassForTarget": false,
+  "certificateVariablesPresent": [
+    "SSL_CERT_FILE",
+    "REQUESTS_CA_BUNDLE",
+    "NODE_EXTRA_CA_CERTS"
+  ],
+  "defaultVerifyPaths": {
+    "cafile": "/etc/ssl/certs/ca-certificates.crt",
+    "capath": "/etc/ssl/certs",
+    "openssl_cafile_env": "SSL_CERT_FILE",
+    "openssl_cafile": "/etc/ssl/cert.pem",
+    "openssl_capath_env": "SSL_CERT_DIR",
+    "openssl_capath": "/etc/ssl/certs"
+  },
+  "certificateVerification": "unchanged Python default",
+  "userAgent": [
+    [
+      "User-agent",
+      "Python-urllib/3.12"
+    ]
+  ],
+  "method": "GET",
+  "timeoutSeconds": 20,
+  "retries": 0,
+  "bodyReadLimit": 65536
+}

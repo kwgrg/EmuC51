@@ -1,0 +1,28 @@
+{
+  "url": "https://emuc51.kwgrg-01.workers.dev/",
+  "startedAt": "2026-10-13T08:01:19.808823+00:00",
+  "configuration": "configuration.json",
+  "status": 403,
+  "finalUrl": "https://emuc51.kwgrg-01.workers.dev/",
+  "headers": {
+    "date": "Tue, 13 Oct 2026 08:01:20 GMT",
+    "content-type": "text/plain; charset=UTF-8",
+    "content-length": "17",
+    "cache-control": "private, max-age=0, no-store, no-cache, must-revalidate, post-check=0, pre-check=0",
+    "expires": "Thu, 01 Jan 1970 00:00:01 GMT",
+    "referrer-policy": "same-origin",
+    "x-frame-options": "SAMEORIGIN",
+    "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=mp0P%2FxE5zm7fvlxMaisHVi%2B0o9%2FXnUSBbEUmj2H%2F24OHgk8BUgDb0wetKtSrSZOtNKTwE0ZuLPFCIXdHtyt0HY%2B%2FOJs89afcHe4RMoHzMbWSCIIGuRUTLXpSfabUSK7qBtO3OkMJwzgA58FVQp8%3D\"}]}",
+    "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+    "server": "envoy",
+    "cf-ray": "a49cd0d48a50ddab-DFW",
+    "alt-svc": "h3=\":443\"; ma=86400",
+    "x-envoy-upstream-service-time": "146",
+    "connection": "close"
+  },
+  "bodyTruncated": false,
+  "capturedBodySha256": "2938e9f1284180959e33ab1718d0793a72ff6e4cdb8108c34dcd14e69446de5c",
+  "outcome": "HTTPError",
+  "error": "HTTP Error 403: Forbidden",
+  "finishedAt": "2026-10-13T08:01:20.116954+00:00"
+}
