@@ -15,3 +15,22 @@ it("accepts actual SDCC strings/typed initializers while rejecting generated fil
   for(const directive of ['.include "x"','.incbin "x"','.macro evil','.unknown 1']) for(const label of ['', 'foo: ', '00123$: ']) expect(()=>checkBuildText('main.asm',`.ascii "safe"\n${label}${directive}`,undefined,true)).toThrow();
   for(const directive of ['.ascii "x"','.byte 1','.optsdcc -mmcs51']) expect(()=>checkBuildText('user.asm',directive)).toThrow();
 });
+
+it("preserves stage provenance and earlier raw logs when a later compiler stage fails",async()=>{
+  const {compileC,CBuildFailure}=await import('../../src/core/sdcc-build');
+  const factory:import('../../src/core/sdcc-build').ToolFactory=async options=>({
+    FS:{mkdirTree(){},writeFile(){},chdir(){},readFile(){return new Uint8Array();},stat(){return {size:0};},readdir(){return [];}},
+    heapBytes:()=>16777216,
+    callMain(){
+      if(options.thisProgram==='/tools/sdcpp'){options.printErr('main.c:1:1: warning: earlier warning');options.print('void main(void) {}');return 0;}
+      options.printErr('main.c:1: error 1: later error');return 1;
+    },
+  });
+  const failure=await compileC({files:[{path:'main.c',text:'void main(void) {}'}]},{sdcpp:factory,sdcc:factory,sdas8051:factory,sdld:factory},{}).catch(e=>e);
+  expect(failure).toBeInstanceOf(CBuildFailure);
+  expect(failure.diagnosticStages).toEqual([
+    {tool:'sdcpp',sourcePath:'main.c',generated:false,stderr:'main.c:1:1: warning: earlier warning\n',stdout:''},
+    {tool:'sdcc',sourcePath:'main.c',generated:false,stderr:'main.c:1: error 1: later error\n',stdout:''},
+  ]);
+  expect(failure.message).toContain('sdcc 退出 1');
+});

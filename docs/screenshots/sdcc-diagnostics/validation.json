@@ -1,0 +1,503 @@
+{
+  "date": "2026-10-13T07:05:12.380Z",
+  "base": "http://127.0.0.1:41854",
+  "chromium": "151.0.7922.173",
+  "result": "passed",
+  "errors": [],
+  "environmentNotes": [
+    {
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "location": {
+        "url": "http://127.0.0.1:41854/favicon.ico",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    }
+  ],
+  "failed": [],
+  "network": [
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://127.0.0.1:41854/",
+      "body": null
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://127.0.0.1:41854/assets/index-H2DU56iy.js",
+      "body": null
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://127.0.0.1:41854/assets/index-BwBJdLr2.css",
+      "body": null
+    },
+    {
+      "kind": "response",
+      "url": "http://127.0.0.1:41854/",
+      "status": 200,
+      "headers": {
+        "cache-control": "no-cache",
+        "connection": "keep-alive",
+        "content-security-policy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+        "content-type": "text/html",
+        "date": "Tue, 13 Oct 2026 07:05:06 GMT",
+        "etag": "W/\"269-aNt9kBNUHslbu4Ce/8ejyVcfNCY\"",
+        "keep-alive": "timeout=5",
+        "transfer-encoding": "chunked",
+        "vary": "Origin"
+      },
+      "sha256": "f69ac87d3e196e93078d56776c9a3acf5ff160e4a64a22b5d9d51725b78161ec"
+    },
+    {
+      "kind": "response",
+      "url": "http://127.0.0.1:41854/assets/index-BwBJdLr2.css",
+      "status": 200,
+      "headers": {
+        "access-control-allow-origin": "http://127.0.0.1:41854",
+        "cache-control": "no-cache",
+        "connection": "keep-alive",
+        "content-encoding": "gzip",
+        "content-security-policy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+        "content-type": "text/css",
+        "date": "Tue, 13 Oct 2026 07:05:06 GMT",
+        "etag": "W/\"45314-1791874983390\"",
+        "keep-alive": "timeout=5",
+        "last-modified": "Tue, 13 Oct 2026 07:03:03 GMT",
+        "transfer-encoding": "chunked",
+        "vary": "Origin"
+      },
+      "sha256": "fe1bfd00814981a3d21036cf854acf510bb0e71731335bdbdd39540113cebdb6"
+    },
+    {
+      "kind": "response",
+      "url": "http://127.0.0.1:41854/assets/index-H2DU56iy.js",
+      "status": 200,
+      "headers": {
+        "access-control-allow-origin": "http://127.0.0.1:41854",
+        "cache-control": "no-cache",
+        "connection": "keep-alive",
+        "content-encoding": "gzip",
+        "content-security-policy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+        "content-type": "text/javascript",
+        "date": "Tue, 13 Oct 2026 07:05:06 GMT",
+        "etag": "W/\"358844-1791874983390\"",
+        "keep-alive": "timeout=5",
+        "last-modified": "Tue, 13 Oct 2026 07:03:03 GMT",
+        "transfer-encoding": "chunked",
+        "vary": "Origin"
+      },
+      "sha256": "4292e2d2cb164703714f627f581995ab917fcfe48636c0a2c0bd02a84675c0f7"
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://127.0.0.1:41854/assets/emulator.worker-W79XGJ5H.js",
+      "body": null
+    },
+    {
+      "kind": "response",
+      "url": "http://127.0.0.1:41854/assets/emulator.worker-W79XGJ5H.js",
+      "status": 200,
+      "headers": {
+        "cache-control": "no-cache",
+        "connection": "keep-alive",
+        "content-encoding": "gzip",
+        "content-security-policy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+        "content-type": "text/javascript",
+        "date": "Tue, 13 Oct 2026 07:05:06 GMT",
+        "etag": "W/\"56246-1791874983390\"",
+        "keep-alive": "timeout=5",
+        "last-modified": "Tue, 13 Oct 2026 07:03:03 GMT",
+        "transfer-encoding": "chunked",
+        "vary": "Origin"
+      },
+      "sha256": "8c6a8c55ab31e7b29a791de3bc2507e921ea0d9973dd8ba658139560295f7d1d"
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://127.0.0.1:41854/assets/compiler.worker-zxGCDQU1.js",
+      "body": null
+    },
+    {
+      "kind": "response",
+      "url": "http://127.0.0.1:41854/assets/compiler.worker-zxGCDQU1.js",
+      "status": 200,
+      "headers": {
+        "cache-control": "no-cache",
+        "connection": "keep-alive",
+        "content-encoding": "gzip",
+        "content-security-policy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+        "content-type": "text/javascript",
+        "date": "Tue, 13 Oct 2026 07:05:07 GMT",
+        "etag": "W/\"28680-1791874983390\"",
+        "keep-alive": "timeout=5",
+        "last-modified": "Tue, 13 Oct 2026 07:03:03 GMT",
+        "transfer-encoding": "chunked",
+        "vary": "Origin"
+      },
+      "sha256": "64c2846f34b12ba8491df32c30935c80b3e62231f78400a1325912f1dbceee3f"
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://127.0.0.1:41854/sdcc/4.5.0-r1/sdcpp.js",
+      "body": null
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://127.0.0.1:41854/sdcc/4.5.0-r1/sdcc.js",
+      "body": null
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://127.0.0.1:41854/sdcc/4.5.0-r1/sdas8051.js",
+      "body": null
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://127.0.0.1:41854/sdcc/4.5.0-r1/sdld.js",
+      "body": null
+    },
+    {
+      "kind": "response",
+      "url": "http://127.0.0.1:41854/sdcc/4.5.0-r1/sdas8051.js",
+      "status": 200,
+      "headers": {
+        "access-control-allow-origin": "http://127.0.0.1:41854",
+        "cache-control": "no-cache",
+        "connection": "keep-alive",
+        "content-encoding": "gzip",
+        "content-security-policy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+        "content-type": "text/javascript",
+        "date": "Tue, 13 Oct 2026 07:05:07 GMT",
+        "etag": "W/\"196778-1791874982858\"",
+        "keep-alive": "timeout=5",
+        "last-modified": "Tue, 13 Oct 2026 07:03:02 GMT",
+        "transfer-encoding": "chunked",
+        "vary": "Origin"
+      },
+      "sha256": "f64e8e9a5c84cad0b0038dd3bd3b7d1cf1b3a824fea9fb6c6918ac1fd56eef5e"
+    },
+    {
+      "kind": "response",
+      "url": "http://127.0.0.1:41854/sdcc/4.5.0-r1/sdld.js",
+      "status": 200,
+      "headers": {
+        "access-control-allow-origin": "http://127.0.0.1:41854",
+        "cache-control": "no-cache",
+        "connection": "keep-alive",
+        "content-encoding": "gzip",
+        "content-security-policy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+        "content-type": "text/javascript",
+        "date": "Tue, 13 Oct 2026 07:05:07 GMT",
+        "etag": "W/\"214839-1791874982866\"",
+        "keep-alive": "timeout=5",
+        "last-modified": "Tue, 13 Oct 2026 07:03:02 GMT",
+        "transfer-encoding": "chunked",
+        "vary": "Origin"
+      },
+      "sha256": "3f653e925d34ba2d1eee78bf414d8d87d5b61eab4a80ef5ebde77bbeb7cf16fa"
+    },
+    {
+      "kind": "response",
+      "url": "http://127.0.0.1:41854/sdcc/4.5.0-r1/sdcpp.js",
+      "status": 200,
+      "headers": {
+        "access-control-allow-origin": "http://127.0.0.1:41854",
+        "cache-control": "no-cache",
+        "connection": "keep-alive",
+        "content-encoding": "gzip",
+        "content-security-policy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+        "content-type": "text/javascript",
+        "date": "Tue, 13 Oct 2026 07:05:07 GMT",
+        "etag": "W/\"1123497-1791874982865\"",
+        "keep-alive": "timeout=5",
+        "last-modified": "Tue, 13 Oct 2026 07:03:02 GMT",
+        "transfer-encoding": "chunked",
+        "vary": "Origin"
+      },
+      "sha256": "ff1dc03bd1c6f7be839924cc1686caebe7d58adf25bcb24ab6a4976f45790186"
+    },
+    {
+      "kind": "response",
+      "url": "http://127.0.0.1:41854/sdcc/4.5.0-r1/sdcc.js",
+      "status": 200,
+      "headers": {
+        "access-control-allow-origin": "http://127.0.0.1:41854",
+        "cache-control": "no-cache",
+        "connection": "keep-alive",
+        "content-encoding": "gzip",
+        "content-security-policy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+        "content-type": "text/javascript",
+        "date": "Tue, 13 Oct 2026 07:05:07 GMT",
+        "etag": "W/\"2263002-1791874982858\"",
+        "keep-alive": "timeout=5",
+        "last-modified": "Tue, 13 Oct 2026 07:03:02 GMT",
+        "transfer-encoding": "chunked",
+        "vary": "Origin"
+      },
+      "sha256": "2e7c911d400b0180e88f11460e3b23d188c12dbaab0fee1b29930e4d88c50c95"
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://127.0.0.1:41854/sdcc/4.5.0-r1/files.js",
+      "body": null
+    },
+    {
+      "kind": "response",
+      "url": "http://127.0.0.1:41854/sdcc/4.5.0-r1/files.js",
+      "status": 200,
+      "headers": {
+        "access-control-allow-origin": "http://127.0.0.1:41854",
+        "cache-control": "no-cache",
+        "connection": "keep-alive",
+        "content-encoding": "gzip",
+        "content-security-policy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+        "content-type": "text/javascript",
+        "date": "Tue, 13 Oct 2026 07:05:07 GMT",
+        "etag": "W/\"1110845-1791874982852\"",
+        "keep-alive": "timeout=5",
+        "last-modified": "Tue, 13 Oct 2026 07:03:02 GMT",
+        "transfer-encoding": "chunked",
+        "vary": "Origin"
+      },
+      "sha256": "72f12a9a76b3649205a5aa89c871e1f4d52711c819f18fa496b906297bcea2c2"
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://127.0.0.1:41854/assets/compiler.worker-zxGCDQU1.js",
+      "body": null
+    },
+    {
+      "kind": "response",
+      "url": "http://127.0.0.1:41854/assets/compiler.worker-zxGCDQU1.js",
+      "status": 200,
+      "headers": {
+        "connection": "keep-alive",
+        "date": "Tue, 13 Oct 2026 07:05:08 GMT",
+        "keep-alive": "timeout=5",
+        "vary": "Origin"
+      },
+      "sha256": "64c2846f34b12ba8491df32c30935c80b3e62231f78400a1325912f1dbceee3f"
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://127.0.0.1:41854/sdcc/4.5.0-r1/sdcpp.js",
+      "body": null
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://127.0.0.1:41854/sdcc/4.5.0-r1/sdcc.js",
+      "body": null
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://127.0.0.1:41854/sdcc/4.5.0-r1/sdas8051.js",
+      "body": null
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://127.0.0.1:41854/sdcc/4.5.0-r1/sdld.js",
+      "body": null
+    },
+    {
+      "kind": "response",
+      "url": "http://127.0.0.1:41854/sdcc/4.5.0-r1/sdas8051.js",
+      "status": 200,
+      "headers": {
+        "access-control-allow-origin": "http://127.0.0.1:41854",
+        "connection": "keep-alive",
+        "date": "Tue, 13 Oct 2026 07:05:08 GMT",
+        "keep-alive": "timeout=5",
+        "vary": "Origin"
+      },
+      "sha256": "f64e8e9a5c84cad0b0038dd3bd3b7d1cf1b3a824fea9fb6c6918ac1fd56eef5e"
+    },
+    {
+      "kind": "response",
+      "url": "http://127.0.0.1:41854/sdcc/4.5.0-r1/sdld.js",
+      "status": 200,
+      "headers": {
+        "access-control-allow-origin": "http://127.0.0.1:41854",
+        "connection": "keep-alive",
+        "date": "Tue, 13 Oct 2026 07:05:08 GMT",
+        "keep-alive": "timeout=5",
+        "vary": "Origin"
+      },
+      "sha256": "3f653e925d34ba2d1eee78bf414d8d87d5b61eab4a80ef5ebde77bbeb7cf16fa"
+    },
+    {
+      "kind": "response",
+      "url": "http://127.0.0.1:41854/sdcc/4.5.0-r1/sdcpp.js",
+      "status": 200,
+      "headers": {
+        "access-control-allow-origin": "http://127.0.0.1:41854",
+        "connection": "keep-alive",
+        "date": "Tue, 13 Oct 2026 07:05:08 GMT",
+        "keep-alive": "timeout=5",
+        "vary": "Origin"
+      },
+      "sha256": "ff1dc03bd1c6f7be839924cc1686caebe7d58adf25bcb24ab6a4976f45790186"
+    },
+    {
+      "kind": "response",
+      "url": "http://127.0.0.1:41854/sdcc/4.5.0-r1/sdcc.js",
+      "status": 200,
+      "headers": {
+        "access-control-allow-origin": "http://127.0.0.1:41854",
+        "connection": "keep-alive",
+        "date": "Tue, 13 Oct 2026 07:05:08 GMT",
+        "keep-alive": "timeout=5",
+        "vary": "Origin"
+      },
+      "sha256": "2e7c911d400b0180e88f11460e3b23d188c12dbaab0fee1b29930e4d88c50c95"
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://127.0.0.1:41854/sdcc/4.5.0-r1/files.js",
+      "body": null
+    },
+    {
+      "kind": "response",
+      "url": "http://127.0.0.1:41854/sdcc/4.5.0-r1/files.js",
+      "status": 200,
+      "headers": {
+        "access-control-allow-origin": "http://127.0.0.1:41854",
+        "connection": "keep-alive",
+        "date": "Tue, 13 Oct 2026 07:05:08 GMT",
+        "keep-alive": "timeout=5",
+        "vary": "Origin"
+      },
+      "sha256": "72f12a9a76b3649205a5aa89c871e1f4d52711c819f18fa496b906297bcea2c2"
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://127.0.0.1:41854/assets/compiler.worker-zxGCDQU1.js",
+      "body": null
+    },
+    {
+      "kind": "response",
+      "url": "http://127.0.0.1:41854/assets/compiler.worker-zxGCDQU1.js",
+      "status": 200,
+      "headers": {
+        "connection": "keep-alive",
+        "date": "Tue, 13 Oct 2026 07:05:10 GMT",
+        "keep-alive": "timeout=5",
+        "vary": "Origin"
+      },
+      "sha256": "64c2846f34b12ba8491df32c30935c80b3e62231f78400a1325912f1dbceee3f"
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://127.0.0.1:41854/sdcc/4.5.0-r1/sdcpp.js",
+      "body": null
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://127.0.0.1:41854/sdcc/4.5.0-r1/sdcc.js",
+      "body": null
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://127.0.0.1:41854/sdcc/4.5.0-r1/sdas8051.js",
+      "body": null
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://127.0.0.1:41854/sdcc/4.5.0-r1/sdld.js",
+      "body": null
+    },
+    {
+      "kind": "response",
+      "url": "http://127.0.0.1:41854/sdcc/4.5.0-r1/sdas8051.js",
+      "status": 200,
+      "headers": {
+        "access-control-allow-origin": "http://127.0.0.1:41854",
+        "connection": "keep-alive",
+        "date": "Tue, 13 Oct 2026 07:05:10 GMT",
+        "keep-alive": "timeout=5",
+        "vary": "Origin"
+      },
+      "sha256": "f64e8e9a5c84cad0b0038dd3bd3b7d1cf1b3a824fea9fb6c6918ac1fd56eef5e"
+    },
+    {
+      "kind": "response",
+      "url": "http://127.0.0.1:41854/sdcc/4.5.0-r1/sdld.js",
+      "status": 200,
+      "headers": {
+        "access-control-allow-origin": "http://127.0.0.1:41854",
+        "connection": "keep-alive",
+        "date": "Tue, 13 Oct 2026 07:05:10 GMT",
+        "keep-alive": "timeout=5",
+        "vary": "Origin"
+      },
+      "sha256": "3f653e925d34ba2d1eee78bf414d8d87d5b61eab4a80ef5ebde77bbeb7cf16fa"
+    },
+    {
+      "kind": "response",
+      "url": "http://127.0.0.1:41854/sdcc/4.5.0-r1/sdcpp.js",
+      "status": 200,
+      "headers": {
+        "access-control-allow-origin": "http://127.0.0.1:41854",
+        "connection": "keep-alive",
+        "date": "Tue, 13 Oct 2026 07:05:10 GMT",
+        "keep-alive": "timeout=5",
+        "vary": "Origin"
+      },
+      "sha256": "ff1dc03bd1c6f7be839924cc1686caebe7d58adf25bcb24ab6a4976f45790186"
+    },
+    {
+      "kind": "response",
+      "url": "http://127.0.0.1:41854/sdcc/4.5.0-r1/sdcc.js",
+      "status": 200,
+      "headers": {
+        "access-control-allow-origin": "http://127.0.0.1:41854",
+        "connection": "keep-alive",
+        "date": "Tue, 13 Oct 2026 07:05:10 GMT",
+        "keep-alive": "timeout=5",
+        "vary": "Origin"
+      },
+      "sha256": "2e7c911d400b0180e88f11460e3b23d188c12dbaab0fee1b29930e4d88c50c95"
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://127.0.0.1:41854/sdcc/4.5.0-r1/files.js",
+      "body": null
+    },
+    {
+      "kind": "response",
+      "url": "http://127.0.0.1:41854/sdcc/4.5.0-r1/files.js",
+      "status": 200,
+      "headers": {
+        "access-control-allow-origin": "http://127.0.0.1:41854",
+        "connection": "keep-alive",
+        "date": "Tue, 13 Oct 2026 07:05:10 GMT",
+        "keep-alive": "timeout=5",
+        "vary": "Origin"
+      },
+      "sha256": "72f12a9a76b3649205a5aa89c871e1f4d52711c819f18fa496b906297bcea2c2"
+    }
+  ]
+}

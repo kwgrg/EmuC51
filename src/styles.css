@@ -1162,3 +1162,11 @@ code, pre, textarea, .source-lines, .memory-heading, .memory-row, .monitor-regis
   .input-scenario-panel { margin: 0 10px 4px; padding: 12px; }
   .view-stage > .control-strip { margin: 12px 10px 0; }
 }
+
+.compiler-diagnostics { min-width: 0; margin-block: 16px; }
+.compiler-diagnostics ul { list-style: none; padding: 0; max-height: 280px; overflow: auto; }
+.compiler-diagnostics li { margin-block: 8px; overflow-wrap: anywhere; }
+.compiler-diagnostics li button { width: 100%; text-align: left; white-space: normal; overflow-wrap: anywhere; }
+.compiler-diagnostics pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 320px; overflow: auto; }
+.compiler-diagnostics summary { cursor: pointer; }
+.compiler-position { overflow-wrap: anywhere; }

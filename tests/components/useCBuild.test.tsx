@@ -41,3 +41,17 @@ it("enforces the hard timeout and terminates on unmount",()=>{
   act(()=>tasks[0]!.finish(artifact));expect(hook.result.current.artifact).toBeUndefined();
   act(()=>hook.result.current.build());hook.unmount();expect(tasks[1]!.terminate).toHaveBeenCalled();
 });
+it("binds failed and successful diagnostic logs to draft, request and workspace identity",()=>{
+  const hook=renderHook(({draft,epoch})=>useCBuild(draft,epoch),{initialProps:{draft:input,epoch:0}});
+  const stages=[{tool:'sdcc' as const,stderr:'main.c:1: error 1: broken',stdout:''}];
+  act(()=>hook.result.current.build());
+  const worker=tasks[0]!;
+  act(()=>worker.onmessage?.({data:{id:1,error:'failed',diagnosticStages:stages}} as MessageEvent<CBuildEvent>));
+  expect(hook.result.current.report?.stages).toBe(stages);expect(hook.result.current.artifact).toBeUndefined();
+  hook.rerender({draft:{files:[{path:'main.c',text:'new'}]},epoch:0});expect(hook.result.current.report).toBeUndefined();
+  act(()=>worker.onmessage?.({data:{id:1,error:'late',diagnosticStages:stages}} as MessageEvent<CBuildEvent>));expect(hook.result.current.report).toBeUndefined();
+  act(()=>hook.result.current.build());act(()=>tasks[1]!.finish({...artifact,diagnosticStages:stages}));expect(hook.result.current.report?.stages).toBe(stages);
+  hook.rerender({draft:input,epoch:1});expect(hook.result.current.report).toBeUndefined();
+  act(()=>hook.result.current.build());act(()=>tasks[2]!.finish({...artifact,diagnosticStages:stages}));
+  act(()=>hook.result.current.cancel());expect(hook.result.current.report).toBeUndefined();
+});

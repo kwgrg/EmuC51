@@ -15,7 +15,7 @@ def archive(name, root, paths):
 shutil.copy2(work/'sdcc_4.5.0+dfsg.orig.tar.xz',out)
 archive('boost-headers-source.tar.xz',work/'host',['usr/include/boost','usr/share/doc/libboost1.83-dev/copyright'])
 archive('emscripten-runtime-source.tar.xz',work/'emsdk/upstream/emscripten',['system/lib','system/include','src','LICENSE','AUTHORS','emscripten-version.txt'])
-archive('emuc51-port-source.tar.xz',repo,['src','scripts','tests','index.html','README.md','docs/BROWSER_SDCC.md','public/_headers','package.json','package-lock.json','tsconfig.json','tsconfig.app.json','tsconfig.node.json','vite.config.ts','eslint.config.js','playwright.config.ts'])
+archive('emuc51-port-source.tar.xz',repo,['src','scripts','tests','index.html','README.md','docs/BROWSER_SDCC.md','docs/SDCC_DIAGNOSTICS.md','public/_headers','package.json','package-lock.json','tsconfig.json','tsconfig.app.json','tsconfig.node.json','vite.config.ts','eslint.config.js','playwright.config.ts'])
 notices=out/'licenses';notices.mkdir(exist_ok=True)
 for src,name in [(work/'host/usr/share/doc/sdcc/copyright','SDCC-DEBIAN-COPYRIGHT'),(work/'host/usr/share/doc/sdcc-libraries/copyright','SDCC-LIBRARIES-COPYRIGHT'),(work/'host/usr/share/doc/libboost1.83-dev/copyright','BOOST-COPYRIGHT'),(work/'source/doc/README.txt','SDCC-README'),(work/'source/COPYING','SDCC-COPYING'),(pathlib.Path('/usr/share/common-licenses/GPL-2'),'GPL-2.txt'),(pathlib.Path('/usr/share/common-licenses/GPL-3'),'GPL-3.txt')]:
     shutil.copy2(src,notices/name)

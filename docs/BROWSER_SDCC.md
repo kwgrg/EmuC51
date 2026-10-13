@@ -1,4 +1,6 @@
-# 浏览器 SDCC 4.5.0 移植（开发分支验收）
+# 浏览器 SDCC 4.5.0 移植
+
+2026-10-13：浏览器构建闭环已通过 [现网验收](evidence/online-acceptance-2026-10-12/README.md)，新增 [诊断定位、原始构建日志与草稿替换保护](SDCC_DIAGNOSTICS.md)。
 
 2026-10-12：已从固定源码实际构建四个 WASM 阶段，在 Chromium Dedicated Worker 中编译单文件 C 和多 C + SDAS8051 工程。用户已批准最小 CSP 调整，`public/_headers` 增加 `wasm-unsafe-eval`，测试默认直接使用生产策略。现网可用性仍须以自动部署和在线验证为准。
 

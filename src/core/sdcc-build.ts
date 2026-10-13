@@ -4,7 +4,11 @@ import { sha256Hex } from "./digest";
 import { verifySdccDebug, type SdccDebugData } from "./sdcc-debug";
 
 export interface CBuildInput { project?: SdccProject; files: { path: string; text: string }[] }
-export interface CBuildResult { data: SdccDebugData; milliseconds: number; maxStageHeapBytes: number; diagnostics: string }
+export interface CBuildResult { data: SdccDebugData; milliseconds: number; maxStageHeapBytes: number; diagnostics: string; diagnosticStages?: BuildStageLog[] }
+export interface BuildStageLog { tool: ToolName; sourcePath?: string; generated?: boolean; stderr: string; stdout: string }
+export class CBuildFailure extends Error {
+  constructor(message: string, readonly diagnosticStages: BuildStageLog[]) { super(message); }
+}
 const sha = (text: string) => sha256Hex(new TextEncoder().encode(text).buffer);
 export function validateBuildInput(input: CBuildInput): CBuildInput {
   const project = input.project ? normalizeSdccProject(input.project) : undefined;
@@ -47,20 +51,32 @@ export type ToolName = "sdcpp" | "sdcc" | "sdas8051" | "sdld";
 const macros = ["__SDCC_CHAR_UNSIGNED","__SDCC_MODEL_SMALL","__SDCC_FLOAT_REENT","__SDCCCALL=0","__SDCC=4_5_0","__SDCC_VERSION_MAJOR=4","__SDCC_VERSION_MINOR=5","__SDCC_VERSION_PATCH=0","SDCC=450","__SDCC_REVISION=15242","__SDCC_mcs51","__STDC_NO_COMPLEX__=1","__STDC_NO_THREADS__=1","__STDC_NO_ATOMICS__=1","__STDC_NO_VLA__=1","__STDC_ISO_10646__=201409L","__SIZEOF_FLOAT__=4","__SIZEOF_DOUBLE__=4","__SDCC_BITINT_MAXWIDTH=64"];
 /** Each stage gets a new module/virtual filesystem. No host process or network API. */
 export async function compileC(input: CBuildInput, tools: Record<ToolName, ToolFactory>, assets: Record<string,string>): Promise<CBuildResult> {
+  const stages: BuildStageLog[] = [];
+  try { return await compileStages(input, tools, assets, stages); }
+  catch (error) { throw new CBuildFailure(error instanceof Error ? error.message : "编译失败", stages); }
+}
+async function compileStages(input: CBuildInput, tools: Record<ToolName, ToolFactory>, assets: Record<string,string>, stages: BuildStageLog[]): Promise<CBuildResult> {
   const start = performance.now(), { project, files: sources } = validateBuildInput(input);
   const files = new Map<string,Uint8Array>(sources.map(file => [file.path,new TextEncoder().encode(file.text)]));
-  let diagnostics = "", maxStageHeapBytes = 0;
+  let diagnostics = "", maxStageHeapBytes = 0, logCharacters = 0;
   const text = (name: string) => { const bytes = files.get(name); if (!bytes) throw new Error(`缺少构建产物 ${name}`); return new TextDecoder("utf-8",{fatal:true}).decode(bytes); };
-  async function stage(name: ToolName, args: string[], stdin = "") {
+  async function stage(name: ToolName, args: string[], stdin = "", sourcePath?: string, generated = false) {
     let stdout = "", stderr = "", offset = 0;
     const bytes = new TextEncoder().encode(stdin);
     const append = (current: string, line: string) => { if (current.length + line.length > 1024*1024) throw new Error("编译器输出超过 1 MiB"); return current + line + "\n"; };
-    const tool = await tools[name]({ thisProgram: `/tools/${name}`, print: line => { stdout=append(stdout,line); }, printErr: line => { stderr=append(stderr,line); }, stdin: () => offset < bytes.length ? bytes[offset++]! : null });
+    const record = (current: string, line: string) => {
+      if (logCharacters + line.length + 1 > 1024*1024) throw new Error("构建诊断日志超过 1 MiB");
+      logCharacters += line.length + 1;
+      return append(current,line);
+    };
+    const tool = await tools[name]({ thisProgram: `/tools/${name}`, print: line => { stdout=name === "sdcpp" ? append(stdout,line) : record(stdout,line); }, printErr: line => { stderr=record(stderr,line); }, stdin: () => offset < bytes.length ? bytes[offset++]! : null });
     const write = (path: string, data: string | Uint8Array) => { tool.FS.mkdirTree(path.slice(0,path.lastIndexOf("/"))); tool.FS.writeFile(path,data); };
     for (const [path,data] of Object.entries(assets)) write(path,Uint8Array.from(atob(data),c=>c.charCodeAt(0)));
     for (const [path,data] of files) write(`/work/${path}`,data);
     tool.FS.chdir("/work");
-    const code = tool.callMain(args);
+    let code: number;
+    try { code = tool.callMain(args); }
+    finally { stages.push({tool:name,sourcePath,generated,stderr,stdout:name === "sdcpp" ? "" : stdout}); }
     maxStageHeapBytes = Math.max(maxStageHeapBytes,tool.heapBytes());
     diagnostics=append(diagnostics,stderr);
     if (code !== 0) throw new Error(`${name} 退出 ${code}\n${stderr}`);
@@ -78,12 +94,12 @@ export async function compileC(input: CBuildInput, tools: Record<ToolName, ToolF
     const stem = unit.path.split("/").at(-1)!.replace(/\.[^.]+$/,"");
     let assembly=unit.path;
     if (unit.language==="c") {
-      const preprocessed=await stage("sdcpp",["-E","-quiet","-nostdinc","-Wall","-std=c11","--obj-ext=.rel",...macros.map(m=>`-D${m}`),"-isystem","/sdk/include/mcs51","-isystem","/sdk/include",...(project?.includeDirs ?? []).map(dir=>`-I${dir}`),unit.path]);
+      const preprocessed=await stage("sdcpp",["-E","-quiet","-nostdinc","-Wall","-std=c11","--obj-ext=.rel",...macros.map(m=>`-D${m}`),"-isystem","/sdk/include/mcs51","-isystem","/sdk/include",...(project?.includeDirs ?? []).map(dir=>`-I${dir}`),unit.path], "", unit.path);
       assembly=`${stem}.asm`;
-      await stage("sdcc",["--c1mode","--c1-source",unit.path,...PROJECT_OPTIONS,"-o",assembly],preprocessed);
+      await stage("sdcc",["--c1mode","--c1-source",unit.path,...PROJECT_OPTIONS,"-o",assembly],preprocessed,unit.path);
       checkBuildText(assembly,text(assembly),project,true);
     } else if (text(unit.path).match(/^\s*\.module\s+(\w+)/m)?.[1]!==stem) throw new Error("SDAS .module 必须与文件名一致");
-    await stage("sdas8051",["-plosgffwy",`${stem}.rel`,assembly]); rels.push(`${stem}.rel`);
+    await stage("sdas8051",["-plosgffwy",`${stem}.rel`,assembly], "", assembly, unit.language === "c"); rels.push(`${stem}.rel`);
   }
   const stem=project ? "firmware" : entry.replace(/\.c$/,"");
   files.set(`${stem}.lk`,new TextEncoder().encode(["-muwx",`-i ${stem}.ihx`,"-M","-I 0x0080","-y","-b HOME = 0x0000","-b XSEG = 0x0001","-b PSEG = 0x0001","-b ISEG = 0x0000","-b BSEG = 0x0000","-k /sdk/lib","-l mcs51","-l libsdcc","-l libint","-l liblong","-l libfloat",...rels,"-e",""].join("\n")));
@@ -99,5 +115,5 @@ export async function compileC(input: CBuildInput, tools: Record<ToolName, ToolF
     files:{source:{name:entry,sha256:await sha(source)},ihx:{name:`${stem}.ihx`,sha256:await sha(ihx)},cdb:{name:`${stem}.cdb`,sha256:await sha(cdb)}},...(project?{projectSha256:await sha(JSON.stringify(project))}:{})},source,ihx,cdb,...(project?{project,inputs}:{})};
   serializeSdccBundle(data);
   await verifySdccDebug(data);
-  return {data,milliseconds:performance.now()-start,maxStageHeapBytes,diagnostics:diagnostics.trim()};
+  return {data,milliseconds:performance.now()-start,maxStageHeapBytes,diagnostics:diagnostics.trim(),diagnosticStages:stages};
 }
